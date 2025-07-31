@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <link rel="stylesheet" href="{{ asset('css/messages.css') }}">
+    <style>
+        .message.sent {
+            text-align: right;
+            background-color: #c7e5dd;
+            color: #12372a;
+            margin-left: auto;
+            display: block;
+            max-width: 70%;
+        }
+        .message.received {
+            text-align: left;
+            background-color: #f1f1f1;
+            margin-right: auto;
+            display: block;
+            max-width: 70%;
+        }
+    </style>
+</head>
+<body>
+    @include('components.navbar')
+    <div class="main-content">
+        <div class="messages-wrapper">
+            <div class="inbox">
+                <h2>Inbox</h2>
+                @foreach($professors as $professor)
+                    <div class="inbox-item" onclick="loadChat('{{ $professor->name }}', {{ $professor->booking_id }})">
+                        <div class="name">{{ $professor->name }}</div>
+                        <div class="message">{{ $professor->last_message }}</div>
+                        <div class="time">
+                            {{ \Carbon\Carbon::parse($professor->last_message_time)->timezone('Asia/Manila')->format('m/d/Y h:i A') }}
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+            <div class="chat-panel" id="chat-panel">
+                <div class="chat-header">
+                    <button class="back-btn" id="back-btn" style="display:none;"><i class='bx bx-arrow-back'></i></button>
+                    <span id="chat-person">Select a Professor</span>
+                    <button class="video-btn" id="launch-call">Video Call</button>
+                </div>
+                <div class="chat-body" id="chat-body">
+                    @if(count($professors) === 0)
+                        <div class="message">No professors found.</div>
+                    @endif
+                </div>
+                <div class="chat-input" id="chat-input">
+                    <div id="file-preview-container" class="file-preview-container"></div>
+                    <label for="file-input" class="attach-btn" title="Upload file">
+                        <i class='bx bx-paperclip'></i>
+                    </label>
+                    <input type="file" id="file-input" multiple style="display:none;" accept="image/*,.pdf,.doc,.docx" />
+                    <textarea id="message-input" placeholder="Type a message..." rows="1"></textarea>
+                    <button id="send-btn" onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="{{ asset('js/messages.js') }}"></script>
+    <script src="https://js.pusher.com/7.0/pusher.min.js"></script>
+    <script>
+        let currentChatPerson = '';
+        let bookingId = null;
+
+        // Enable pusher logging - don't include this in production
+        Pusher.logToConsole = true;
+
+        var pusher = new Pusher('00e7e382ce019a1fa987', {
+          cluster: 'ap1'
+        });
+
+        var channel = pusher.subscribe('chat');
+        channel.bind('MessageSent', function(data) {
+          if (data.bookingId === bookingId) {
+            const chatBody = document.getElementById('chat-body');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${data.sender === 'student' ? 'sent' : 'received'}`;
+            msgDiv.textContent = data.message;
+            chatBody.appendChild(msgDiv);
+            chatBody.scrollTop = chatBody.scrollHeight;
+          }
+        });
+
+        function loadChat(person, chatBookingId) {
+          currentChatPerson = person;
+          bookingId = chatBookingId;
+          document.getElementById('chat-person').textContent = person;
+
+          // Highlight the selected inbox item
+          document.querySelectorAll('.inbox-item').forEach(item => item.classList.remove('active'));
+          // Find the clicked inbox item and add 'active'
+          const inboxItems = document.querySelectorAll('.inbox-item');
+          inboxItems.forEach(item => {
+            if (item.textContent.includes(person)) {
+              item.classList.add('active');
+            }
+          });
+
+          // Fetch messages for the selected chat
+          fetch(`/load-messages/${bookingId}`)
+            .then(response => response.json())
+            .then(messages => {
+              const chatBody = document.getElementById('chat-body');
+              chatBody.innerHTML = ''; // Clear existing messages
+              let lastMsgTime = null;
+              messages.forEach(msg => {
+                const msgDate = new Date(msg.created_at_iso || msg.Created_At);
+                if (isNaN(msgDate.getTime())) return;
+
+                let showDate = false;
+                let dateLabel = '';
+
+                // Show label if first message or 30+ min gap
+                if (!lastMsgTime || (msgDate - lastMsgTime) / (1000 * 60) >= 30) {
+                  showDate = true;
+                  const today = new Date();
+                  const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+                  
+                  if (
+                    msgDate.getDate() === today.getDate() &&
+                    msgDate.getMonth() === today.getMonth() &&
+                    msgDate.getFullYear() === today.getFullYear()
+                  ) {
+                    // Today: show only time
+                    dateLabel = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  } else if (msgDate > oneWeekAgo) {
+                    // Within a week: show weekday and time
+                    dateLabel =
+                      msgDate.toLocaleDateString([], { weekday: 'short' }) +
+                      ' ' +
+                      msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  } else {
+                    // Older than a week: show full date and time
+                    dateLabel = msgDate.toLocaleDateString('en-US', { 
+                      month: 'numeric', 
+                      day: 'numeric', 
+                      year: '2-digit' 
+                    }) + ', ' + msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  }
+                }
+                lastMsgTime = msgDate;
+
+                if (showDate) {
+                  const dateDiv = document.createElement('div');
+                  dateDiv.className = 'chat-date-label';
+                  dateDiv.textContent = dateLabel;
+                  chatBody.appendChild(dateDiv);
+                }
+
+                // Render message with hover time (only time, no date, no seconds)
+                const msgDiv = document.createElement('div');
+                msgDiv.className = `message ${msg.Sender === 'student' ? 'sent' : 'received'}`;
+                if (msg.file_path) {
+                    const fileUrl = `/storage/${msg.file_path}`;
+                    if (msg.file_type && msg.file_type.startsWith('image/')) {
+                        msgDiv.innerHTML = `<a href="${fileUrl}" target="_blank"><img src="${fileUrl}" style="max-width:150px;max-height:150px;"/></a>`;
+                    } else {
+                        msgDiv.innerHTML = `<a href="${fileUrl}" target="_blank">${msg.original_name || 'Download file'}</a>`;
+                    }
+                } else {
+                    msgDiv.textContent = msg.Message;
+                }
+                msgDiv.title = msgDate.toLocaleTimeString('en-US', {
+                  timeZone: 'Asia/Manila',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                chatBody.appendChild(msgDiv);
+              });
+              // After rendering all messages
+              setTimeout(() => {
+                chatBody.scrollTop = chatBody.scrollHeight;
+              }, 0);
+            })
+            .catch(error => console.error('Error loading messages:', error));
+        }
+
+        let selectedFiles = [];
+
+        document.getElementById("file-input").addEventListener("change", function (e) {
+            const files = Array.from(e.target.files);
+            selectedFiles = selectedFiles.concat(files);
+            renderFilePreviews();
+            e.target.value = ''; // Reset file input for next selection
+        });
+
+        function renderFilePreviews() {
+            const container = document.getElementById('file-preview-container');
+            container.innerHTML = '';
+            selectedFiles.forEach((file, idx) => {
+                const preview = document.createElement('div');
+                preview.className = 'file-preview';
+                if (file.type.startsWith('image/')) {
+                    const img = document.createElement('img');
+                    img.src = URL.createObjectURL(file);
+                    preview.appendChild(img);
+                    // Do NOT append file name for images
+                } else {
+                    const icon = document.createElement('span');
+                    icon.innerHTML = "<i class='bx bx-file'></i>";
+                    preview.appendChild(icon);
+                    const name = document.createElement('span');
+                    name.textContent = file.name.length > 20 ? file.name.slice(0, 17) + '...' : file.name;
+                    preview.appendChild(name);
+                }
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'remove-file';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.onclick = () => {
+                    selectedFiles.splice(idx, 1);
+                    renderFilePreviews();
+                };
+                preview.appendChild(removeBtn);
+
+                container.appendChild(preview);
+            });
+        }
+
+        // Stretch textarea like Messenger
+        const textarea = document.getElementById('message-input');
+        textarea.addEventListener('input', function () {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        // Send message with files
+        function sendMessage() {
+            const message = textarea.value.trim();
+            if (!message && selectedFiles.length === 0) return;
+
+            const formData = new FormData();
+            formData.append('message', message);
+            formData.append('recipient', currentChatPerson);
+            formData.append('bookingId', bookingId);
+            formData.append('sender', 'student');
+            formData.append('_token', '{{ csrf_token() }}');
+            selectedFiles.forEach((file, i) => {
+                formData.append('files[]', file);
+            });
+
+            fetch('/send-message', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'Message sent!') {
+                    textarea.value = '';
+                    textarea.style.height = 'auto';
+                    selectedFiles = [];
+                    renderFilePreviews();
+                    loadChat(currentChatPerson, bookingId); // <--- This reloads the chat
+                } else {
+                    alert('Error sending: ' + (data.error || data.status));
+                }
+            })
+            .catch(error => alert('Error: ' + error));
+        }
+
+        document.getElementById("attach-btn")?.addEventListener("click", function () {
+            document.getElementById("file-input").click();
+        });
+
+        // Responsive logic
+        function isMobile() {
+          return window.innerWidth <= 700;
+        }
+
+        function showChatPanel() {
+          if (isMobile()) {
+            document.getElementById('chat-panel').classList.add('active');
+            document.getElementById('back-btn').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+          }
+        }
+
+        function hideChatPanel() {
+          if (isMobile()) {
+            document.getElementById('chat-panel').classList.remove('active');
+            document.getElementById('back-btn').style.display = 'none';
+            document.body.style.overflow = '';
+          }
+        }
+
+        // Show chat panel on inbox item click (mobile)
+        document.querySelectorAll('.inbox-item').forEach(item => {
+          item.addEventListener('click', showChatPanel);
+        });
+
+        // Back button to return to inbox (mobile)
+        document.getElementById('back-btn').addEventListener('click', hideChatPanel);
+
+        // On resize, hide chat panel if switching to desktop
+        window.addEventListener('resize', function() {
+          if (!isMobile()) {
+            document.getElementById('chat-panel').classList.add('active');
+            document.getElementById('back-btn').style.display = 'none';
+            document.body.style.overflow = '';
+          } else {
+            document.getElementById('chat-panel').classList.remove('active');
+            document.getElementById('back-btn').style.display = 'none';
+            document.body.style.overflow = '';
+          }
+        });
+
+        // On load, show chat panel on desktop, hide on mobile
+        document.addEventListener('DOMContentLoaded', function() {
+          if (!isMobile()) {
+            document.getElementById('chat-panel').classList.add('active');
+            document.getElementById('back-btn').style.display = 'none';
+            const firstInboxItem = document.querySelector('.inbox-item');
+            if (firstInboxItem) {
+              firstInboxItem.click();
+            }
+          } else {
+            document.getElementById('chat-panel').classList.remove('active');
+            document.getElementById('back-btn').style.display = 'none';
+            // Do NOT auto-load any chat on mobile
+          }
+        });
+    </script>
+</body>
+</html>

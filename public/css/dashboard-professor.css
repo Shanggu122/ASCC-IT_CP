@@ -1,0 +1,269 @@
+/* Reset & Base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Poppins", sans-serif;
+}
+body {
+    display: flex;
+    height: 100vh;
+    background-color: #e5f0ed;
+}
+
+/* Main Content */
+.main-content {
+    flex: 1;
+    padding: 2rem;
+}
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.header h1 {
+    font-size: 2rem;
+    color: #12372a;
+}
+
+/* Chat Button */
+.chat-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #12372a;
+    color: white;
+    border: none;
+    padding: 1rem 1.2rem;
+    border-radius: 40px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+.chat-button i {
+    font-size: 1.2rem;
+}
+
+/* Chat Overlay */
+.chat-overlay {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 350px;
+    height: 100%;
+    background-color: #ffffff;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    transition: right 0.3s ease;
+    border-left: 3px solid #12372a;
+}
+.chat-overlay.open {
+    right: 0;
+}
+.chat-overlay .chat-header {
+    background-color: #12372a;
+    color: white;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+}
+.chat-overlay .close-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 30px;
+    cursor: pointer;
+}
+.chat-overlay .chat-body {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+    background: #f5f5f5;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    overflow-y: auto;
+}
+.chat-overlay .message.bot {
+    margin: 0.5rem 0;
+    padding: 0.6rem;
+    border-radius: 8px;
+    max-width: 80%;
+    font-size: 14px;
+    background-color: #e0f2f1;
+    align-self: flex-start;
+}
+
+#chatForm {
+    display: flex;
+    padding: 1rem;
+    border-top: 1px solid #ccc;
+    background-color: #ffffff;
+}
+
+#chatForm input[type="text"] {
+    flex: 1;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-right: 0.5rem;
+    outline: none;
+}
+
+#chatForm button {
+    background-color: #12372a;
+    color: #ffffff;
+    border: none;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#chatForm button:hover {
+    background-color: #0e4e23;
+}
+
+.message.user {
+    align-self: flex-end;
+    background-color: #d0e6ff;
+    color: #000;
+    padding: 0.6rem 0.8rem;
+    margin: 0.5rem 0;
+    margin-right: 0.5rem;
+    border-radius: 12px;
+    border-bottom-right-radius: 0px;
+    max-width: 80%;
+    font-size: 14px;
+    text-align: left;
+    display: inline-block;
+}
+
+/* Legend styling */
+.legend {
+    display: flex;
+    justify-content: start;
+    margin-top: 20px;
+    font-size: 0.9rem;
+}
+
+.legend div {
+    display: flex;
+    align-items: center;
+    margin: 0 12px;
+}
+
+.legend-box {
+    width: 40px;
+    height: 16px;
+    margin-right: 6px;
+    border-radius: 3px;
+}
+
+.legend-box.completed,
+.status-completed,
+.status-completed:has(.is-today) {
+    background-color: #093b2f !important;
+}
+.legend-box.pending,
+.status-pending,
+.status-pending:has(.is-today) {
+    background-color: #ffa600 !important;
+}
+.legend-box.rescheduled,
+.status-rescheduled,
+.status-rescheduled:has(.is-today) {
+    background-color: #c50000 !important;
+}
+.legend-box.approved,
+.status-approved,
+.status-approved:has(.is-today) {
+    background-color: #0f9657 !important;
+}
+
+.is-today:has(.status-pending) {
+    color: #5fb9d4 !important;
+}
+
+.pika-single,
+.pika-label {
+    background: transparent !important;
+}
+
+.calendar-box {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 70% !important;
+    max-width: 500px; /* adjust as needed */
+    margin-bottom: 2rem;
+}
+
+.box {
+    width: 30%;
+}
+
+.calendar-wrapper-container {
+    width: 100%;
+}
+
+.legend {
+    margin-top: 100px;
+    margin-bottom: 0;
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: none;
+    position: static;
+}
+
+/* Calendar styling */
+.pika-table td {
+    height: 75px !important; /* Adjust this value for your preferred height */
+    padding: 0 !important;
+    vertical-align: middle !important; /* Vertically center content */
+}
+
+.pika-button {
+    height: 60px !important; /* Adjust this value for your preferred height */
+    min-height: 48px !important;
+    width: 100%;
+    display: flex;
+    align-items: center; /* Vertically center the number */
+    justify-content: center; /* Horizontally center the number */
+    /* Do not change background or color here */
+    font-size: 3rem; /* Keep original font size, adjust if needed */
+    font-weight: 1000;
+
+    margin: 0 !important;
+    border-radius: inherit;
+    box-sizing: border-box;
+}
+
+.flex-layout {
+    display: flex;
+}
+
+@media (max-width: 768px) {
+    .header {
+        margin-top: 40px; /* Add space for the navbar */
+    }
+    .flex-layout {
+        flex-direction: column;
+    }
+    .calendar-box {
+        width: 100% !important;
+    }
+    .box {
+        width: 100%;
+    }
+}
