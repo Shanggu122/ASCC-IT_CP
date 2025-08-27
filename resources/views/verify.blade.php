@@ -23,13 +23,19 @@
         </a>
         <span class="fp-title">Email Verification</span>
       </div>
-      <form action="{{ route('reset.password') }}" method="GET">
-    <div class="input-group">
-      <h3 class="fp-instruction">Enter Verification Code</h3>
-        <input type="text" name="otp" placeholder="Enter 4-digit OTP" maxlength="4" required>
-    </div>
-    <button type="submit" class="login-btn">Verify OTP</button>
-</form>
+      <form action="{{ route('otp.verify') }}" method="POST" style="margin-top:0;">
+        @csrf
+        <div class="input-group">
+          <h3 class="fp-instruction">Enter Verification Code</h3>
+          <input type="text" name="otp" placeholder="Enter 4-digit OTP" maxlength="4" required>
+          @error('otp')<div class="field-error">{{ $message }}</div>@enderror
+          @if(session('status'))<div class="field-success">{{ session('status') }}</div>@endif
+        </div>
+        <button type="submit" class="login-btn" style="margin-top:10px;">Verify OTP</button>
+        <div style="margin-top:14px;text-align:center;font-size:13px;">
+            Didn't get the code? <a href="{{ route('otp.resend') }}" style="color:#0d5c46;font-weight:600;">Resend OTP</a>
+        </div>
+      </form>
     </div>
   </div>
 </body>

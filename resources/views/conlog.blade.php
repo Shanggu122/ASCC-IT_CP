@@ -30,13 +30,18 @@
     <div class="search-container">
       <input type="text" id="searchInput" placeholder="Search..." style="flex:1;">
       <div class="filter-group-horizontal">
-        <select id="typeFilter" class="filter-select">
-          <option value="">All Types</option>
-          @foreach($fixedTypes as $type)
-            <option value="{{ $type }}">{{ $type }}</option>
-          @endforeach
-          <option value="Others">Others</option>
-        </select>
+    <select id="typeFilter" class="filter-select">
+            <option value="">All Types</option>
+            @foreach($fixedTypes as $type)
+              <option value="{{ $type }}">{{ $type }}</option>
+            @endforeach
+            <option value="Others">Others</option>
+          </select>
+          <!-- Custom filter dropdown (mobile) -->
+    <div id="typeFilterDropdown" class="cs-dd" style="display:none;">
+            <button type="button" class="cs-dd-trigger" id="typeFilterTrigger">All Types</button>
+            <ul class="cs-dd-list" id="typeFilterList"></ul>
+          </div>
       </div>
     </div>
 
@@ -110,31 +115,49 @@ const fixedTypes = [
 ];
 
 function filterRows() {
-    let search = document.getElementById('searchInput').value.toLowerCase();
-    let type = document.getElementById('typeFilter').value.toLowerCase();
-    let rows = document.querySelectorAll('.table-row:not(.table-header)');
-    rows.forEach(row => {
-        let rowType = row.querySelector('[data-label="Type"]')?.textContent.toLowerCase() || '';
-        let instructor = row.querySelector('.instructor-cell')?.textContent.toLowerCase() || '';
-        let rowSubject = row.querySelector('[data-label="Subject"]')?.textContent.toLowerCase() || '';
+  let search = document.getElementById('searchInput').value.toLowerCase();
+  let type = document.getElementById('typeFilter').value.toLowerCase();
+  let rows = document.querySelectorAll('.table-row:not(.table-header)');
+  rows.forEach(row => {
+    let rowType = row.querySelector('[data-label="Type"]')?.textContent.toLowerCase() || '';
+    let instructor = row.querySelector('.instructor-cell')?.textContent.toLowerCase() || '';
+    let rowSubject = row.querySelector('[data-label="Subject"]')?.textContent.toLowerCase() || '';
 
-        // Is this row a custom type (not in fixedTypes)?
-        let isOthers = fixedTypes.indexOf(rowType) === -1 && rowType !== '';
+    // Is this row a custom type (not in fixedTypes)?
+    let isOthers = fixedTypes.indexOf(rowType) === -1 && rowType !== '';
 
-        let matchesType =
-            !type ||
-            (type !== "others" && rowType === type) ||
-            (type === "others" && isOthers);
+    let matchesType =
+      !type ||
+      (type !== 'others' && rowType === type) ||
+      (type === 'others' && isOthers);
 
-        let matchesSearch = instructor.includes(search) || rowSubject.includes(search) || rowType.includes(search);
+    let matchesSearch = instructor.includes(search) || rowSubject.includes(search) || rowType.includes(search);
 
-        if (matchesSearch && matchesType) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
-    });
+    row.style.display = (matchesSearch && matchesType) ? '' : 'none';
+  });
 }
+
+  // Custom dropdown for type filter (mobile)
+  function buildTypeFilterDropdown(){
+    const wrap=document.getElementById('typeFilterDropdown');
+    const trigger=document.getElementById('typeFilterTrigger');
+    const list=document.getElementById('typeFilterList');
+    const native=document.getElementById('typeFilter');
+    if(!wrap||!trigger||!list||!native) return;
+    list.innerHTML='';
+    Array.from(native.options).forEach((o,i)=>{
+      const li=document.createElement('li');
+      li.textContent=o.textContent; if(i===native.selectedIndex) li.classList.add('active');
+      li.addEventListener('click',()=>{ native.selectedIndex=i; updateTrigger(); wrap.classList.remove('open'); Array.from(list.children).forEach(c=>c.classList.remove('active')); li.classList.add('active'); native.dispatchEvent(new Event('change')); });
+      list.appendChild(li);
+    });
+    updateTrigger();
+    trigger.onclick=()=>{ wrap.classList.toggle('open'); };
+    document.addEventListener('click',e=>{ if(!wrap.contains(e.target)) wrap.classList.remove('open'); });
+    function updateTrigger(){ const sel=native.options[native.selectedIndex]; trigger.textContent= sel? sel.textContent : 'All Types'; }
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){ buildTypeFilterDropdown(); });
 
 document.getElementById('searchInput').addEventListener('keyup', filterRows);
 document.getElementById('typeFilter').addEventListener('change', filterRows);

@@ -2,7 +2,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: "Segoe UI", sans-serif;
+    font-family: 'Segoe UI', sans-serif;
 }
 
 body {
@@ -23,11 +23,7 @@ body {
 
 .left-panel {
     flex: 1;
-    background: linear-gradient(
-        to bottom right,
-        rgba(255, 255, 255, 0.8),
-        rgba(13, 96, 70, 0.8)
-    );
+    background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.8), rgba(13, 96, 70, 0.8));
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -186,6 +182,26 @@ body {
     align-items: center;
     flex: 1; /* Take up available space */
     text-align: left; /* Align error text to the left */
+}
+
+/* Generic field-level error directly under an input */
+.field-error {
+    color: #dc3545;
+    font-size: 14px;
+    margin-top: 6px;
+    font-weight: 500;
+    width: 100%;
+    text-align: left;
+    padding-left: 4px;
+}
+.field-success {
+    color: #0b6e4f;
+    font-size: 14px;
+    margin-top: 6px;
+    font-weight: 600;
+    width: 100%;
+    text-align: left;
+    padding-left: 4px;
 }
 
 .options-row a {

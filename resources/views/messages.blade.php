@@ -31,15 +31,37 @@
         <div class="messages-wrapper">
             <div class="inbox">
                 <h2>Inbox</h2>
-                @foreach($professors as $professor)
-                    <div class="inbox-item" onclick="loadChat('{{ $professor->name }}', {{ $professor->booking_id }})">
-                        <div class="name">{{ $professor->name }}</div>
-                        <div class="message">{{ $professor->last_message }}</div>
-                        <div class="time">
-                            {{ \Carbon\Carbon::parse($professor->last_message_time)->timezone('Asia/Manila')->format('m/d/Y h:i A') }}
-                        </div>
-                    </div>
-                @endforeach
+        @foreach($professors as $professor)
+          @php
+            // Accept possible field name variations
+            $pic = null;
+            if (is_object($professor)) {
+                if (property_exists($professor,'profile_picture')) { $pic = $professor->profile_picture; }
+                elseif (property_exists($professor,'Profile_Picture')) { $pic = $professor->Profile_Picture; }
+                elseif (property_exists($professor,'photo')) { $pic = $professor->photo; }
+            }
+            $picUrl = $pic ? asset('storage/'.$pic) : asset('images/dprof.jpg');
+            $lastMessage = $professor->last_message ?? 'No messages yet';
+            $youPrefix = isset($professor->last_sender) && $professor->last_sender === 'student' ? 'You: ' : '';
+            $displayMessage = $youPrefix . $lastMessage;
+            $shortMsg = \Illuminate\Support\Str::limit($displayMessage, 40); // truncate with ellipsis
+            $relTime = $professor->last_message_time
+              ? \Carbon\Carbon::parse($professor->last_message_time)->timezone('Asia/Manila')->diffForHumans(['short'=>true])
+              : '';
+          @endphp
+          <div class="inbox-item" onclick="loadChat('{{ $professor->name }}', {{ $professor->booking_id }})">
+              <img class="inbox-avatar" src="{{ $picUrl }}" alt="{{ $professor->name }}">
+              <div class="inbox-meta">
+                  <div class="name">{{ $professor->name }}</div>
+                  <div class="snippet-line">
+                      <span class="snippet" title="{{ $displayMessage }}">{!! isset($professor->last_sender) && $professor->last_sender==='student' ? '<strong>You:</strong> ' : '' !!}{{ \Illuminate\Support\Str::limit($lastMessage, 36) }}</span>
+                      @if($relTime)
+                        <span class="rel-time">{{ $relTime }}</span>
+                      @endif
+                  </div>
+              </div>
+          </div>
+        @endforeach
             </div>
             <div class="chat-panel" id="chat-panel">
                 <div class="chat-header">
@@ -111,7 +133,8 @@
               const chatBody = document.getElementById('chat-body');
               chatBody.innerHTML = ''; // Clear existing messages
               let lastMsgTime = null;
-              messages.forEach(msg => {
+              const chatImages = [];
+              messages.forEach((msg, idx) => {
                 const msgDate = new Date(msg.created_at_iso || msg.Created_At);
                 if (isNaN(msgDate.getTime())) return;
 
@@ -159,14 +182,16 @@
                 const msgDiv = document.createElement('div');
                 msgDiv.className = `message ${msg.Sender === 'student' ? 'sent' : 'received'}`;
                 if (msg.file_path) {
-                    const fileUrl = `/storage/${msg.file_path}`;
-                    if (msg.file_type && msg.file_type.startsWith('image/')) {
-                        msgDiv.innerHTML = `<a href="${fileUrl}" target="_blank"><img src="${fileUrl}" style="max-width:150px;max-height:150px;"/></a>`;
-                    } else {
-                        msgDiv.innerHTML = `<a href="${fileUrl}" target="_blank">${msg.original_name || 'Download file'}</a>`;
-                    }
+                  const fileUrl = `/storage/${msg.file_path}`;
+                  if (msg.file_type && msg.file_type.startsWith('image/')) {
+                    const imgIndex = chatImages.length; // index before push
+                    chatImages.push({ url: fileUrl, name: msg.original_name || 'image', createdAt: msgDate.toISOString() });
+                    msgDiv.innerHTML = `<div class="chat-img-wrapper" data-index="${imgIndex}"><img src="${fileUrl}" alt="${msg.original_name || 'image'}" class="chat-image"/></div>`;
+                  } else {
+                    msgDiv.innerHTML = `<a href="${fileUrl}" target="_blank">${msg.original_name || 'Download file'}</a>`;
+                  }
                 } else {
-                    msgDiv.textContent = msg.Message;
+                  msgDiv.textContent = msg.Message;
                 }
                 msgDiv.title = msgDate.toLocaleTimeString('en-US', {
                   timeZone: 'Asia/Manila',
@@ -175,6 +200,15 @@
                 });
                 chatBody.appendChild(msgDiv);
               });
+              // After loop attach click handlers for images
+              document.querySelectorAll('.chat-img-wrapper').forEach(el => {
+                el.addEventListener('click', () => {
+                  const idx = parseInt(el.getAttribute('data-index'));
+                  openImageOverlay(idx);
+                });
+              });
+              // Store images on window for navigation
+              window.currentChatImages = chatImages;
               // After rendering all messages
               setTimeout(() => {
                 chatBody.scrollTop = chatBody.scrollHeight;
@@ -241,6 +275,13 @@
             this.style.height = 'auto';
             this.style.height = (this.scrollHeight) + 'px';
         });
+    // Enter to send (Shift+Enter = newline)
+    textarea.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        sendMessage();
+      }
+    });
 
         // Send message with files
         function sendMessage() {
@@ -337,6 +378,80 @@
             // Do NOT auto-load any chat on mobile
           }
         });
+
+        // IMAGE OVERLAY LIGHTBOX (student side only)
+        function openImageOverlay(index) {
+          const images = window.currentChatImages || [];
+          if (!images.length || index < 0 || index >= images.length) return;
+          window.currentImageIndex = index;
+          const overlay = document.getElementById('image-overlay');
+          const mainImg = document.getElementById('overlay-main');
+          const dl = document.getElementById('overlay-download');
+          const data = images[index];
+          mainImg.src = data.url;
+          mainImg.alt = data.name;
+            // Force download filename
+          dl.href = data.url;
+          dl.setAttribute('download', data.name.replace(/[^a-zA-Z0-9._-]/g,'_'));
+          buildThumbs();
+          overlay.classList.remove('hidden');
+          document.body.style.overflow = 'hidden';
+        }
+
+        function closeImageOverlay() {
+          const overlay = document.getElementById('image-overlay');
+          overlay.classList.add('hidden');
+          document.body.style.overflow = '';
+        }
+
+        function navImage(delta) {
+          const images = window.currentChatImages || [];
+          if (!images.length) return;
+          let idx = (window.currentImageIndex || 0) + delta;
+          if (idx < 0) idx = images.length - 1;
+          if (idx >= images.length) idx = 0;
+          openImageOverlay(idx);
+        }
+
+        function buildThumbs() {
+          const images = window.currentChatImages || [];
+          const thumbs = document.getElementById('overlay-thumbs');
+          if (!thumbs) return;
+          thumbs.innerHTML = '';
+          images.forEach((img, i) => {
+            const t = document.createElement('img');
+            t.src = img.url;
+            t.alt = img.name;
+            t.className = 'overlay-thumb' + (i === window.currentImageIndex ? ' active' : '');
+            t.addEventListener('click', () => openImageOverlay(i));
+            thumbs.appendChild(t);
+          });
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+          const overlay = document.getElementById('image-overlay');
+          if (overlay.classList.contains('hidden')) return;
+          if (e.key === 'Escape') closeImageOverlay();
+          else if (e.key === 'ArrowRight') navImage(1);
+          else if (e.key === 'ArrowLeft') navImage(-1);
+        });
+
+        // Click outside main image closes
+        document.addEventListener('click', (e) => {
+          const overlay = document.getElementById('image-overlay');
+          if (!overlay || overlay.classList.contains('hidden')) return;
+          if (e.target === overlay) closeImageOverlay();
+        });
     </script>
+    <!-- Image Overlay (Student only) -->
+    <div id="image-overlay" class="image-overlay hidden">
+      <button class="overlay-btn close" onclick="closeImageOverlay()" aria-label="Close image">&times;</button>
+      <a id="overlay-download" class="overlay-btn download" aria-label="Download image"><i class='bx bx-download'></i></a>
+      <button class="overlay-nav prev" onclick="navImage(-1)" aria-label="Previous image">&#10094;</button>
+      <button class="overlay-nav next" onclick="navImage(1)" aria-label="Next image">&#10095;</button>
+      <img id="overlay-main" class="overlay-main" alt="Preview" />
+      <div id="overlay-thumbs" class="overlay-thumbs"></div>
+    </div>
 </body>
 </html>

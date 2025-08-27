@@ -11,11 +11,12 @@
     <!-- Mobile header with hamburger and bell icon -->
     <div class="mobile-header">
         <button class="hamburger" id="hamburger">&#9776;</button>
-        
-        <button class="mobile-notification-bell" id="mobileNotificationBell" onclick="toggleMobileNotifications()">
-            <i class='bx bx-bell'></i>
-            <span class="mobile-notification-badge" id="mobileNotificationBadge" style="display: none;">0</span>
-        </button>
+        @if (Request::is('dashboard'))
+            <button class="mobile-notification-bell" id="mobileNotificationBell" onclick="toggleMobileNotifications()">
+                <i class='bx bx-bell'></i>
+                <span class="mobile-notification-badge" id="mobileNotificationBadge" style="display: none;">0</span>
+            </button>
+        @endif
     </div>
     
     <div class="sidebar" id="sidebar">
@@ -46,22 +47,24 @@
         </ul>
     </div>
 
-    <!-- Mobile Notifications Dropdown -->
-    <div class="mobile-notifications-dropdown" id="mobileNotificationDropdown">
-        <div class="mobile-notifications-header">
-            <h3>Notifications</h3>
-            <button class="close-mobile-notifications" onclick="toggleMobileNotifications()">×</button>
-        </div>
-        <div class="mobile-notifications-content" id="mobileNotificationsContainer">
-            <div class="loading-notifications">
-                <i class='bx bx-loader-alt bx-spin'></i>
-                <p>Loading notifications...</p>
+    @if (Request::is('dashboard'))
+        <!-- Mobile Notifications Dropdown (dashboard only) -->
+        <div class="mobile-notifications-dropdown" id="mobileNotificationDropdown">
+            <div class="mobile-notifications-header">
+                <h3>Notifications</h3>
+                <button class="close-mobile-notifications" onclick="toggleMobileNotifications()">×</button>
+            </div>
+            <div class="mobile-notifications-content" id="mobileNotificationsContainer">
+                <div class="loading-notifications">
+                    <i class='bx bx-loader-alt bx-spin'></i>
+                    <p>Loading notifications...</p>
+                </div>
+            </div>
+            <div class="mobile-notifications-footer">
+                <button class="mark-all-read-mobile" onclick="markAllNotificationsAsRead()">Mark All as Read</button>
             </div>
         </div>
-        <div class="mobile-notifications-footer">
-            <button class="mark-all-read-mobile" onclick="markAllNotificationsAsRead()">Mark All as Read</button>
-        </div>
-    </div>
+    @endif
 
     <script>
         // Only run if hamburger exists (mobile)
@@ -74,16 +77,7 @@
             });
         }
 
-        // Hide notification bell on specific pages
-        document.addEventListener('DOMContentLoaded', function() {
-            const currentPath = window.location.pathname;
-            const hideBellOnPages = ['/comsci', '/itis', '/profile', '/conlog', '/messages'];
-            const notificationBell = document.getElementById('mobileNotificationBell');
-            
-            if (notificationBell && hideBellOnPages.includes(currentPath)) {
-                notificationBell.style.display = 'none';
-            }
-        });
+    // Bell & dropdown now rendered only on dashboard via Blade condition.
 
         // Mobile notifications toggle
         function toggleMobileNotifications() {

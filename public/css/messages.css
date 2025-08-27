@@ -2,7 +2,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: "Poppins", sans-serif;
+    font-family: 'Poppins', sans-serif;
 }
 
 body {
@@ -44,10 +44,24 @@ body {
     border-bottom: 1px solid #eee;
     cursor: pointer;
     margin-bottom: 5px;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 10px;
 }
 
 .inbox-item:hover {
     background-color: #cae4cf;
+}
+
+/* old .inbox-top removed (structure changed) */
+.inbox-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #ccc;
 }
 
 .name,
@@ -58,18 +72,47 @@ body {
 
 .name {
     font-weight: bold;
-    font-size: 18px;
+    font-size: 22px;
 }
 
-.message {
+/* Desktop (wide) scale down inbox avatar & name */
+@media (min-width: 1100px) {
+    .inbox-avatar {
+        width: 56px;
+        height: 56px;
+    }
+    .name {
+        font-size: 18px;
+    }
+}
+
+/* snippet inside inbox */
+.inbox-meta {
+    flex: 1;
+    min-width: 0;
+}
+.snippet-line {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+.snippet {
     color: #555;
-    font-size: 14px;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+}
+.rel-time {
+    margin-left: auto;
+    font-size: 12px;
+    color: #777;
+    flex-shrink: 0;
 }
 
-.time {
-    font-size: 14px;
-    color: #999;
-}
+/* .time no longer used in new layout */
 
 /* Chat panel */
 .chat-panel {
@@ -186,10 +229,23 @@ body {
     resize: none;
     border-radius: 18px;
     border: 1px solid #ccc;
-    padding: 8px 12px;
+    padding: 8px 16px 8px 12px; /* extra right space for scrollbar */
     font-size: 1em;
     transition: box-shadow 0.2s;
     outline: none;
+    overflow-y: auto; /* ensure scrollbar stays inside */
+    scrollbar-gutter: stable; /* keep content from shifting when scrollbar appears */
+}
+
+/* Hide textarea scrollbar but keep scroll functionality */
+.chat-input textarea {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.chat-input textarea::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
 }
 
 /* Add to your messages.css */
@@ -409,7 +465,6 @@ body {
     max-width: 70%;
 }
 
-
 .image-modal-content {
     position: relative;
     background: #fff;
@@ -424,4 +479,146 @@ body {
     align-items: center;
     box-sizing: border-box;
     justify-content: flex-start;
+}
+
+/* IMAGE OVERLAY LIGHTBOX (student) */
+.image-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    z-index: 9999;
+    padding: 60px 40px 100px; /* space for buttons & thumbs */
+}
+.image-overlay.hidden {
+    display: none;
+}
+.overlay-main {
+    max-width: 90vw;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    user-select: none;
+}
+.overlay-btn {
+    position: absolute;
+    top: 18px;
+    width: 54px;
+    height: 54px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font-size: 1.55rem; /* icon/text size */
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition:
+        background 0.2s,
+        transform 0.15s;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.overlay-btn:hover {
+    background: rgba(0, 0, 0, 0.78);
+    transform: translateY(-2px);
+}
+.overlay-btn:active {
+    transform: translateY(0);
+}
+.overlay-btn.close {
+    right: 22px;
+}
+.overlay-btn.download {
+    right: 22px;
+    transform: translateX(-62px);
+}
+.overlay-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 2.5rem;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.35);
+    border: none;
+    cursor: pointer;
+    padding: 8px 14px;
+    border-radius: 6px;
+    user-select: none;
+    transition: background 0.2s;
+}
+.overlay-nav:hover {
+    background: rgba(0, 0, 0, 0.55);
+}
+.overlay-nav.prev {
+    left: 20px;
+}
+.overlay-nav.next {
+    right: 20px;
+}
+.overlay-thumbs {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    max-width: 90vw;
+    overflow-x: auto;
+    padding: 8px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    backdrop-filter: blur(4px);
+}
+.overlay-thumbs::-webkit-scrollbar {
+    height: 6px;
+}
+.overlay-thumbs::-webkit-scrollbar-track {
+    background: transparent;
+}
+.overlay-thumbs::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+}
+.overlay-thumb {
+    height: 64px;
+    width: 64px;
+    object-fit: cover;
+    cursor: pointer;
+    opacity: 0.6;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    transition:
+        opacity 0.2s,
+        transform 0.2s,
+        border-color 0.2s;
+}
+.overlay-thumb:hover {
+    opacity: 0.9;
+    transform: scale(1.03);
+}
+.overlay-thumb.active {
+    opacity: 1;
+    border-color: #4caf50;
+}
+
+/* Inline chat images */
+.chat-image {
+    max-width: 150px;
+    max-height: 150px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: block;
+}
+.chat-img-wrapper {
+    display: inline-block;
+    position: relative;
 }

@@ -190,6 +190,10 @@
         <select name="subject_id" id="modalSubjectSelect">
           {{-- Options will be filled by JS --}}
         </select>
+        <div id="csSubjectDropdown" class="cs-dd" style="display:none;">
+          <button type="button" class="cs-dd-trigger" id="csDdTrigger">Select Subject</button>
+          <ul class="cs-dd-list" id="csDdList"></ul>
+        </div>
       </div>
 
       <div class="checkbox-section">
@@ -282,6 +286,9 @@ function openModal(card) {
         select.appendChild(opt);
     }
 
+  // Initialize / rebuild custom subject dropdown (mobile)
+  initCustomSubjectDropdown();
+
     document.getElementById("modalProfilePic").src = img;
     document.getElementById("modalProfileName").textContent = name;
     document.getElementById("modalProfId").value = profId;
@@ -294,6 +301,32 @@ function openModal(card) {
     } else {
         scheduleDiv.innerHTML = '<p style="color: #888;">No schedule available</p>';
     }
+}
+
+// Custom dropdown (isolated; mirrors comsci implementation)
+function initCustomSubjectDropdown(){
+  const wrap=document.getElementById('csSubjectDropdown');
+  const trigger=document.getElementById('csDdTrigger');
+  const list=document.getElementById('csDdList');
+  const native=document.getElementById('modalSubjectSelect');
+  if(!wrap||!trigger||!list||!native) return; // safety
+  list.innerHTML='';
+  Array.from(native.options).forEach((o,i)=>{
+    const li=document.createElement('li');
+    li.textContent=o.text; if(i===native.selectedIndex) li.classList.add('active');
+    li.addEventListener('click',()=>{ 
+      native.selectedIndex=i; 
+      updateCsTrigger(); 
+      wrap.classList.remove('open'); 
+      Array.from(list.children).forEach(c=>c.classList.remove('active')); 
+      li.classList.add('active');
+    });
+    list.appendChild(li);
+  });
+  updateCsTrigger();
+  trigger.onclick=()=>{ wrap.classList.toggle('open'); };
+  document.addEventListener('click',e=>{ if(!wrap.contains(e.target)) wrap.classList.remove('open'); });
+  function updateCsTrigger(){ const sel=native.options[native.selectedIndex]; trigger.textContent=(sel?sel.text:'Select Subject'); }
 }
 
 // Close modal function

@@ -20,19 +20,21 @@
     <!-- Right Panel -->
     <div class="right-panel">
       <div class="fp-header">
-        <a href="{{ route('verify') }}" class="back-btn">
+  <a href="{{ route('otp.verify.form') }}" class="back-btn">
           <i class='bx bx-chevron-left'></i>
         </a>
         <span class="fp-title">New Password</span>
       </div>
-      <form action="{{ route('login') }}" method="get">
+      <form action="{{ route('password.update') }}" method="POST">
+        @csrf
         <div class="input-group">
           <input type="password" name="new_password" id="new-password" placeholder="New Password" required>
           <i class='bx bx-hide toggle-password' data-target="new-password"></i>
         </div>
         <div class="input-group">
-          <input type="password" name="confirm_password" id="confirm-password" placeholder="Confirm New Password" required/>
+          <input type="password" name="new_password_confirmation" id="confirm-password" placeholder="Confirm New Password" required/>
           <i class='bx bx-hide toggle-password' data-target="confirm-password"></i>
+          @error('new_password')<div class="field-error">{{ $message }}</div>@enderror
         </div>
         <button type="submit" class="login-btn">Reset Password</button>
       </form>

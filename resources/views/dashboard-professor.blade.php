@@ -351,21 +351,28 @@
       if (!container) return;
 
       if (notifications.length === 0) {
-        container.innerHTML = '<div class="mobile-notification-item">No notifications</div>';
+        container.innerHTML = `
+          <div class="no-notifications">
+            <i class='bx bx-bell-off'></i>
+            <p>No notifications yet</p>
+          </div>`;
         return;
       }
 
-      container.innerHTML = notifications.map(notification => `
-        <div class="mobile-notification-item ${notification.is_read ? 'read' : 'unread'}" 
-             onclick="markMobileNotificationAsRead(${notification.id})">
-          <div class="mobile-notification-content">
-            <div class="mobile-notification-title">${notification.title}</div>
-            <div class="mobile-notification-message">${notification.message}</div>
-            <div class="mobile-notification-time">${formatMobileTime(notification.created_at)}</div>
-          </div>
-          ${!notification.is_read ? '<div class="mobile-notification-dot"></div>' : ''}
-        </div>
-      `).join('');
+      const html = notifications.map(n => {
+        const timeAgo = formatMobileTime(n.created_at);
+        const unreadClass = n.is_read ? '' : 'unread';
+        const typeLabel = (n.type || '').replace('_',' ');
+        const cleanTitle = (n.title || '').includes('Consultation') ? 'Consultation' : (n.title || '');
+        return `
+          <div class="notification-item ${unreadClass}" onclick="markMobileNotificationAsRead(${n.id})">
+            <div class="notification-type ${n.type}">${typeLabel}</div>
+            <div class="notification-title">${cleanTitle}</div>
+            <div class="notification-message">${n.message}</div>
+            <div class="notification-time">${timeAgo}</div>
+          </div>`; 
+      }).join('');
+      container.innerHTML = html;
     }
 
     function updateMobileNotificationBadge(count) {

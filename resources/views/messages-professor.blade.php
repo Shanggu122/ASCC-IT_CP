@@ -36,13 +36,27 @@
     <div class="inbox">
       <h2>Inbox</h2>
       @foreach($students as $student)
-      <div class="inbox-item" onclick="loadChat('{{ $student->name }}', {{ $student->booking_id }})">
-        <div class="name">{{ $student->name }}</div>
-        <div class="message">{{ $student->last_message }}</div>
-        <div class="time">
-          {{ \Carbon\Carbon::parse($student->last_message_time)->timezone('Asia/Manila')->format('m/d/Y h:i A') }}
+        @php
+          $pic = null;
+          if (is_object($student)) {
+            if (property_exists($student,'profile_picture')) { $pic = $student->profile_picture; }
+          }
+          $picUrl = $pic ? asset('storage/'.$pic) : asset('images/dprof.jpg');
+          $lastMessage = $student->last_message ?? 'No messages yet';
+          $youPrefix = isset($student->last_sender) && $student->last_sender === 'professor' ? 'You: ' : '';
+          $displayMessage = $youPrefix . $lastMessage;
+          $relTime = $student->last_message_time ? \Carbon\Carbon::parse($student->last_message_time)->timezone('Asia/Manila')->diffForHumans(['short'=>true]) : '';
+        @endphp
+        <div class="inbox-item" onclick="loadChat('{{ $student->name }}', {{ $student->booking_id }})">
+          <img class="inbox-avatar" src="{{ $picUrl }}" alt="{{ $student->name }}">
+          <div class="inbox-meta">
+            <div class="name">{{ $student->name }}</div>
+            <div class="snippet-line">
+              <span class="snippet" title="{{ $displayMessage }}">{!! isset($student->last_sender) && $student->last_sender==='professor' ? '<strong>You:</strong> ' : '' !!}{{ \Illuminate\Support\Str::limit($lastMessage, 36) }}</span>
+              @if($relTime)<span class="rel-time">{{ $relTime }}</span>@endif
+            </div>
+          </div>
         </div>
-      </div>
       @endforeach
     </div>
 
@@ -107,7 +121,8 @@
           const chatBody = document.getElementById('chat-body');
           chatBody.innerHTML = ''; // Clear existing messages
           let lastMsgTime = null;
-          messages.forEach(msg => {
+          const chatImages = [];
+          messages.forEach((msg, idx) => {
             const msgDate = new Date(msg.created_at_iso || msg.Created_At);
             if (isNaN(msgDate.getTime())) return;
 
@@ -155,14 +170,16 @@
             const msgDiv = document.createElement('div');
             msgDiv.className = `message ${msg.Sender === 'professor' ? 'sent' : 'received'}`;
             if (msg.file_path) {
-                const fileUrl = `/storage/${msg.file_path}`;
-                if (msg.file_type && msg.file_type.startsWith('image/')) {
-                    msgDiv.innerHTML = `<a href="${fileUrl}" target="_blank"><img src="${fileUrl}" style="max-width:150px;max-height:150px;"/></a>`;
-                } else {
-                    msgDiv.innerHTML = `<a href="${fileUrl}" target="_blank">${msg.original_name || 'Download file'}</a>`;
-                }
+              const fileUrl = `/storage/${msg.file_path}`;
+              if (msg.file_type && msg.file_type.startsWith('image/')) {
+                const imgIndex = chatImages.length;
+                chatImages.push({ url: fileUrl, name: msg.original_name || 'image', createdAt: msgDate.toISOString() });
+                msgDiv.innerHTML = `<div class="chat-img-wrapper" data-index="${imgIndex}"><img src="${fileUrl}" alt="${msg.original_name || 'image'}" class="chat-image"/></div>`;
+              } else {
+                msgDiv.innerHTML = `<a href="${fileUrl}" target="_blank">${msg.original_name || 'Download file'}</a>`;
+              }
             } else {
-                msgDiv.textContent = msg.Message;
+              msgDiv.textContent = msg.Message;
             }
             msgDiv.title = msgDate.toLocaleTimeString('en-US', { 
               timeZone: 'Asia/Manila', 
@@ -171,6 +188,14 @@
             });
             chatBody.appendChild(msgDiv);
           });
+          // Click handlers for inline images
+          document.querySelectorAll('.chat-img-wrapper').forEach(el => {
+            el.addEventListener('click', () => {
+              const idx = parseInt(el.getAttribute('data-index'));
+              openImageOverlayProf(idx);
+            });
+          });
+          window.currentProfChatImages = chatImages;
           // After rendering all messages
           setTimeout(() => {
             chatBody.scrollTop = chatBody.scrollHeight;
@@ -276,6 +301,22 @@
         document.getElementById("file-input").click();
     });
 
+    // ENTER to send (Shift+Enter = newline) for professor textarea
+    const profMsgInput = document.getElementById('message-input');
+    if (profMsgInput) {
+      profMsgInput.addEventListener('keydown', function(e){
+        if(e.key === 'Enter' && !e.shiftKey){
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+      // Auto-resize like student side
+      profMsgInput.addEventListener('input', function(){
+        this.style.height='auto';
+        this.style.height=this.scrollHeight+'px';
+      });
+    }
+
     // document.getElementById("file-input").addEventListener("change", function (e) {
     //     const files = Array.from(e.target.files);
     //     const filePreviewContainer = document.getElementById("file-preview-container");
@@ -374,6 +415,70 @@
         // Do NOT auto-load any chat on mobile
       }
     });
+
+    // IMAGE OVERLAY (professor side)
+    function openImageOverlayProf(index) {
+      const images = window.currentProfChatImages || [];
+      if (!images.length || index < 0 || index >= images.length) return;
+      window.currentProfImageIndex = index;
+      const overlay = document.getElementById('prof-image-overlay');
+      const mainImg = document.getElementById('prof-overlay-main');
+      const dl = document.getElementById('prof-overlay-download');
+      const data = images[index];
+      mainImg.src = data.url;
+      mainImg.alt = data.name;
+      dl.href = data.url;
+      dl.setAttribute('download', data.name.replace(/[^a-zA-Z0-9._-]/g,'_'));
+      buildProfThumbs();
+      overlay.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeProfImageOverlay(){
+      const overlay = document.getElementById('prof-image-overlay');
+      overlay.classList.add('hidden');
+      document.body.style.overflow='';
+    }
+    function navProfImage(delta){
+      const images = window.currentProfChatImages || [];
+      if(!images.length) return;
+      let idx = (window.currentProfImageIndex||0)+delta;
+      if(idx<0) idx = images.length-1;
+      if(idx>=images.length) idx=0;
+      openImageOverlayProf(idx);
+    }
+    function buildProfThumbs(){
+      const images = window.currentProfChatImages || [];
+      const thumbs = document.getElementById('prof-overlay-thumbs');
+      if(!thumbs) return;
+      thumbs.innerHTML='';
+      images.forEach((img,i)=>{
+        const t=document.createElement('img');
+        t.src=img.url; t.alt=img.name; t.className='overlay-thumb'+(i===window.currentProfImageIndex?' active':'');
+        t.addEventListener('click',()=>openImageOverlayProf(i));
+        thumbs.appendChild(t);
+      });
+    }
+    document.addEventListener('keydown',(e)=>{
+      const overlay=document.getElementById('prof-image-overlay');
+      if(!overlay || overlay.classList.contains('hidden')) return;
+      if(e.key==='Escape') closeProfImageOverlay();
+      else if(e.key==='ArrowRight') navProfImage(1);
+      else if(e.key==='ArrowLeft') navProfImage(-1);
+    });
+    document.addEventListener('click',(e)=>{
+      const overlay=document.getElementById('prof-image-overlay');
+      if(!overlay || overlay.classList.contains('hidden')) return;
+      if(e.target===overlay) closeProfImageOverlay();
+    });
   </script>
+  <!-- Professor Image Overlay -->
+  <div id="prof-image-overlay" class="image-overlay hidden">
+    <button class="overlay-btn close" onclick="closeProfImageOverlay()" aria-label="Close image">&times;</button>
+    <a id="prof-overlay-download" class="overlay-btn download" aria-label="Download image"><i class='bx bx-download'></i></a>
+    <button class="overlay-nav prev" onclick="navProfImage(-1)" aria-label="Previous image">&#10094;</button>
+    <button class="overlay-nav next" onclick="navProfImage(1)" aria-label="Next image">&#10095;</button>
+    <img id="prof-overlay-main" class="overlay-main" alt="Preview" />
+    <div id="prof-overlay-thumbs" class="overlay-thumbs"></div>
+  </div>
 </body>
 </html>

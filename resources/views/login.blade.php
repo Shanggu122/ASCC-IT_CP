@@ -1,8 +1,4 @@
-@if(session('status'))
-  <div class="alert alert-success">
-    {{ session('status') }}
-  </div>
-@endif
+{{-- status moved under first input --}}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -34,16 +30,19 @@
         @csrf
         <div class="input-group">
           <input type="text" id="Stud_ID" name="Stud_ID" placeholder="Student ID" required>
+          @error('Stud_ID')<div class="field-error">{{ $message }}</div>@enderror
         </div>
         <div class="input-group password-group">
           <input type="password" id="password" name="Password" placeholder="Enter your password" />
           <i class='bx bx-hide toggle-password' id="toggle-password"></i>
+          @error('Password')<div class="field-error">{{ $message }}</div>@enderror
+          @if(session('status'))<div class="field-success">{{ session('status') }}</div>@endif
         </div>
         <div class="options-row">
-          @if(session('error'))
-            <div class="login-error">
-              {{ session('error') }}
-            </div>
+          @if($errors->has('login'))
+            <div class="login-error">{{ $errors->first('login') }}</div>
+          @elseif(session('error'))
+            <div class="login-error">{{ session('error') }}</div>
           @else
             <span></span>
           @endif

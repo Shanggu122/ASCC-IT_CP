@@ -23,11 +23,13 @@
         </a>
         <span class="fp-title">Forgot Password</span>
       </div>
-      <form action="{{ route('verify') }}" method="POST">
+      <form action="{{ route('forgotpassword.send') }}" method="POST">
         @csrf
         <h3 class="fp-instruction">Enter your Adamson email address</h3>
         <div class="input-group">
           <input type="email" name="email" placeholder="example@adamson.edu.ph" required>
+          @error('email')<div class="field-error">{{ $message }}</div>@enderror
+          @if(session('status'))<div class="field-success">{{ session('status') }}</div>@endif
         </div>
         <button type="submit" class="login-btn">Send OTP</button>
       </form>

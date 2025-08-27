@@ -3,7 +3,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: "Poppins", sans-serif;
+    font-family: 'Poppins', sans-serif;
 }
 body {
     display: flex;
@@ -107,7 +107,7 @@ body {
     background-color: #ffffff;
 }
 
-#chatForm input[type="text"] {
+#chatForm input[type='text'] {
     flex: 1;
     padding: 0.6rem 0.8rem;
     border: 1px solid #ccc;
@@ -147,25 +147,27 @@ body {
     display: inline-block;
 }
 
-/* Legend styling */
+/* Legend styling (reverted) */
 .legend {
     display: flex;
     justify-content: start;
     margin-top: 20px;
     font-size: 0.9rem;
 }
-
 .legend div {
     display: flex;
     align-items: center;
     margin: 0 12px;
 }
-
 .legend-box {
     width: 40px;
     height: 16px;
     margin-right: 6px;
     border-radius: 3px;
+}
+/* Shift only the 'Approved' legend (second item) slightly to the right */
+.legend div:nth-child(2) {
+    margin-left: 24px;
 }
 
 .legend-box.completed,
@@ -235,6 +237,26 @@ body {
     vertical-align: middle !important; /* Vertically center content */
 }
 
+/* Bring calendar prev/next buttons slightly toward center */
+.pika-prev,
+.pika-next {
+    position: relative;
+}
+.pika-prev {
+    left: 10px;
+}
+.pika-next {
+    right: 10px;
+}
+@media (max-width: 768px) {
+    .pika-prev {
+        left: 9px;
+    }
+    .pika-next {
+        right: 9px;
+    }
+}
+
 .pika-button {
     height: 60px !important; /* Adjust this value for your preferred height */
     min-height: 48px !important;
@@ -258,15 +280,48 @@ body {
 @media (max-width: 768px) {
     .header {
         margin-top: 40px; /* Add space for the navbar */
+        justify-content: center; /* center contents */
+    }
+    .header h1 {
+        text-align: left; /* shift slightly left */
+        width: 100%;
+        padding-left: 18px; /* subtle left offset */
     }
     .flex-layout {
         flex-direction: column;
     }
     .calendar-box {
         width: 100% !important;
+        max-width: none; /* allow full width */
+        margin-left: 0; /* ensure no unintended offset */
+        margin-right: 0;
+        /* left align internal calendar */
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
     }
     .box {
         width: 100%;
+    }
+    /* reduce side padding so calendar sits closer to left edge */
+    .main-content {
+        padding-left: 0; /* move calendar slightly more left */
+        padding-right: 0.75rem;
+    }
+    /* ensure the visible calendar grid itself is centered */
+    .calendar-wrapper-container,
+    .pika-single {
+        width: 100%;
+        max-width: 100%;
+        margin: 0; /* align left */
+    }
+    /* shift legend slightly right only on mobile */
+    .legend {
+        padding-left: 5px;
+    }
+    /* Shift only the 'Approved' legend (second item) slightly to the right on mobile */
+    .legend div:nth-child(2) {
+        margin-left: 34px;
     }
 }
 
@@ -284,3 +339,28 @@ button.mobile-notification-bell,
 div.mobile-header button#mobileNotificationBell.mobile-notification-bell {
     z-index: 1000000 !important; /* High but below chatbot */
 }
+
+/* When chat open, push bell behind and fade out */
+body.chat-open #mobileNotificationBell {
+    z-index: 0 !important;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+body:not(.chat-open) #mobileNotificationBell {
+    transition: opacity 0.2s ease;
+}
+
+/* Slightly larger calendar numbers on mobile for better readability */
+@media (max-width: 768px) {
+    .pika-button {
+        font-size: 1rem !important; /* increase day number size */
+    }
+    /* Enlarge weekday labels (Mon Tue ...) */
+    .pika-table th abbr {
+        font-size: 0.9rem !important;
+        letter-spacing: 0.5px;
+    }
+}
+
+/* (Removed legend enlargement user disliked) */
