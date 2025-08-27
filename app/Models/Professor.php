@@ -18,7 +18,7 @@ class Professor extends Authenticatable
     public $timestamps = false;
 
     protected $fillable = [
-        'Prof_ID', 'Password', 'Name', 'Email', 'Dept_ID', 'Schedule'   
+        'Prof_ID', 'Password', 'Name', 'Email', 'Dept_ID', 'Schedule', 'profile_picture'
     ];
 
     protected $hidden = [
