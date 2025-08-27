@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>Consultation Log</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
@@ -62,7 +63,7 @@
           <div class="table-cell" data-label="Date">{{ \Carbon\Carbon::parse($b->Booking_Date)->format('D, M d Y') }}</div>
           <div class="table-cell" data-label="Type">{{ $b->type }}</div>
           <div class="table-cell" data-label="Mode">{{ ucfirst($b->Mode) }}</div>
-          <div class="table-cell" data-label="Booked At">{{ \Carbon\Carbon::parse($b->Created_At)->timezone('Asia/Manila')->format('m/d/Y h:i A') }}</div>
+          <div class="table-cell" data-label="Booked At">{{ \Carbon\Carbon::parse($b->Created_At)->timezone('Asia/Manila')->format('M d Y h:i A') }}</div>
           <div class="table-cell" data-label="Status">{{ ucfirst($b->Status) }}</div>
         </div>
 
@@ -75,11 +76,6 @@
     
       </div>
     </div>
-
-    <button class="chat-button" onclick="toggleChat()">
-      <i class='bx bxs-message-rounded-dots'></i>
-      Click to chat with me!
-    </button>
 
     <button class="chat-button" onclick="toggleChat()">
       <i class='bx bxs-message-rounded-dots'></i>
@@ -142,6 +138,123 @@ function filterRows() {
 
 document.getElementById('searchInput').addEventListener('keyup', filterRows);
 document.getElementById('typeFilter').addEventListener('change', filterRows);
+
+// Real-time updates for consultation log - DISABLED TO PREVENT DUPLICATE ROWS
+/*
+function loadConsultationLogs() {
+  fetch('/api/student/consultation-logs')
+    .then(response => response.json())
+    .then(data => {
+      updateConsultationTable(data);
+    })
+    .catch(error => {
+      console.error('Error loading consultation logs:', error);
+    });
+}
+
+function updateConsultationTable(bookings) {
+  const table = document.querySelector('.table');
+  const header = document.querySelector('.table-header');
+  
+  // Clear existing rows except header
+  const existingRows = table.querySelectorAll('.table-row:not(.table-header)');
+  existingRows.forEach(row => row.remove());
+  
+  if (bookings.length === 0) {
+    const emptyRow = document.createElement('div');
+    emptyRow.className = 'table-row';
+    emptyRow.innerHTML = `
+      <div class="table-cell" colspan="8">No consultations found.</div>
+    `;
+    table.appendChild(emptyRow);
+  } else {
+    bookings.forEach((booking, index) => {
+      const row = document.createElement('div');
+      row.className = 'table-row';
+      
+      const bookingDate = new Date(booking.Booking_Date);
+      const createdAt = new Date(booking.Created_At);
+      
+      row.innerHTML = `
+        <div class="table-cell" data-label="No.">${index + 1}</div>
+        <div class="table-cell instructor-cell" data-label="Instructor">${booking.Professor}</div>
+        <div class="table-cell" data-label="Subject">${booking.subject}</div>
+        <div class="table-cell" data-label="Date">${bookingDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
+        <div class="table-cell" data-label="Type">${booking.type}</div>
+        <div class="table-cell" data-label="Mode">${booking.Mode.charAt(0).toUpperCase() + booking.Mode.slice(1)}</div>
+        <div class="table-cell" data-label="Booked At">${createdAt.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })} ${createdAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</div>
+        <div class="table-cell" data-label="Status">${booking.Status.charAt(0).toUpperCase() + booking.Status.slice(1)}</div>
+      `;
+      
+      table.appendChild(row);
+    });
+  }
+  
+  // Add spacer
+  const spacer = document.createElement('div');
+  spacer.style.height = '80px';
+  table.appendChild(spacer);
+  
+  // Re-apply filters after updating
+  filterRows();
+}
+
+// Initial load and real-time updates every 5 seconds - DISABLED
+loadConsultationLogs();
+setInterval(loadConsultationLogs, 5000);
+*/
+
+// === Chatbot ===
+function toggleChat() {
+    document.getElementById("chatOverlay").classList.toggle("open");
+}
+
+const csrfToken = document
+    .querySelector('meta[name="csrf-token"]')
+    .getAttribute("content");
+const chatForm = document.getElementById("chatForm");
+const input = document.getElementById("message");
+const chatBody = document.getElementById("chatBody");
+
+chatForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+
+    const um = document.createElement("div");
+    um.classList.add("message", "user");
+    um.innerText = text;
+    chatBody.appendChild(um);
+    chatBody.scrollTop = chatBody.scrollHeight;
+    input.value = "";
+
+    const res = await fetch("/chat", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": csrfToken,
+        },
+        body: JSON.stringify({ message: text }),
+    });
+
+    if (!res.ok) {
+        const err = await res.json();
+        const bm = document.createElement("div");
+        bm.classList.add("message", "bot");
+        bm.innerText = err.message || "Server error.";
+        chatBody.appendChild(bm);
+        return;
+    }
+
+    const { reply } = await res.json();
+    const bm = document.createElement("div");
+    bm.classList.add("message", "bot");
+    bm.innerText = reply;
+    chatBody.appendChild(bm);
+    chatBody.scrollTop = chatBody.scrollHeight;
+});
 </script>
 </body>
 </html>

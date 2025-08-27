@@ -10,22 +10,50 @@
 </head>
 <body>
     <div class="landing-container">
-        <img src="{{ asset('images/CCIT_logo2.png') }}" alt="ASCC-IT Logo" class="logo">
-        <h1>Welcome to ASCC-IT Portal</h1>
-        <div class="choose-text">Please select your login type:</div>
-        <div class="login-options">
-            <a href="{{ route('login') }}" class="login-card">
-                <i class='bx bxs-user'></i>
-                <span>Student Login</span>
-            </a>
-            <a href="{{ route('login.professor') }}" class="login-card">
-                <i class='bx bxs-user-voice'></i>
-                <span>Professor Login</span>
-            </a>
-            <a href="{{ route('login.admin') }}" class="login-card">
-                <i class="bx bxs-user-circle"></i>
-                <span>Admin Login</span>
-            </a>
+        <!-- Logo with stars decoration -->
+        <div class="logo-section">
+            <div class="star star-1">✦</div>
+            <div class="star star-2">✦</div>
+            <img src="{{ asset('images/CCIT_logo2.png') }}" alt="ASCC-IT Logo" class="logo">
+            <div class="star star-3">✦</div>
+        </div>
+        
+        <h1>Welcome to the ASCC-IT Portal</h1>
+        <p class="subtitle">Select your role to log in</p>
+        
+        <div class="login-cards">
+            <div class="login-card">
+                <div class="card-icon">
+                    <i class='bx bxs-graduation'></i>
+                </div>
+                <h3>Student</h3>
+                <p>Login as student</p>
+                <a href="{{ route('login') }}" class="login-btn">
+                    Login <i class='bx bx-right-arrow-alt'></i>
+                </a>
+            </div>
+            
+            <div class="login-card">
+                <div class="card-icon">
+                    <i class='bx bxs-user-voice'></i>
+                </div>
+                <h3>Professor</h3>
+                <p>Login as professor</p>
+                <a href="{{ route('login.professor') }}" class="login-btn">
+                    Login <i class='bx bx-right-arrow-alt'></i>
+                </a>
+            </div>
+            
+            <div class="login-card">
+                <div class="card-icon">
+                    <i class='bx bxs-user-account'></i>
+                </div>
+                <h3>Admin</h3>
+                <p>Login as admin</p>
+                <a href="{{ route('login.admin') }}" class="login-btn">
+                    Login <i class='bx bx-right-arrow-alt'></i>
+                </a>
+            </div>
         </div>
     </div>
 </body>

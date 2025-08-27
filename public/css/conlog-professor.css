@@ -1,3 +1,47 @@
+/* Custom modal for professor message handling */
+.custom-modal {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    justify-content: center;
+    align-items: center;
+}
+.custom-modal-content {
+    background: #12372a;
+    color: #fff;
+    padding: 2rem 2.5rem;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(18, 55, 42, 0.2);
+    text-align: center;
+    min-width: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: none;
+}
+.custom-modal-btn {
+    margin-top: 1.5rem;
+    padding: 0.7rem 2.5rem;
+    background: #01703c;
+    color: #fff;
+    border: none;
+    border-radius: 22px;
+    font-size: 1.25rem;
+    font-family: "Poppins", sans-serif;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: background 0.2s, color 0.2s;
+}
+.custom-modal-btn:hover {
+    background: #28a745;
+    color: #fff;
+}
 .action-btn {
     border: none;
     border-radius: 6px;
@@ -821,5 +865,138 @@ body {
     .table-cell[style*="width: 180px"] {
         width: 100% !important;
         justify-content: flex-start;
+    }
+}
+
+/* Approval Warning Modal Styles */
+.approval-warning-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.approval-warning-content {
+    background: white;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+.reschedule-header {
+    background: #0f9657;
+    color: white;
+    padding: 20px;
+    border-radius: 12px 12px 0 0;
+    text-align: center;
+    position: relative;
+}
+
+.reschedule-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.approval-warning-body {
+    padding: 25px;
+    text-align: center;
+}
+
+.warning-info {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+    color: #856404;
+}
+
+.warning-info p {
+    margin: 0 0 10px 0;
+    font-weight: 600;
+}
+
+.warning-info p:last-child {
+    margin: 0;
+    font-size: 14px;
+}
+
+.warning-info i {
+    font-size: 18px;
+    margin-right: 5px;
+}
+
+.warning-info strong {
+    display: inline;
+    margin-bottom: 0;
+}
+
+.warning-text {
+    color: #333;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 15px 0;
+}
+
+.warning-text #totalAfterApproval {
+    font-weight: 600;
+    color: #dc3545;
+}
+
+.reschedule-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.reschedule-buttons .btn-cancel {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.3s;
+}
+
+.reschedule-buttons .btn-confirm {
+    background: #0f9657;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.3s;
+}
+
+.reschedule-buttons .btn-cancel:hover {
+    background: #545b62;
+}
+
+.reschedule-buttons .btn-confirm:hover {
+    background: #0d7c47;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }

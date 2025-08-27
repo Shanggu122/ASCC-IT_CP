@@ -41,7 +41,8 @@ class ProfileController extends Controller
         $user->save();
 
         // Redirect back with success message
-        return back()->with('password_status', 'Password updated successfully!');    }
+        return back()->with('password_status', 'Password updated successfully!');
+    }
 
     public function uploadPicture(Request $request)
     {

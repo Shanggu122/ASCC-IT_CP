@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ChatBotController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProfessorProfileController;
@@ -17,8 +18,9 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\itisController;
 use App\Http\Controllers\ProfessorController;
 use App\Http\Controllers\comsciController;
+use App\Http\Controllers\ProfessorComSciController;
+use App\Http\Controllers\ProfessorItisController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\CardItis;
@@ -58,14 +60,6 @@ Route::get('/dashboard', function () {
     return view('dashboard'); // your dashboard view
 })->name('dashboard');
 
-// Route::get('/comsci', function () {
-//     return view('comsci'); // 'comsci' is the name of the view you want to load
-// });
-
-// Route::get('/itis', function () {
-//     return view('itis'); // 'itis' is the name of the view you want to load
-// });
-
 Route::get('/itis', action: [itisController::class, 'show'])->name('itis');
 Route::get('/comsci', action: [comsciController::class, 'show'])->name('comsci');
 
@@ -104,33 +98,19 @@ Route::post('/chat', [App\Http\Controllers\ChatBotController::class, 'chat']);
 Route::post('/consultation-book', [ConsultationBookingController::class, 'store'])
      ->name('consultation-book');
 
-// Route::post(uri: '/change-password', [AuthController::class, 'changePassword'])->name('changePassword');
-
 
 Route::get('/get-bookings', [ConsultationLogController::class, 'getBookings']);
-
-
-
-
-
-
-
-
-
-
-
 
 Route::middleware(['auth:professor'])->group(function() {
     Route::get('/profile-professor', [ProfessorProfileController::class, 'show'])->name('profile.professor');
     Route::post('/profile-professor/change-password', [AuthControllerProfessor::class, 'changePassword'])->name('changePassword.professor');
+    Route::get('/comsci-professor', [ProfessorComSciController::class, 'showColleagues'])->name('comsci-professor');
+    Route::get('/itis-professor', [ProfessorItisController::class, 'showColleagues'])->name('itis-professor');
     // Add other professor-only routes here
 });
 
 
 // dynamic "video-call" page — {user} will be the channel name
-Route::get('/video-call/{user}', function ($user) {
-    return view('video-call', ['channel' => $user]);
-})->name('video.call');
 Route::get('/video-call/{user}', [VideoCallController::class, 'show'])->name('video.call');
 
 Route::get('/prof-call/{channel}', [ProfVideoCallController::class, 'show']);
@@ -145,15 +125,7 @@ Route::get('/dashboard-professor', function () {
     return view('dashboard-professor');
 })->name('dashboard.professor');
 
-Route::get('/profile-professor', action: [ProfessorProfileController::class, 'show'])->name('profile.professor');
 
-Route::get('/comsci-professor', function () {
-    return view('comsci-professor');
-})->name('comsci-professor');
-
-Route::get('/itis-professor', function () {
-    return view('itis-professor');
-})->name('itis-professor');
 
 Route::get('/conlog-professor', [ConsultationLogControllerProfessor::class, 'index'])
      ->name('conlog-professor');
@@ -174,9 +146,12 @@ Route::post('/change-password-professor', [ProfessorProfileController::class, 'c
 
 Route::get('/api/consul', [ConsultationLogController::class, 'apiBookings']);
 
-// Route::get('/api/consultations', [ConsultationLogController::class, 'apiBookings']);
-Route::get('/api/consultations', [ConsultationLogControllerprofessor::class, 'apiBookings']);
-// Route::get('/api/consultations', action: [ConsultationLogController::class, 'apiBookings']);
+Route::get('/api/consultations', [ConsultationLogControllerProfessor::class, 'apiBookings']);
+
+
+// API endpoints for consultation logs (real-time updates)
+Route::get('/api/student/consultation-logs', [ConsultationLogController::class, 'getBookings']);
+Route::get('/api/professor/consultation-logs', [ConsultationLogControllerProfessor::class, 'getBookings']);
 
 
 
@@ -188,9 +163,7 @@ Route::post('/api/consultations/update-status', function(Request $request) {
         $id = $request->input('id');
         $status = $request->input('status');
         $newDate = $request->input('new_date'); // For rescheduling
-        
-        // Log the request for debugging
-        Log::info('Update status request', ['id' => $id, 'status' => $status, 'new_date' => $newDate]);
+        $rescheduleReason = $request->input('reschedule_reason'); // For reschedule reason
         
         // Validate inputs
         if (!$id) {
@@ -215,7 +188,6 @@ Route::post('/api/consultations/update-status', function(Request $request) {
             ->first();
         
         if (!$booking) {
-            Log::warning('Booking not found', ['id' => $id]);
             return response()->json([
                 'success' => false,
                 'message' => "No booking found for this ID."
@@ -227,14 +199,16 @@ Route::post('/api/consultations/update-status', function(Request $request) {
         if ($status === 'rescheduled' && $newDate) {
             $updateData['Booking_Date'] = $newDate;
         }
+        if ($status === 'rescheduled' && $rescheduleReason) {
+            $updateData['reschedule_reason'] = $rescheduleReason;
+        }
         
         $updated = DB::table('t_consultation_bookings')
             ->where('Booking_ID', $id)
             ->update($updateData);
         
         if ($updated > 0) {
-            // Create notification for the student
-            $userId = $booking->Stud_ID;
+            // Update existing notification instead of creating new one
             $professorName = $booking->Prof_Name;
             $date = $status === 'rescheduled' && $newDate ? $newDate : $booking->Booking_Date;
             
@@ -245,33 +219,25 @@ Route::post('/api/consultations/update-status', function(Request $request) {
             }
             
             try {
-                Notification::createConsultationNotification(
-                    $userId,
+                // Update existing notifications for this booking (both student and professor)
+                Notification::updateNotificationStatus(
                     $id,
                     $notificationType,
                     $professorName,
-                    $date
+                    $date,
+                    $status === 'rescheduled' ? $rescheduleReason : null
                 );
-                Log::info('Notification created successfully', ['user_id' => $userId, 'booking_id' => $id]);
             } catch (\Exception $e) {
-                Log::error('Failed to create notification', ['error' => $e->getMessage()]);
                 // Don't fail the whole operation if notification fails
             }
         }
-        
-        Log::info('Status update completed', ['booking_id' => $id, 'status' => $status, 'updated' => $updated]);
         
         return response()->json([
             'success' => $updated > 0,
             'message' => $updated ? "Status updated to $status." : "Failed to update status."
         ]);
         
-    } catch (\Exception $e) {
-        Log::error('Error updating consultation status', [
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-        
+    } catch (\Exception $e) {        
         return response()->json([
             'success' => false,
             'message' => "An error occurred: " . $e->getMessage()
@@ -286,10 +252,8 @@ Route::post('/send-messageprof', [MessageController::class, 'sendMessageprof']);
 
 Route::get('/load-messages/{bookingId}', [App\Http\Controllers\MessageController::class, 'loadMessages']);
 
-
 Route::get('/itis', [CardItis::class, 'showItis']);
 Route::get('/comsci', [CardComsci::class, 'showComsci']);
-
 
 Route::post('/send-file', [MessageController::class, 'sendFile']);
 
@@ -298,15 +262,6 @@ Route::post('/profile/delete-picture', [ProfileController::class, 'deletePicture
 
 Route::post('/profile/upload-pictureprof', [ProfessorProfileController::class, 'uploadPicture'])->name('profile.uploadPicture.professor');
 Route::post('/profile/delete-pictureprof', [ProfessorProfileController::class, 'deletePicture'])->name('profile.deletePicture.professor');
-
-
-Route::get('/itis', [ConsultationBookingController::class, 'showBookingForm'])->name('itis');
-Route::get('/comsci', [ConsultationBookingController::class, 'showForm'])->name('comsci');
-
-
-
-Route::post('/send-message', [MessageController::class, 'sendMessage'])->name('send-message');
-Route::get('/load-messages/{bookingId}', [MessageController::class, 'loadMessages']);
 
 
 
@@ -333,18 +288,32 @@ Route::get('/admin-itis', [ConsultationBookingController::class, 'showItisAdmin'
     ->middleware('auth:admin');
 
 Route::post('/admin-comsci/add-professor', [ConsultationBookingController::class, 'addProfessor'])
-    ->name('admin.professor.add')
+    ->name('admin.comsci.professor.add')
     ->middleware('auth:admin');
 
-
-Route::delete('/admin-comsci/delete-professor/{prof}', [ConsultationBookingController::class, 'deleteProfessor'])
-    ->name('admin.professor.delete')
+Route::post('/admin-itis/add-professor', [ConsultationBookingController::class, 'addProfessor'])
+    ->name('admin.itis.professor.add')
     ->middleware('auth:admin');
+
 
 Route::post('/admin-itis/assign-subjects', [ConsultationBookingController::class, 'assignSubjects'])->name('admin.professor.assignSubjects');
 Route::post('/admin-comsci/assign-subjects', [ConsultationBookingController::class, 'assignSubjects'])->name('admin.professor.assignSubjects');
+
 Route::post('/admin-itis/edit-professor/{profId}', [ConsultationBookingController::class, 'editProfessor'])->name('admin.professor.edit');
 Route::post('/admin-itis/update-professor/{profId}', [ConsultationBookingController::class, 'updateProfessor'])->name('admin.professor.update');
+Route::get('/admin-itis/professor-subjects/{profId}', [ConsultationBookingController::class, 'getProfessorSubjects'])->name('admin.professor.subjects');
+
+Route::post('/admin-comsci/edit-professor/{profId}', [ConsultationBookingController::class, 'editProfessor'])->name('admin.comsci.professor.edit');
+Route::post('/admin-comsci/update-professor/{profId}', [ConsultationBookingController::class, 'updateProfessor'])->name('admin.comsci.professor.update');
+Route::get('/admin-comsci/professor-subjects/{profId}', [ConsultationBookingController::class, 'getProfessorSubjects'])->name('admin.comsci.professor.subjects');
+
+Route::delete('/admin-itis/delete-professor/{prof}', [ConsultationBookingController::class, 'deleteProfessor'])
+    ->name('admin.itis.professor.delete')
+    ->middleware('auth:admin');
+
+Route::delete('/admin-comsci/delete-professor/{prof}', [ConsultationBookingController::class, 'deleteProfessor'])
+    ->name('admin.comsci.professor.delete')
+    ->middleware('auth:admin');
 
 Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
 Route::get('/notifications/{id}', [NotificationController::class, 'show'])->name('notifications.show');
@@ -358,11 +327,45 @@ Route::post('/api/notifications/mark-read', [NotificationController::class, 'mar
 Route::post('/api/notifications/mark-all-read', [NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');
 Route::get('/api/notifications/unread-count', [NotificationController::class, 'getUnreadCount'])->name('notifications.unread-count');
 
-// Test route for notification system
-Route::get('/test-notifications', function () {
-    return view('notification-test');
+// Professor notification routes
+Route::get('/api/professor/notifications', [NotificationController::class, 'getProfessorNotifications'])->name('professor.notifications.get');
+Route::post('/api/professor/notifications/mark-read', [NotificationController::class, 'markProfessorAsRead'])->name('professor.notifications.mark-read');
+Route::post('/api/professor/notifications/mark-all-read', [NotificationController::class, 'markAllProfessorAsRead'])->name('professor.notifications.mark-all-read');
+Route::get('/api/professor/notifications/unread-count', [NotificationController::class, 'getProfessorUnreadCount'])->name('professor.notifications.unread-count');
+
+// Admin API routes
+Route::get('/api/admin/all-consultations', [ConsultationLogController::class, 'getAllConsultations'])->name('admin.consultations.all');
+Route::get('/api/admin/consultation-details/{bookingId}', [ConsultationLogController::class, 'getConsultationDetails'])->name('admin.consultation.details');
+Route::get('/api/admin/notifications', [NotificationController::class, 'getAdminNotifications'])->name('admin.notifications.get');
+Route::post('/api/admin/notifications/mark-read', [NotificationController::class, 'markAdminAsRead'])->name('admin.notifications.mark-read');
+Route::post('/api/admin/notifications/mark-all-read', [NotificationController::class, 'markAllAdminAsRead'])->name('admin.notifications.mark-all-read');
+Route::get('/api/admin/notifications/unread-count', [NotificationController::class, 'getAdminUnreadCount'])->name('admin.notifications.unread-count');
+
+// Debug route for notifications
+Route::get('/debug/notifications', function() {
+    $notifications = DB::table('notifications')
+        ->join('professors', 'notifications.user_id', '=', 'professors.Prof_ID')
+        ->select('notifications.*', 'professors.Name as professor_name')
+        ->orderBy('notifications.created_at', 'desc')
+        ->limit(10)
+        ->get();
+        
+    $bookings = DB::table('t_consultation_bookings')
+        ->join('t_student', 't_consultation_bookings.Stud_ID', '=', 't_student.Stud_ID')
+        ->join('professors', 't_consultation_bookings.Prof_ID', '=', 'professors.Prof_ID')
+        ->select('t_consultation_bookings.*', 't_student.Name as student_name', 'professors.Name as professor_name')
+        ->orderBy('t_consultation_bookings.Created_At', 'desc')
+        ->limit(10)
+        ->get();
+    
+    return view('debug.notifications', [
+        'notifications' => $notifications,
+        'bookings' => $bookings
+    ]);
 });
+
 
 Route::get('/admin/dashboard', function () {
     return view('admin-dashboard');
 })->name('admin.dashboard')->middleware('auth:admin');
+

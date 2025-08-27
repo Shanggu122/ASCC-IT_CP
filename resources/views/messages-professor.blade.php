@@ -106,7 +106,6 @@
         .then(messages => {
           const chatBody = document.getElementById('chat-body');
           chatBody.innerHTML = ''; // Clear existing messages
-          let lastDate = '';
           let lastMsgTime = null;
           messages.forEach(msg => {
             const msgDate = new Date(msg.created_at_iso || msg.Created_At);
@@ -119,17 +118,28 @@
             if (!lastMsgTime || (msgDate - lastMsgTime) / (1000 * 60) >= 30) {
               showDate = true;
               const today = new Date();
+              const oneWeekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+              
               if (
                 msgDate.getDate() === today.getDate() &&
                 msgDate.getMonth() === today.getMonth() &&
                 msgDate.getFullYear() === today.getFullYear()
               ) {
+                // Today: show only time
                 dateLabel = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              } else {
+              } else if (msgDate > oneWeekAgo) {
+                // Within a week: show weekday and time
                 dateLabel =
                   msgDate.toLocaleDateString([], { weekday: 'short' }) +
                   ' ' +
                   msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              } else {
+                // Older than a week: show full date and time
+                dateLabel = msgDate.toLocaleDateString('en-US', { 
+                  month: 'numeric', 
+                  day: 'numeric', 
+                  year: '2-digit' 
+                }) + ', ' + msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
               }
             }
             lastMsgTime = msgDate;
@@ -166,7 +176,9 @@
             chatBody.scrollTop = chatBody.scrollHeight;
           }, 0);
         })
-        .catch(error => console.error('Error loading messages:', error));
+        .catch(error => {
+            // Error loading messages
+        });
     }
 
     function startVideoCall() {

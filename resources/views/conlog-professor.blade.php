@@ -111,12 +111,17 @@
       font-size: 14px;
       transition: border-color 0.3s;
       font-family: 'Poppins', sans-serif;
+      resize: vertical;
     }
 
     .date-input:focus {
       outline: none;
       border-color: #2c5f4f;
       box-shadow: 0 0 0 3px rgba(44, 95, 79, 0.1);
+    }
+
+    .date-input[type="date"] {
+      resize: none;
     }
 
     .reschedule-buttons {
@@ -167,6 +172,13 @@
 </head>
 <body>
   @include('components.navbarprof')
+  <!-- Custom Modal HTML for Professor Message Handling -->
+  <div class="custom-modal" id="professorModal">
+    <div class="custom-modal-content">
+      <span id="professorModalMessage"></span>
+      <button class="custom-modal-btn" onclick="closeProfessorModal()">OK</button>
+    </div>
+  </div>
 
   <div class="main-content">
     <div class="header">
@@ -215,7 +227,7 @@
           <div class="table-cell" data-label="No.">{{ $loop->iteration }}</div>
           <div class="table-cell" data-label="Student">{{ $b->student }}</div> <!-- Student name -->
           <div class="table-cell" data-label="Subject">{{ $b->subject }}</div>
-          <div class="table-cell" data-label="Date">{{ \Carbon\Carbon::parse($b->Booking_Date)->format('m/d/Y') }}</div>
+          <div class="table-cell" data-label="Date">{{ \Carbon\Carbon::parse($b->Booking_Date)->format('D, M d Y') }}</div>
           <div class="table-cell" data-label="Type">{{ $b->type }}</div>
           <div class="table-cell" data-label="Mode">{{ ucfirst($b->Mode) }}</div>
           <div class="table-cell" data-label="Status">{{ ucfirst($b->Status) }}</div>
@@ -233,7 +245,7 @@
 
               @if($b->Status !== 'approved')
               <button 
-                  onclick="removeThisButton(this, {{ $b->Booking_ID }}, 'Approved')" 
+                  onclick="approveWithWarning(this, {{ $b->Booking_ID }}, '{{ $b->Booking_Date }}')" 
                   class="action-btn btn-approve"
                   title="Approve"
               >
@@ -296,9 +308,43 @@
             <label for="newDate">Select New Date:</label>
             <input type="date" id="newDate" class="date-input" required>
           </div>
+          <div class="date-input-group">
+            <label for="rescheduleReason">Reason for Rescheduling:</label>
+            <textarea id="rescheduleReason" class="date-input" rows="3" placeholder="Please provide a reason for rescheduling this consultation..." required></textarea>
+          </div>
           <div class="reschedule-buttons">
             <button type="button" class="btn-cancel" onclick="closeRescheduleModal()">Cancel</button>
             <button type="button" class="btn-confirm" onclick="confirmReschedule()">Reschedule</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Approval Warning Modal -->
+    <div class="reschedule-overlay approval-warning-modal" id="approvalWarningOverlay">
+      <div class="reschedule-modal approval-warning-content">
+        <div class="reschedule-header">
+          <h3>⚠️ High Volume Warning</h3>
+          <button class="close-btn" onclick="closeApprovalWarningModal()">×</button>
+        </div>
+        <div class="reschedule-body approval-warning-body">
+          <div class="warning-info">
+            <p>
+              <i class='bx bx-info-circle'></i>
+              This date already has <span id="existingConsultationsCount">5</span> approved consultations
+            </p>
+            <p>
+              <strong>Date:</strong> <span id="warningDate"></span>
+            </p>
+          </div>
+          <p class="warning-text">
+            Are you sure you want to approve another consultation for this date? This will bring your total to <span id="totalAfterApproval">6</span> consultations.
+          </p>
+          <div class="reschedule-buttons">
+            <button type="button" class="btn-cancel" onclick="showRescheduleFromWarning()">Reschedule Instead</button>
+            <button type="button" class="btn-confirm" onclick="confirmApproval()">
+              Yes, Approve Anyway
+            </button>
           </div>
         </div>
       </div>
@@ -309,15 +355,8 @@
     let currentRescheduleButton = null;
 
     function showRescheduleModal(bookingId, currentDate) {
-      console.log('Debug - showRescheduleModal called:', { bookingId, currentDate });
-      
       currentBookingId = bookingId;
       currentRescheduleButton = event.target.closest('button');
-      
-      console.log('Debug - variables set:', { 
-        currentBookingId, 
-        currentRescheduleButton: currentRescheduleButton ? 'found' : 'not found' 
-      });
       
       // Set current date in the modal
       document.getElementById('currentDate').textContent = currentDate;
@@ -335,24 +374,62 @@
       document.getElementById('rescheduleOverlay').style.display = 'none';
       currentBookingId = null;
       currentRescheduleButton = null;
+      
+      // Clear form fields
+      document.getElementById('newDate').value = '';
+      document.getElementById('rescheduleReason').value = '';
+    }
+
+    // Function to show reschedule modal from the approval warning
+    function showRescheduleFromWarning() {
+      if (!pendingApprovalBookingId) {
+        showProfessorModal('Error: No booking selected for rescheduling.');
+        return;
+      }
+
+      // Get the booking date from the warning modal
+      const warningDateElement = document.getElementById('warningDate');
+      const currentDate = warningDateElement ? warningDateElement.textContent : '';
+
+      // Close the approval warning modal
+      closeApprovalWarningModal();
+
+      // Set up the reschedule modal with the pending booking data
+      currentBookingId = pendingApprovalBookingId;
+      currentRescheduleButton = pendingApprovalButton;
+
+      // Set current date in the modal
+      document.getElementById('currentDate').textContent = currentDate;
+      
+      // Set minimum date to today
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('newDate').setAttribute('min', today);
+      document.getElementById('newDate').value = '';
+      
+      // Show reschedule modal
+      document.getElementById('rescheduleOverlay').style.display = 'flex';
+
+      // Clear the pending approval variables since we're now rescheduling
+      pendingApprovalButton = null;
+      pendingApprovalBookingId = null;
     }
 
     function confirmReschedule() {
       const newDate = document.getElementById('newDate').value;
-      
-      console.log('Debug - confirmReschedule called:', { 
-        currentBookingId, 
-        newDate,
-        currentRescheduleButton 
-      });
+      const reason = document.getElementById('rescheduleReason').value.trim();
       
       if (!newDate) {
-        alert('Please select a new date.');
+        showProfessorModal('Please select a new date.');
+        return;
+      }
+      
+      if (!reason) {
+        showProfessorModal('Please provide a reason for rescheduling.');
         return;
       }
       
       if (!currentBookingId) {
-        alert('Error: Booking ID is missing. Please try again.');
+        showProfessorModal('Error: Booking ID is missing. Please try again.');
         return;
       }
       
@@ -365,8 +442,6 @@
       const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
       const formattedDate = dateObj.toLocaleDateString('en-US', options);
       
-      console.log('Debug - formatted date:', formattedDate);
-      
       // Close modal (this sets currentBookingId and currentRescheduleButton to null)
       closeRescheduleModal();
       
@@ -375,12 +450,19 @@
         rescheduleButton.remove();
       }
       
-      // Call the update function with the stored booking ID
-      updateStatusWithDate(bookingId, 'rescheduled', formattedDate);
+      // Call the update function with the stored booking ID, date, and reason
+      updateStatusWithDate(bookingId, 'rescheduled', formattedDate, reason);
     }
 
-    function updateStatusWithDate(bookingId, status, newDate = null) {
-      console.log('Updating status:', { bookingId, status, newDate }); // Debug log
+    function updateStatusWithDate(bookingId, status, newDate = null, reason = null) {
+      
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      
+      if (!csrfToken) {
+        showProfessorModal('Error: CSRF token not found. Please refresh the page and try again.');
+        location.reload();
+        return;
+      }
       
       const requestBody = {
         id: bookingId,
@@ -391,34 +473,37 @@
         requestBody.new_date = newDate;
       }
       
+      if (reason) {
+        requestBody.reschedule_reason = reason;
+      }
+      
       fetch('/api/consultations/update-status', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+          'X-CSRF-TOKEN': csrfToken
         },
         body: JSON.stringify(requestBody)
       })
       .then(response => {
-        console.log('Response status:', response.status); // Debug log
-        
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
       })
       .then(data => {
-        console.log('Response data:', data); // Debug log
         if (data.success) {
-          alert(data.message);
-          location.reload(); // Reload the page to reflect changes
+          showProfessorModal('Success: ' + data.message);
+          setTimeout(() => location.reload(), 3500); // Reload the page to reflect changes
         } else {
-          alert('Failed to update status: ' + data.message);
+          showProfessorModal('Failed to update status: ' + data.message);
+          setTimeout(() => location.reload(), 3500); // Reload to restore the original state
         }
       })
       .catch(error => {
         console.error('Fetch error:', error);
-        alert('An error occurred while updating the status: ' + error.message);
+        showProfessorModal('Network error occurred while updating status. Please check your connection and try again.\n\nError: ' + error.message);
+  setTimeout(() => location.reload(), 3500);
       });
     }
 
@@ -431,11 +516,104 @@
       updateStatus(bookingId, status);
     }
 
+    // Variables to store approval context
+    let pendingApprovalButton = null;
+    let pendingApprovalBookingId = null;
+
+    // New function to handle approval with warning
+    function approveWithWarning(btn, bookingId, bookingDate) {
+      console.log('approveWithWarning called:', { bookingId, bookingDate });
+      
+      // Store the context for later use
+      pendingApprovalButton = btn;
+      pendingApprovalBookingId = bookingId;
+
+      // Count existing approved consultations for this date
+      fetch('/api/consultations')
+        .then(response => response.json())
+        .then(data => {
+          // Filter consultations for the specific date with approved status
+          const consultationsOnDate = data.filter(consultation => {
+            const consultationDate = new Date(consultation.Booking_Date).toDateString();
+            const targetDate = new Date(bookingDate).toDateString();
+            return consultationDate === targetDate && consultation.Status.toLowerCase() === 'approved';
+          });
+
+          const approvedCount = consultationsOnDate.length;
+          console.log('Approved consultations on', bookingDate, ':', approvedCount);
+
+          // Show warning if already 5 or more approved consultations
+          if (approvedCount >= 5) {
+            showApprovalWarningModal(bookingDate, approvedCount);
+          } else {
+            // Directly approve if less than 5
+            removeThisButton(btn, bookingId, 'Approved');
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching consultation data:', error);
+          // If we can't fetch data, show a generic warning
+          showProfessorModal('Unable to verify consultation count. Please try again.');
+        });
+// Custom Modal JS (moved to global scope)
+function showProfessorModal(message) {
+  document.getElementById('professorModalMessage').textContent = message;
+  document.getElementById('professorModal').style.display = 'flex';
+}
+function closeProfessorModal() {
+  document.getElementById('professorModal').style.display = 'none';
+}
+    }
+
+    function showApprovalWarningModal(bookingDate, currentCount) {
+      const modal = document.getElementById('approvalWarningOverlay');
+      const dateElement = document.getElementById('warningDate');
+      const countElement = document.getElementById('existingConsultationsCount');
+      const totalElement = document.getElementById('totalAfterApproval');
+
+      // Format the date nicely
+      const formattedDate = new Date(bookingDate).toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+
+      dateElement.textContent = formattedDate;
+      countElement.textContent = currentCount;
+      totalElement.textContent = currentCount + 1;
+
+      modal.style.display = 'flex';
+    }
+
+    function closeApprovalWarningModal() {
+      const modal = document.getElementById('approvalWarningOverlay');
+      modal.style.display = 'none';
+      
+      // Clear the context
+      pendingApprovalButton = null;
+      pendingApprovalBookingId = null;
+    }
+
+    function confirmApproval() {
+      if (pendingApprovalButton && pendingApprovalBookingId) {
+        // Proceed with the approval
+        removeThisButton(pendingApprovalButton, pendingApprovalBookingId, 'Approved');
+        closeApprovalWarningModal();
+      }
+    }
+
     // Close modal when clicking outside of it
     document.addEventListener('click', function(event) {
-      const modal = document.getElementById('rescheduleOverlay');
-      if (event.target === modal) {
+      const rescheduleModal = document.getElementById('rescheduleOverlay');
+      const approvalWarningModal = document.getElementById('approvalWarningOverlay');
+      
+      if (event.target === rescheduleModal) {
         closeRescheduleModal();
+      }
+      
+      if (event.target === approvalWarningModal) {
+        closeApprovalWarningModal();
       }
     });
 
@@ -443,6 +621,7 @@
     document.addEventListener('keydown', function(event) {
       if (event.key === 'Escape') {
         closeRescheduleModal();
+        closeApprovalWarningModal();
       }
     });
 
@@ -483,7 +662,235 @@
 
     document.getElementById('searchInput').addEventListener('keyup', filterRows);
     document.getElementById('typeFilter').addEventListener('change', filterRows);
+
+    // Real-time updates for professor consultation log - DISABLED TO PREVENT DUPLICATE ROWS
+    /*
+    function loadProfessorConsultationLogs() {
+      fetch('/api/professor/consultation-logs')
+        .then(response => response.json())
+        .then(data => {
+          updateProfessorConsultationTable(data);
+        })
+        .catch(error => {
+          console.error('Error loading professor consultation logs:', error);
+        });
+    }
+
+    function updateProfessorConsultationTable(bookings) {
+      const table = document.querySelector('.table');
+      const header = document.querySelector('.table-header');
+      
+      // Clear existing rows except header
+      const existingRows = table.querySelectorAll('.table-row:not(.table-header)');
+      existingRows.forEach(row => row.remove());
+      
+      if (bookings.length === 0) {
+        const emptyRow = document.createElement('div');
+        emptyRow.className = 'table-row';
+        emptyRow.innerHTML = `
+          <div class="table-cell" colspan="9">No consultations found.</div>
+        `;
+        table.appendChild(emptyRow);
+      } else {
+        bookings.forEach((booking, index) => {
+          const row = document.createElement('div');
+          row.className = 'table-row';
+          
+          const bookingDate = new Date(booking.Booking_Date);
+          const createdAt = new Date(booking.Created_At);
+          
+          let statusActions = '';
+          if (booking.Status.toLowerCase() === 'pending') {
+            statusActions = `
+              <button class="action-btn approve-btn" onclick="updateStatus(${booking.Booking_ID}, 'approved')">Approve</button>
+              <button class="action-btn reschedule-btn" onclick="showRescheduleModal(${booking.Booking_ID})">Reschedule</button>
+            `;
+          } else if (booking.Status.toLowerCase() === 'approved') {
+            statusActions = `
+              <button class="action-btn complete-btn" onclick="updateStatus(${booking.Booking_ID}, 'completed')">Complete</button>
+              <button class="action-btn reschedule-btn" onclick="showRescheduleModal(${booking.Booking_ID})">Reschedule</button>
+            `;
+          } else {
+            statusActions = `<span class="status-final">${booking.Status.charAt(0).toUpperCase() + booking.Status.slice(1)}</span>`;
+          }
+          
+          row.innerHTML = `
+            <div class="table-cell" data-label="No.">${index + 1}</div>
+            <div class="table-cell" data-label="Student">${booking.student || 'N/A'}</div>
+            <div class="table-cell" data-label="Subject">${booking.subject}</div>
+            <div class="table-cell" data-label="Date">${bookingDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
+            <div class="table-cell" data-label="Type">${booking.type}</div>
+            <div class="table-cell" data-label="Mode">${booking.Mode.charAt(0).toUpperCase() + booking.Mode.slice(1)}</div>
+            <div class="table-cell" data-label="Status">${booking.Status.charAt(0).toUpperCase() + booking.Status.slice(1)}</div>
+            <div class="table-cell action-cell" data-label="Action">${statusActions}</div>
+          `;
+          
+          table.appendChild(row);
+        });
+      }
+      
+      // Add spacer
+      const spacer = document.createElement('div');
+      spacer.style.height = '80px';
+      table.appendChild(spacer);
+      
+      // Re-apply filters after updating
+      filterRows();
+    }
+
+    // Initial load and real-time updates every 5 seconds - DISABLED
+    loadProfessorConsultationLogs();
+    setInterval(loadProfessorConsultationLogs, 5000);
+    */
+
+    // Mobile notification functions for navbar
+    function toggleMobileNotifications() {
+      const dropdown = document.getElementById('mobileNotificationsDropdown');
+      if (dropdown) {
+        dropdown.classList.toggle('active');
+        
+        // Close sidebar if open
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && sidebar.classList.contains('active')) {
+          sidebar.classList.remove('active');
+        }
+        
+        // Load notifications if opening dropdown
+        if (dropdown.classList.contains('active')) {
+          loadMobileNotifications();
+        }
+      }
+    }
+
+    function loadMobileNotifications() {
+      fetch('/api/professor/notifications')
+        .then(response => response.json())
+        .then(data => {
+          displayMobileNotifications(data.notifications);
+          updateMobileNotificationBadge();
+        })
+        .catch(error => {
+          console.error('Error loading mobile notifications:', error);
+        });
+    }
+
+    function displayMobileNotifications(notifications) {
+      const mobileContainer = document.getElementById('mobileNotificationsContainer');
+      if (!mobileContainer) return;
+      
+      if (notifications.length === 0) {
+        mobileContainer.innerHTML = `
+          <div class="no-notifications">
+            <i class='bx bx-bell-off'></i>
+            <p>No notifications yet</p>
+          </div>
+        `;
+        return;
+      }
+      
+      const notificationsHtml = notifications.map(notification => {
+        const timeAgo = getTimeAgo(notification.created_at);
+        const unreadClass = notification.is_read ? '' : 'unread';
+        
+        return `
+          <div class="notification-item ${unreadClass}" onclick="markMobileNotificationAsRead(${notification.id})">
+            <div class="notification-type ${notification.type}">${notification.type.replace('_', ' ')}</div>
+            <div class="notification-title">${notification.title}</div>
+            <div class="notification-message">${notification.message}</div>
+            <div class="notification-time">${timeAgo}</div>
+          </div>
+        `;
+      }).join('');
+      
+      mobileContainer.innerHTML = notificationsHtml;
+    }
+
+    function updateMobileNotificationBadge() {
+      fetch('/api/professor/notifications/unread-count')
+        .then(response => response.json())
+        .then(data => {
+          const mobileCountElement = document.getElementById('mobileNotificationBadge');
+          if (mobileCountElement) {
+            if (data.unread_count > 0) {
+              mobileCountElement.textContent = data.unread_count;
+              mobileCountElement.style.display = 'flex';
+            } else {
+              mobileCountElement.style.display = 'none';
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error updating mobile notification badge:', error);
+        });
+    }
+
+    function markMobileNotificationAsRead(notificationId) {
+      fetch('/api/professor/notifications/mark-read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({ notification_id: notificationId })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          loadMobileNotifications(); // Reload to update read status
+        }
+      })
+      .catch(error => {
+        console.error('Error marking mobile notification as read:', error);
+      });
+    }
+
+    function markAllProfessorNotificationsAsRead() {
+      fetch('/api/professor/notifications/mark-all-read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          loadMobileNotifications(); // Reload to update read status
+        }
+      })
+      .catch(error => {
+        console.error('Error marking all professor notifications as read:', error);
+      });
+    }
+
+    function getTimeAgo(dateString) {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffInSeconds = Math.floor((now - date) / 1000);
+      
+      if (diffInSeconds < 60) return 'Just now';
+      if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+      if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+      return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    }
+
+    // Initialize mobile notifications on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      updateMobileNotificationBadge();
+      // Update badge every 30 seconds
+      setInterval(updateMobileNotificationBadge, 30000);
+    });
   </script>
   <script src="{{ asset('js/ccit.js') }}"></script>
+  <script>
+    // Custom Modal JS (guaranteed global)
+    function showProfessorModal(message) {
+      document.getElementById('professorModalMessage').textContent = message;
+      document.getElementById('professorModal').style.display = 'flex';
+    }
+    function closeProfessorModal() {
+      document.getElementById('professorModal').style.display = 'none';
+    }
+  </script>
 </body>
 </html>

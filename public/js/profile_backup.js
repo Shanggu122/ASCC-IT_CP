@@ -56,12 +56,12 @@ function togglePasswordVisibility(inputId, icon) {
     const input = document.getElementById(inputId);
     if (input.type === "password") {
         input.type = "text";
-        icon.classList.remove("bx-hide");
-        icon.classList.add("bx-show");
-    } else {
-        input.type = "password";
         icon.classList.remove("bx-show");
         icon.classList.add("bx-hide");
+    } else {
+        input.type = "password";
+        icon.classList.remove("bx-hide");
+        icon.classList.add("bx-show");
     }
 }
 function loadChat(name) {
@@ -92,8 +92,9 @@ function sendMessage() {
 // Add event listener to handle "Enter" key for sending messages
 document.getElementById("message").addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
+        // Detect Enter key (without Shift key for multi-line messages)
+        e.preventDefault(); // Prevent newline
+        sendMessage(); // Call send message function
     }
 });
 
@@ -119,50 +120,3 @@ function handleKey(e) {
         sendMessage();
     }
 }
-
-// Add to your messages.js
-document.getElementById("attach-btn").addEventListener("click", function () {
-    document.getElementById("file-input").click();
-});
-
-document.getElementById("file-input").addEventListener("change", function (e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("bookingId", bookingId); // set this variable as needed
-    formData.append("recipient", currentChatPerson); // set this variable as needed
-    formData.append("_token", "{{ csrf_token() }}");
-
-    fetch("/send-file", {
-        method: "POST",
-        body: formData,
-    })
-        .then((response) => response.json())
-        .then((data) => {
-            if (data.status === "File sent!") {
-                const chatBody = document.getElementById("chat-body");
-                let msgDiv = document.createElement("div");
-                msgDiv.className = "message sent";
-                if (file.type.startsWith("image/")) {
-                    let img = document.createElement("img");
-                    img.src = data.file_url;
-                    img.style.maxWidth = "150px";
-                    img.style.borderRadius = "8px";
-                    msgDiv.appendChild(img);
-                } else {
-                    let link = document.createElement("a");
-                    link.href = data.file_url;
-                    link.textContent = file.name;
-                    link.target = "_blank";
-                    msgDiv.appendChild(link);
-                }
-                chatBody.appendChild(msgDiv);
-                chatBody.scrollTop = chatBody.scrollHeight;
-            } else {
-                alert("Error sending file");
-            }
-        })
-        .catch(() => alert("Error sending file"));
-});

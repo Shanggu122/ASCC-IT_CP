@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-w    const APP_ID   = 'ab155f23c3fc4ae980b11973d818c460';
+    const TOKEN    = '007eJxTYLBnr1pkoWH5+YvVq5O1WZueaJ4MO+7vN/N0/qK/F5xaNNUUGBKTDE1N04yMk43Tkk0SUy0tDJIMDS3NjVMsDC2STcwMFh7WyGgIZGSYcaqAgREKQXx2hpLU4hJDI2MGBgDmpyDn';
+    const CHANNEL  = '{{ $channel }}';h, initial-scale=1.0" />
   <title>Video Call (Professor) — {{ $channel }}</title>
 
   <!-- Boxicons for Icons -->
@@ -144,9 +146,8 @@
         localVideoTrack.play(localContainer);
         await client.publish([localAudioTrack, localVideoTrack]);
 
-        console.log("Connected to channel:", CHANNEL);
+        // Connected to channel
       } catch (err) {
-        console.error("Agora connection failed:", err);
         alert("Connection failed. Check APP_ID/TOKEN.");
       }
     });

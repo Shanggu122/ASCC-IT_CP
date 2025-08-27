@@ -11,7 +11,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>ASCC-IT Login</title>
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-  <link rel="stylesheet" href="{{ asset('css/login.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/loginprof.css') }}">
 </head>
 <body>
   <div class="container">
@@ -26,8 +26,10 @@
       <div class="brand">
         <img src="{{ asset('images/ASCCITlogo.png') }}" alt="ASCC-IT Logo" class="small-logo">
         <h1>ASCC-IT</h1>
-        <p><em>Catalyzing Change Innovating for Tomorrow</em></p>
       </div>
+      <p class="brand-slogan">
+        <em><b>C</b>atalyzing <b>C</b>hange <b>I</b>nnovating for <b>T</b>omorrow</em>
+      </p>
       <form action="{{ url('login-professor') }}" method="post">
         @csrf
         <div class="input-group">
@@ -37,7 +39,14 @@
           <input type="password" id="password" name="Password" placeholder="Enter your password" />
           <i class='bx bx-hide toggle-password' id="toggle-password"></i>
         </div>
-        <div class="options">
+        <div class="options-row">
+          @if(session('error'))
+            <div class="login-error">
+              {{ session('error') }}
+            </div>
+          @else
+            <span></span>
+          @endif
           <a href="{{ route('forgotpassword') }}">Forgot Password?</a>
         </div>
         <button type="submit" class="login-btn">Log In</button>

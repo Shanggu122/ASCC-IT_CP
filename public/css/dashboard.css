@@ -40,6 +40,7 @@ body {
     align-items: center;
     gap: 0.5rem;
     cursor: pointer;
+    z-index: 2147483647 !important;
 }
 .chat-button i {
     font-size: 1.2rem;
@@ -56,7 +57,7 @@ body {
     box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
-    z-index: 1000;
+    z-index: 2147483647 !important;
     transition: right 0.3s ease;
     border-left: 3px solid #12372a;
 }
@@ -267,4 +268,19 @@ body {
     .box {
         width: 100%;
     }
+}
+
+/* LAYERING: CHATBOT ON TOP, NOTIFICATIONS SECOND, EVERYTHING ELSE BELOW */
+.mobile-notifications-dropdown,
+.mobile-notifications-dropdown.active {
+    z-index: 1000000 !important; /* High but below chatbot */
+}
+
+.mobile-notification-bell,
+#mobileNotificationBell,
+button#mobileNotificationBell,
+.mobile-header .mobile-notification-bell,
+button.mobile-notification-bell,
+div.mobile-header button#mobileNotificationBell.mobile-notification-bell {
+    z-index: 1000000 !important; /* High but below chatbot */
 }

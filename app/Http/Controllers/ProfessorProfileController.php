@@ -24,17 +24,38 @@ class ProfessorProfileController extends Controller
 
     public function changePassword(Request $request)
     {
+        // First, validate only required fields and current password
         $request->validate([
-            'oldPassword' => 'required|string',
-            'newPassword' => 'required|string|min:8|confirmed',
+            'oldPassword' => 'required',
+            'newPassword' => 'required',
+            'newPassword_confirmation' => 'required',
+        ], [
+            'oldPassword.required' => 'Current password is required.',
+            'newPassword.required' => 'New password is required.',
+            'newPassword_confirmation.required' => 'Password confirmation is required.',
         ]);
 
         // Get the authenticated user
         $user = Auth::guard('professor')->user();
 
-        // Check if the old password is correct
-        if ($request->oldPassword !== $user->Password) {
-            return back()->withErrors(['oldPassword' => 'The provided password does not match our records.']);
+        // PRIORITY CHECK: Verify current password first before other validations
+        if ($user->Password !== $request->oldPassword) {
+            return back()->withErrors([
+                'oldPassword' => 'Your current password is incorrect. Please enter your existing password correctly.',
+            ]);
+        }
+
+        // Only after current password is verified, check other password requirements
+        $request->validate([
+            'newPassword' => 'min:8|confirmed',
+        ], [
+            'newPassword.min' => 'Your new password is too short. It must be at least 8 characters long.',
+            'newPassword.confirmed' => 'Your new password and confirmation password do not match. Please re-enter them correctly.',
+        ]);
+        
+        // Check if new password is different from old password
+        if ($request->newPassword === $request->oldPassword) {
+            return back()->withErrors(['newPassword' => 'Your new password must be different from your current password.']);
         }
 
         // Update the password
@@ -42,7 +63,7 @@ class ProfessorProfileController extends Controller
         $user->save();
 
         // Redirect back with success message
-        return back()->with('password_status', 'Password updated successfully!');
+        return back()->with('password_status', 'Password changed successfully!');
     }
 
 

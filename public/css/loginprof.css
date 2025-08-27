@@ -34,11 +34,13 @@ body {
     align-items: center;
     padding: 2rem;
     text-align: center;
+    min-height: 550px; /* Increase left panel height */
 }
 
 .left-logo {
-    width: 220px;
-    margin-bottom: 1.5rem;
+    width: 260px; /* Increase the logo size */
+    max-width: 100%; /* Responsive: don't overflow panel */
+    margin-bottom: 3.5rem;
 }
 
 .left-panel h2 {
@@ -49,43 +51,64 @@ body {
 .right-panel {
     flex: 1;
     background: #ffffff;
-    padding: 3rem;
+    padding: 1.2rem 3rem 3rem 1.5rem; /* less top/left padding for flush effect */
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
+    align-items: flex-start;
+    min-height: 550px; /* Adjust right panel height */
 }
 
 .brand {
-    text-align: center;
-    margin-bottom: 2rem;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 0.5rem; /* less space, so slogan is closer */
+    margin-top: 10px;
+    text-align: left;
 }
 
 .small-logo {
-    width: 50px;
-    margin-bottom: 0.5rem;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 0;
+    margin-top: 0;
+    margin-left: 0;
+    align-self: flex-start;
 }
 
 .brand h1 {
     color: #0b3d2e;
-    font-weight: 700;
+    font-weight: 800;
+    font-size: 1.5rem; /* smaller font size */
+    margin-bottom: 0;
+    margin-left: 0.7rem;
 }
 
-.brand p {
+.brand-slogan {
+    width: 100%;
+    text-align: center;
     font-style: italic;
     color: #555;
-    margin-top: 0.5rem;
+    margin-top: 3.5rem; /* Increased space above */
+    margin-bottom: 1.5rem;
+    font-size: 1.1rem;
 }
 
 .input-group {
     margin-bottom: 1.2rem;
     position: relative;
+    max-width: 350px; /* Set max width */
+    width: 100%;
+    margin-left: auto; /* Center horizontally */
+    margin-right: auto;
 }
 
 .input-group input {
-    width: 100%;
+    width: 100%; /* Fill the group */
     padding: 12px 16px;
     border: 1px solid #ccc;
-    border-radius: 6px;
+    border-radius: 16px; /* Increased border radius */
     font-size: 16px;
     transition: border-color 0.3s;
 }
@@ -121,16 +144,154 @@ body {
 
 .login-btn {
     width: 100%;
+    max-width: 350px; /* Match input width */
     background-color: #0b3d2e;
     color: white;
     border: none;
     padding: 12px;
     font-size: 16px;
-    border-radius: 8px;
+    border-radius: 16px; /* Increased border radius */
     cursor: pointer;
     transition: background-color 0.3s;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .login-btn:hover {
     background-color: #105943;
+}
+
+.options-row {
+    max-width: 350px; /* Match input and button width */
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    display: flex;
+    justify-content: space-between; /* Spread content across the row */
+    align-items: center; /* Vertically center items */
+    margin-bottom: 1rem;
+    margin-top: 10px;
+    min-height: 32px; /* Ensure consistent height */
+}
+
+.login-error {
+    color: #dc3545;
+    font-size: 14px;
+    font-weight: 500;
+    background: none;
+    border: none;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    flex: 1; /* Take up available space */
+    text-align: left; /* Align error text to the left */
+}
+
+.options-row a {
+    color: #0b3d2e;
+    text-decoration: none;
+    font-size: 14px;
+    white-space: nowrap; /* Prevent link from wrapping */
+    margin-left: 10px; /* Add some space between error and link */
+}
+
+/* Add this to push the form down if needed */
+.right-panel form {
+    margin-top: 2.5rem; /* Reduced space above the form */
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    body {
+        height: auto;
+        min-height: 100vh;
+        overflow-y: auto;
+    }
+
+    .container {
+        flex-direction: column;
+        width: 95vw;
+        max-width: 430px;
+        min-height: 120vh; /* Make container longer for scrolling */
+        height: auto;
+        margin: 2.5rem auto;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        background: #fff;
+
+        padding-bottom: 2rem;
+    }
+
+    .left-panel,
+    .right-panel {
+        width: 100%;
+        max-width: 100%;
+        min-height: 400px; /* Increase min-height for longer panels */
+        box-sizing: border-box;
+        padding: 2rem 1rem;
+    }
+
+    .left-panel {
+        align-items: center;
+        justify-content: center;
+        padding-bottom: 1rem;
+    }
+
+    .right-panel {
+        align-items: center;
+        justify-content: flex-start;
+        padding-top: 1rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .brand,
+    .brand-slogan,
+    form {
+        width: 100%;
+        max-width: 100%;
+        text-align: center;
+        align-items: center;
+    }
+
+    .input-group,
+    .login-btn,
+    .options-row {
+        max-width: 260px; /* Make input and button smaller */
+        width: 100%;
+    }
+
+    .input-group input {
+        font-size: 15px;
+        padding: 10px 12px;
+    }
+
+    .login-btn {
+        font-size: 15px;
+        padding: 10px;
+    }
+
+    .options-row {
+        justify-content: flex-end;
+        margin-bottom: 1rem;
+        margin-top: 5px;
+    }
+
+    .brand {
+        margin-bottom: 0.5rem;
+    }
+
+    .small-logo {
+        width: 44px;
+        height: 44px;
+    }
+
+    .brand h1 {
+        font-size: 1.3rem;
+        margin-left: 0.6rem;
+    }
+
+    .options-row a {
+        font-size: 12px; /* Make the option font smaller on mobile */
+    }
 }

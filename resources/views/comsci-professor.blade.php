@@ -16,19 +16,32 @@
     <div class="header">
       <h1>Computer Science Department</h1>
     </div>
+    
     <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Search...">
+      <input type="text" id="searchInput" placeholder="Search..." onkeyup="filterColleagues()">
     </div>
-    <div class="profile-card" onclick="openModal()">
-      <img src="{{ asset('images/.jpg') }}" alt="Profile Picture">
-      <div class="profile-name">Prof. Jay Abaleta
-      </div>
+    
+    <div class="profile-cards-grid">
+      @if($colleagues->count() > 0)
+        @foreach($colleagues as $colleague)
+          <div class="profile-card" data-name="{{ $colleague->Name }}">
+            <img src="{{ $colleague->profile_picture ? asset('storage/' . $colleague->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
+            <div class="profile-name">{{ $colleague->Name }}</div>
+          </div>
+        @endforeach
+      @else
+        <div class="no-colleagues">
+          <p>No other colleagues in this department.</p>
+        </div>
+      @endif
     </div>
   </div>
+  
   <button class="chat-button" onclick="toggleChat()">
     <i class='bx bxs-message-rounded-dots'></i>
     Click to chat with me!
   </button>
+  
   <div class="chat-overlay" id="chatOverlay">
     <div class="chat-header">
       <span>AI Chat Assistant</span>
@@ -43,6 +56,57 @@
       <button type="submit">Send</button>
     </form>
   </div>
+  
   <script src="{{ asset('js/comsci.js') }}"></script>
+  <script>
+    function filterColleagues() {
+      const searchInput = document.getElementById('searchInput');
+      const filter = searchInput.value.toLowerCase();
+      const cards = document.querySelectorAll('.profile-card');
+      
+      cards.forEach(card => {
+        const name = card.getAttribute('data-name').toLowerCase();
+        if (name.includes(filter)) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
+    // Add Enter key functionality for chat form
+    document.addEventListener('DOMContentLoaded', function() {
+      const messageInput = document.getElementById('message');
+      if (messageInput) {
+        // Remove any existing event listeners first
+        messageInput.removeEventListener('keydown', handleEnterKey);
+        
+        // Add our Enter key handler
+        messageInput.addEventListener('keydown', handleEnterKey);
+      }
+      
+      // Add Enter key functionality for search input as well
+      const searchInput = document.getElementById('searchInput');
+      if (searchInput) {
+        searchInput.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            filterColleagues();
+          }
+        });
+      }
+    });
+    
+    // Define the Enter key handler function
+    function handleEnterKey(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const chatForm = document.getElementById('chatForm');
+        if (chatForm) {
+          chatForm.requestSubmit();
+        }
+      }
+    }
+  </script>
 </body>
 </html> 

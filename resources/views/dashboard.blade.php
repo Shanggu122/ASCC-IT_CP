@@ -8,6 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/dashboard.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/notifications.css') }}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
   <style>
     #calendar {
@@ -110,193 +111,6 @@
    
     }
 
-    /* Inbox Notification Styles */
-    .inbox-notifications {
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-      height: 650px; /* Increased height */
-      max-height: 650px; /* Increased max height */
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .inbox-header {
-      padding: 20px;
-      background: #12372a;
-      color: white;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-radius: 10px 10px 0 0;
-    }
-
-    .inbox-header h3 {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 600;
-    }
-
-    .inbox-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .mark-all-btn {
-      background: rgba(255, 255, 255, 0.2);
-      border: none;
-      color: white;
-      padding: 8px;
-      border-radius: 5px;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-
-    .mark-all-btn:hover {
-      background: rgba(255, 255, 255, 0.3);
-    }
-
-    .unread-count {
-      background: #ff4444;
-      color: white;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: bold;
-      min-width: 20px;
-      text-align: center;
-    }
-
-    .inbox-content {
-      flex: 1;
-      overflow-y: auto; /* Make it scrollable */
-      overflow-x: hidden; /* Hide horizontal scroll */
-      padding: 0;
-      max-height: calc(650px - 70px); /* Subtract header height, match new box height */
-    }
-
-    /* Custom scrollbar styling */
-    .inbox-content::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    .inbox-content::-webkit-scrollbar-track {
-      background: #f1f1f1;
-      border-radius: 3px;
-    }
-
-    .inbox-content::-webkit-scrollbar-thumb {
-      background: #c1c1c1;
-      border-radius: 3px;
-    }
-
-    .inbox-content::-webkit-scrollbar-thumb:hover {
-      background: #a8a8a8;
-    }
-
-    .loading-notifications {
-      padding: 40px 20px;
-      text-align: center;
-      color: #666;
-    }
-
-    .loading-notifications i {
-      font-size: 24px;
-      margin-bottom: 10px;
-    }
-
-    .notification-item {
-      padding: 15px 20px;
-      border-bottom: 1px solid #eee;
-      cursor: pointer;
-      transition: background 0.3s;
-      position: relative;
-    }
-
-    .notification-item:hover {
-      background: #f8f9fa;
-    }
-
-    .notification-item.unread {
-      background: #f0f8ff;
-      border-left: 4px solid #12372a;
-    }
-
-    .notification-item.unread::before {
-      content: '';
-      position: absolute;
-      left: 8px;
-      top: 20px;
-      width: 8px;
-      height: 8px;
-      background: #12372a;
-      border-radius: 50%;
-    }
-
-    .notification-title {
-      font-weight: 600;
-      color: #333;
-      margin-bottom: 5px;
-      font-size: 14px;
-    }
-
-    .notification-message {
-      color: #666;
-      font-size: 13px;
-      line-height: 1.4;
-      margin-bottom: 8px;
-    }
-
-    .notification-time {
-      color: #999;
-      font-size: 12px;
-    }
-
-    .notification-type {
-      position: absolute;
-      right: 15px;
-      top: 15px;
-      padding: 2px 6px;
-      border-radius: 10px;
-      font-size: 10px;
-      font-weight: bold;
-      text-transform: uppercase;
-    }
-
-    .notification-type.accepted {
-      background: #d4edda;
-      color: #155724;
-    }
-
-    .notification-type.completed {
-      background: #cce5ff;
-      color: #0056b3;
-    }
-
-    .notification-type.rescheduled {
-      background: #fff3cd;
-      color: #856404;
-    }
-
-    .notification-type.cancelled {
-      background: #f8d7da;
-      color: #721c24;
-    }
-
-    .no-notifications {
-      padding: 40px 20px;
-      text-align: center;
-      color: #666;
-    }
-
-    .no-notifications i {
-      font-size: 48px;
-      margin-bottom: 15px;
-      color: #ddd;
-    }
-
     /* Responsive design */
     @media (max-width: 768px) {
       .flex-layout {
@@ -308,15 +122,7 @@
       .box {
         width: 100%;
       }
-      
-      .inbox-notifications {
-        height: 450px; /* Slightly larger for mobile */
-        max-height: 450px;
-        min-height: 300px;
-      }
-
-      .inbox-content {
-        max-height: calc(450px - 70px); /* Adjust for mobile */
+    }
       }
     }
 
@@ -327,7 +133,7 @@
 
   <div class="main-content">
     <div class="header">
-      <h1>Consultation Activity</h1>
+      <h1>Consultation Activity</h1> <!-- Changed to a more descriptive title -->
     </div>
     <div class="flex-layout">
       <div class="calendar-box">
@@ -389,71 +195,143 @@
   <script>
     
    const bookingMap = new Map();
-  fetch('/api/consul')
-    .then(response => response.json())
-    .then(data => {
-      data.forEach(entry => {
-        const date = new Date(entry.Booking_Date);
-        bookingMap.set(date.toDateString(), entry.Status.toLowerCase());
-      });
-
-      // Initialize Pikaday AFTER data is loaded
-      const picker = new Pikaday({
-        field: document.getElementById('calendar'),
-        format: 'ddd, MMM DD YYYY',
-        showDaysInNextAndPreviousMonths: true,
-        firstDay: 1,
-        bound: false,
-        onDraw: function() {
+  
+  function loadBookingData() {
+    fetch('/api/consul')
+      .then(response => response.json())
+      .then(data => {
+        // Store previous booking map for comparison
+        const previousBookings = new Map(bookingMap);
+        bookingMap.clear(); // Clear existing data
+        
+        data.forEach(entry => {
+          const date = new Date(entry.Booking_Date);
+          bookingMap.set(date.toDateString(), entry.Status.toLowerCase());
+        });
+        
+        // Only update calendar if there are actual changes
+        let hasChanges = false;
+        
+        // Check for new or changed bookings
+        for (const [dateStr, status] of bookingMap) {
+          if (!previousBookings.has(dateStr) || previousBookings.get(dateStr) !== status) {
+            hasChanges = true;
+            break;
+          }
+        }
+        
+        // Check for removed bookings
+        if (!hasChanges) {
+          for (const [dateStr] of previousBookings) {
+            if (!bookingMap.has(dateStr)) {
+              hasChanges = true;
+              break;
+            }
+          }
+        }
+        
+        // Only update calendar cells if there are changes
+        if (hasChanges && window.picker) {
           const cells = document.querySelectorAll('.pika-button');
           cells.forEach(cell => {
-            const day = cell.getAttribute('data-pika-day');
-            const month = cell.getAttribute('data-pika-month');
-            const year = cell.getAttribute('data-pika-year');
-            if (day && month && year) {
-              const cellDate = new Date(year, month, day);
-              const key = cellDate.toDateString();
-              if (bookingMap.has(key)) {
-                const status = bookingMap.get(key);
-                const classMap = {
-                  pending: 'status-pending',
-                  approved: 'status-approved',
-                  completed: 'status-completed',
-                  rescheduled: 'status-rescheduled'
-                };
-                cell.classList.add('has-booking');
-                cell.classList.add(classMap[status]);
-                cell.setAttribute('data-status', status);
+            const cellDate = new Date(cell.getAttribute('data-pika-year'), cell.getAttribute('data-pika-month'), cell.getAttribute('data-pika-day'));
+            const dateStr = cellDate.toDateString();
+            const status = bookingMap.get(dateStr);
+            const previousStatus = previousBookings.get(dateStr);
+            
+            // Only update if status changed for this specific date
+            if (status !== previousStatus) {
+              // Remove existing status classes
+              cell.classList.remove('status-pending', 'status-approved', 'status-completed', 'status-rescheduled');
+              
+              if (status) {
+                cell.classList.add(`status-${status}`);
               }
             }
           });
         }
+      })
+      .catch((err) => {
+        // Error loading booking data
       });
-      picker.show();
-      picker.draw();
-    })
-    .catch((err) => console.log(err));
+  }
+  
+  // Initial load
+  loadBookingData();
+
+  // Initialize Pikaday AFTER data is loaded
+  const picker = new Pikaday({
+    field: document.getElementById('calendar'),
+    format: 'ddd, MMM DD YYYY',
+    showDaysInNextAndPreviousMonths: true,
+    firstDay: 1,
+    bound: false,
+    onDraw: function() {
+      const cells = document.querySelectorAll('.pika-button');
+      cells.forEach(cell => {
+        // Remove existing status classes
+        cell.classList.remove('has-booking', 'status-pending', 'status-approved', 'status-completed', 'status-rescheduled');
+        cell.removeAttribute('data-status');
+        
+        const day = cell.getAttribute('data-pika-day');
+        const month = cell.getAttribute('data-pika-month');
+        const year = cell.getAttribute('data-pika-year');
+        if (day && month && year) {
+          const cellDate = new Date(year, month, day);
+          const key = cellDate.toDateString();
+          if (bookingMap.has(key)) {
+            const status = bookingMap.get(key);
+            const classMap = {
+              pending: 'status-pending',
+              approved: 'status-approved',
+              completed: 'status-completed',
+              rescheduled: 'status-rescheduled'
+            };
+            cell.classList.add('has-booking');
+            cell.classList.add(classMap[status]);
+            cell.setAttribute('data-status', status);
+          }
+        }
+      });
+    }
+  });
+  
+  // Store picker globally for refresh
+  window.picker = picker;
+  picker.show();
+  picker.draw();
+  
+  // Real-time refresh booking data every 3 seconds (reduced for smoother updates)
+  setInterval(loadBookingData, 3000);
         
     // Initialize inbox notifications
     loadNotifications();
     
-    // Load notifications every 30 seconds
-    setInterval(loadNotifications, 30000);
+    // Real-time load notifications every 3 seconds (reduced for smoother updates)
+    setInterval(loadNotifications, 3000);
     
     // Mark all as read functionality
     document.getElementById('mark-all-read').addEventListener('click', function() {
       markAllNotificationsAsRead();
     });
     
+    let lastNotificationHash = '';
+    
     function loadNotifications() {
       fetch('/api/notifications')
         .then(response => response.json())
         .then(data => {
-          displayNotifications(data.notifications);
-          updateUnreadCount();
+          // Create a simple hash of the notifications to detect changes
+          const notificationHash = JSON.stringify(data.notifications.map(n => ({id: n.id, is_read: n.is_read, message: n.message})));
+          
+          // Only update if notifications actually changed
+          if (notificationHash !== lastNotificationHash) {
+            displayNotifications(data.notifications);
+            updateUnreadCount();
+            lastNotificationHash = notificationHash;
+          }
         })
         .catch(error => {
-          console.error('Error loading notifications:', error);
           document.getElementById('inbox-content').innerHTML = 
             '<div class="no-notifications"><i class="bx bx-error"></i><p>Error loading notifications</p></div>';
         });
@@ -461,26 +339,41 @@
     
     function displayNotifications(notifications) {
       const inboxContent = document.getElementById('inbox-content');
+      const mobileContainer = document.getElementById('mobileNotificationsContainer');
       
       if (notifications.length === 0) {
-        inboxContent.innerHTML = `
+        const noNotificationsHtml = `
           <div class="no-notifications">
             <i class='bx bx-bell-off'></i>
             <p>No notifications yet</p>
           </div>
         `;
+        inboxContent.innerHTML = noNotificationsHtml;
+        if (mobileContainer) {
+          mobileContainer.innerHTML = noNotificationsHtml;
+        }
         return;
       }
       
-      inboxContent.innerHTML = notifications.map(notification => `
-        <div class="notification-item ${notification.is_read ? '' : 'unread'}" 
-             onclick="markNotificationAsRead(${notification.id})">
-          <div class="notification-type ${notification.type}">${notification.type}</div>
-          <div class="notification-title">${notification.title}</div>
-          <div class="notification-message">${notification.message}</div>
-          <div class="notification-time">${formatNotificationTime(notification.created_at)}</div>
-        </div>
-      `).join('');
+      const notificationsHtml = notifications.map(notification => {
+        // Use generic "Consultation" title to avoid redundancy with the status badge
+        const cleanTitle = notification.title.includes('Consultation') ? 'Consultation' : notification.title;
+        
+        return `
+          <div class="notification-item ${notification.is_read ? '' : 'unread'}" 
+               onclick="markNotificationAsRead(${notification.id})">
+            <div class="notification-type ${notification.type}">${notification.type}</div>
+            <div class="notification-title">${cleanTitle}</div>
+            <div class="notification-message">${notification.message}</div>
+            <div class="notification-time">${formatNotificationTime(notification.created_at)}</div>
+          </div>
+        `;
+      }).join('');
+      
+      inboxContent.innerHTML = notificationsHtml;
+      if (mobileContainer) {
+        mobileContainer.innerHTML = notificationsHtml;
+      }
     }
     
     function updateUnreadCount() {
@@ -488,10 +381,21 @@
         .then(response => response.json())
         .then(data => {
           const countElement = document.getElementById('unread-count');
+          const mobileCountElement = document.getElementById('mobileNotificationBadge');
+          
+          // Update desktop notification count
           countElement.textContent = data.count;
           countElement.style.display = data.count > 0 ? 'inline-block' : 'none';
+          
+          // Update mobile notification badge
+          if (mobileCountElement) {
+            mobileCountElement.textContent = data.count;
+            mobileCountElement.style.display = data.count > 0 ? 'flex' : 'none';
+          }
         })
-        .catch(error => console.error('Error updating unread count:', error));
+        .catch(error => {
+          // Error updating unread count
+        });
     }
     
     function markNotificationAsRead(notificationId) {
@@ -506,10 +410,14 @@
       .then(response => response.json())
       .then(data => {
         if (data.success) {
+          // Reset hash to force notification update
+          notificationsHash = '';
           loadNotifications();
         }
       })
-      .catch(error => console.error('Error marking notification as read:', error));
+      .catch(error => {
+        // Error marking notification as read
+      });
     }
     
     function markAllNotificationsAsRead() {
@@ -523,10 +431,14 @@
       .then(response => response.json())
       .then(data => {
         if (data.success) {
+          // Reset hash to force notification update
+          notificationsHash = '';
           loadNotifications();
         }
       })
-      .catch(error => console.error('Error marking all notifications as read:', error));
+      .catch(error => {
+        // Error marking all notifications as read
+      });
     }
     
     function formatNotificationTime(timestamp) {

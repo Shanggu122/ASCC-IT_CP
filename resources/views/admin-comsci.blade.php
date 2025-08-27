@@ -1,21 +1,21 @@
-<!-- filepath: resources/views/admin-itis.blade.php -->
+<!-- filepath: resources/views/admin-comsci.blade.php -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Information Technology and Information System (Admin)</title>
+  <title>Computer Science (Admin)</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-  <link rel="stylesheet" href="{{ asset('css/admin-itis.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/admin-comsci.css') }}">
 </head>
 <body>
   @include('components.navbar-admin')
 
   <div class="main-content">
     <div class="header">
-      <h1>Information Technology and Information System</h1>
+      <h1>Computer Science</h1>
     </div>
 
     <div class="search-container">
@@ -42,7 +42,7 @@
   <div class="panel-overlay"></div>
 
   <!-- Add Faculty Side Panel -->
-  <form id="addFacultyPanel" class="add-faculty-panel" method="POST" action="{{ route('admin.itis.professor.add') }}">
+  <form id="addFacultyPanel" class="add-faculty-panel" method="POST" action="{{ route('admin.comsci.professor.add') }}">
     @csrf
     <div class="panel-header">
       <h2>Add Faculty Member</h2>
@@ -601,7 +601,7 @@
 
     function populateEditForm(profId, name, schedule) {
       // Set the form action URL
-      document.getElementById('editFacultyForm').action = `/admin-itis/update-professor/${profId}`;
+      document.getElementById('editFacultyForm').action = `/admin-comsci/update-professor/${profId}`;
       
       // Populate Faculty ID field
       document.getElementById('editProfId').value = profId;
@@ -710,7 +710,7 @@
 
     function loadProfessorSubjects(profId) {
       // Fetch professor's current subject assignments
-      fetch(`/admin-itis/professor-subjects/${profId}`, {
+      fetch(`/admin-comsci/professor-subjects/${profId}`, {
         method: 'GET',
         headers: {
           'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
@@ -742,7 +742,7 @@
     // --- Delete Modal Logic ---
     function showDeleteModal(profId) {
       var form = document.getElementById('deleteForm');
-      form.action = '/admin-itis/delete-professor/' + profId;
+      form.action = '/admin-comsci/delete-professor/' + profId;
       ModalManager.open('deleteConfirm');
     }
 

@@ -25,7 +25,7 @@ class AuthController extends Controller
 
         if (!$user) {
             // Student ID not found
-            return redirect()->back()->with('error', 'Student ID not found.');
+            return back()->withErrors(['login' => 'Student ID not found.']);
         }
 
         if ($request->Password == $user->Password) {
@@ -34,7 +34,7 @@ class AuthController extends Controller
             return redirect()->intended('dashboard'); // Change 'dashboard' to your intended page
         } else {
             // Password incorrect
-            return redirect()->back()->with('error', 'Incorrect password.');
+            return back()->withErrors(['login' => 'Incorrect password.']);
         }
     }
 
@@ -47,31 +47,48 @@ class AuthController extends Controller
     }
  public function changePassword(Request $request)
 {
-    // Validate the inputs
-   $request->validate([
-    'oldPassword' => 'required',
-    'newPassword' => 'required|min:8',  // Minimum length for the new password
-    'newPassword_confirmation' => 'required|same:newPassword', // Ensure passwords match
-]);
+    // First, validate only required fields and current password
+    $request->validate([
+        'oldPassword' => 'required',
+        'newPassword' => 'required',
+        'newPassword_confirmation' => 'required',
+    ], [
+        'oldPassword.required' => 'Current password is required.',
+        'newPassword.required' => 'New password is required.',
+        'newPassword_confirmation.required' => 'Password confirmation is required.',
+    ]);
 
+    // Get the currently authenticated user
+    $user = Auth::user();
 
-    // Get the currently authenticated professor
-    $user = Auth::user();  // Get logged-in user
-
-    // Check if the old password matches
+    // PRIORITY CHECK: Verify current password first before other validations
     if ($user->Password != $request->oldPassword) {
         return back()->withErrors([
-            'oldPassword' => 'The current password is incorrect.',
+            'oldPassword' => 'Your current password is incorrect. Please enter your existing password correctly.',
         ]);
     }
+
+    // Only after current password is verified, check other password requirements
+    $request->validate([
+        'newPassword' => 'min:8|confirmed',
+    ], [
+        'newPassword.min' => 'Your new password is too short. It must be at least 8 characters long.',
+        'newPassword.confirmed' => 'Your new password and confirmation password do not match. Please re-enter them correctly.',
+    ]);
+    
+    // Check if new password is different from old password
+    if ($request->newPassword === $request->oldPassword) {
+        return back()->withErrors(['newPassword' => 'Your new password must be different from your current password.']);
+    }
+    
     // Update the password
     $user->Password = $request->newPassword;
 
-    // Check the instance and save
-    $user->save(); // Save the changes to the database
+    // Save the changes to the database
+    $user->save();
 
     // Redirect back with success message
-    return back()->with('success', 'Password successfully changed.');
+    return back()->with('password_status', 'Password changed successfully!');
 
 }
     

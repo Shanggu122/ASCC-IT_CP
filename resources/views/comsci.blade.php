@@ -7,13 +7,18 @@
   <title>Computer Science Department</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-  <link rel="stylesheet" href="{{ asset('css/itis.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/comsci.css') }}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
 
   <style>
 
   #calendar {
-    visibility: hidden;  /* Hide the input field */
+    /* Calendar input field styling */
+    border: 1px solid #ccc;
+    padding: 8px;
+    border-radius: 4px;
+    width: 100%;
+    display: none !important; /* Hide the calendar input field */
    }
 
   .pika-prev, .pika-next {
@@ -109,6 +114,16 @@
     color: #ffffff
   }
 
+  .calendar-wrapper-container {
+    display: block !important;
+    visibility: visible !important;
+  }
+  
+  .pika-single {
+    display: block !important;
+    visibility: visible !important;
+  }
+
 
 
   </style>
@@ -132,6 +147,7 @@
              data-name="{{ $prof->Name }}"
              data-img="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}"
              data-prof-id="{{ $prof->Prof_ID }}"
+             data-schedule="{{ $prof->Schedule ?: 'No schedule set' }}"
              style="width: 300px;">
           <img src="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
           <div class="profile-name">{{ $prof->Name }}</div>
@@ -174,10 +190,10 @@
         <div class="profile-section">
           <img id="modalProfilePic" class="profile-pic" src="" alt="Profile Picture">
           <div class="profile-info">
-              <h2 id="modalProfileName">{{ $professor->Name ?? 'Professor Name' }}</h2>
-              <p>Tuesday: 10:00–11:00</p>
-              <p>Wednesday: 17:00–18:00</p>
-              <p>Thursday: 17:00–18:00</p>
+              <h2 id="modalProfileName">Professor Name</h2>
+              <div id="modalSchedule" class="schedule-display">
+                <!-- Schedule will be populated by JavaScript -->
+              </div>
           </div>
         </div>
 
@@ -228,7 +244,6 @@
     </form>
   </div>
 
-  <script src="{{ asset('js/itis.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
   <script>
   document.addEventListener("DOMContentLoaded", function() {
@@ -254,22 +269,41 @@ function openModal(card) {
     const name = card.getAttribute("data-name");
     const img = card.getAttribute("data-img");
     const profId = card.getAttribute("data-prof-id");
+    const schedule = card.getAttribute("data-schedule");
+    
     // Find professor in JS (pass professors data as JSON to the page)
     const prof = window.professors.find(p => p.Prof_ID == profId);
     const select = document.getElementById("modalSubjectSelect");
     select.innerHTML = "";
-    if (prof && prof.subjects.length) {
+    
+    if (prof && prof.subjects && prof.subjects.length > 0) {
         prof.subjects.forEach(subj => {
             const opt = document.createElement("option");
             opt.value = subj.Subject_ID;
             opt.textContent = subj.Subject_Name;
             select.appendChild(opt);
         });
+    } else {
+        // If professor has no subjects assigned, show a default message
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "No subjects assigned to this professor";
+        opt.disabled = true;
+        select.appendChild(opt);
     }
 
     document.getElementById("modalProfilePic").src = img;
     document.getElementById("modalProfileName").textContent = name;
     document.getElementById("modalProfId").value = profId;
+    
+    // Populate schedule
+    const scheduleDiv = document.getElementById("modalSchedule");
+    if (schedule && schedule !== 'No schedule set') {
+        const scheduleLines = schedule.split('\n');
+        scheduleDiv.innerHTML = scheduleLines.map(line => `<p>${line}</p>`).join('');
+    } else {
+        scheduleDiv.innerHTML = '<p style="color: #888;">No schedule available</p>';
+    }
 }
 
 // Close modal function
@@ -298,6 +332,103 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 window.professors = @json($professors);
+
+// === Chatbot ===
+function toggleChat() {
+    document.getElementById("chatOverlay").classList.toggle("open");
+}
+
+const csrfToken = document
+    .querySelector('meta[name="csrf-token"]')
+    .getAttribute("content");
+const chatForm = document.getElementById("chatForm");
+const input = document.getElementById("message");
+const chatBody = document.getElementById("chatBody");
+
+chatForm.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+
+    const um = document.createElement("div");
+    um.classList.add("message", "user");
+    um.innerText = text;
+    chatBody.appendChild(um);
+    chatBody.scrollTop = chatBody.scrollHeight;
+    input.value = "";
+
+    const res = await fetch("/chat", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": csrfToken,
+        },
+        body: JSON.stringify({ message: text }),
+    });
+
+    if (!res.ok) {
+        const err = await res.json();
+        const bm = document.createElement("div");
+        bm.classList.add("message", "bot");
+        bm.innerText = err.message || "Server error.";
+        chatBody.appendChild(bm);
+        return;
+    }
+
+    const { reply } = await res.json();
+    const bm = document.createElement("div");
+    bm.classList.add("message", "bot");
+    bm.innerText = reply;
+    chatBody.appendChild(bm);
+    chatBody.scrollTop = chatBody.scrollHeight;
+});
   </script>
+
+  <!-- Notification Div -->
+  <div id="notification" class="notification">
+    <span id="notification-message"></span>
+    <button onclick="hideNotification()" class="close-btn">&times;</button>
+  </div>
+
+  <script>
+    function showNotification(message, isError = false) {
+      const notif = document.getElementById('notification');
+      notif.classList.toggle('error', isError);
+      document.getElementById('notification-message').textContent = message;
+      notif.style.display = 'flex';
+      setTimeout(hideNotification, 4000);
+    }
+    
+    function hideNotification() {
+      document.getElementById('notification').style.display = 'none';
+    }
+  </script>
+
+  <!-- Handle Laravel session messages -->
+  @if (session('success'))
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        showNotification(@json(session('success')), false);
+      });
+    </script>
+  @endif
+
+  @if (session('error'))
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        showNotification(@json(session('error')), true);
+      });
+    </script>
+  @endif
+
+  @if ($errors->any())
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        showNotification(@json($errors->first()), true);
+      });
+    </script>
+  @endif
 </body>
 </html>

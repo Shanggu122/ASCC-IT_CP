@@ -45,7 +45,7 @@
                 <div class="chat-header">
                     <button class="back-btn" id="back-btn" style="display:none;"><i class='bx bx-arrow-back'></i></button>
                     <span id="chat-person">Select a Professor</span>
-                    <button class="video-btn" id="launch-call">Video Call</button>
+                    <button class="video-btn" id="launch-call" onclick="startVideoCall()">Video Call</button>
                 </div>
                 <div class="chat-body" id="chat-body">
                     @if(count($professors) === 0)
@@ -180,7 +180,18 @@
                 chatBody.scrollTop = chatBody.scrollHeight;
               }, 0);
             })
-            .catch(error => console.error('Error loading messages:', error));
+            .catch(error => {
+                // Error loading messages
+            });
+        }
+
+        function startVideoCall() {
+          if (!currentChatPerson) {
+            alert('Please select a professor to start a video call.');
+            return;
+          }
+          const channel = encodeURIComponent(currentChatPerson.replace(/\s+/g, ''));
+          window.location.href = `/video-call/${channel}`;
         }
 
         let selectedFiles = [];

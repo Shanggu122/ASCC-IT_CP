@@ -12,12 +12,24 @@
     <button class="hamburger" id="hamburger">&#9776;</button>
     <div class="sidebar" id="sidebar">
         <img src="{{ asset('images/CCIT_logo2.png') }}" alt="Logo">
+        
+        <!-- Simple role indicator -->
+        <div class="simple-role-indicator">
+            <span class="role-line admin-line"></span>
+            <span class="role-label">Admin Portal</span>
+        </div>
+        
         <ul>
             <li><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
             <li><a href="{{ url('/admin-comsci') }}">Computer Science</a></li>
             <li><a href="{{ url('/admin-itis') }}">IT & IS</a></li>
             <li><a href="{{ url('/admin-analytics') }}">Analytics</a></li>
-            <li><a href="{{ url('logout.admin') }}">Sign Out</a></li>
+            <li style="margin:0;padding:0;">
+                <form action="{{ route('logout.admin') }}" method="POST" style="margin:0;padding:0;">
+                    @csrf
+                    <button type="submit" class="logout-btn sidebar-link" style="background:none;border:none;padding:1rem 0 1rem 2rem;width:100%;color:inherit;text-align:left;font-family:inherit;font-size:inherit;cursor:pointer;">Sign Out</button>
+                </form>
+            </li>
         </ul>
     </div>
     <script>

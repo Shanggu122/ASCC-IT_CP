@@ -168,9 +168,11 @@ body {
     margin-left: auto;
     margin-right: auto;
     display: flex;
-    justify-content: flex-end; /* Align content to the right */
+    justify-content: space-between; /* Spread content across the row */
+    align-items: center; /* Vertically center items */
     margin-bottom: 1rem;
     margin-top: 10px;
+    min-height: 32px; /* Ensure consistent height */
 }
 
 .login-error {
@@ -179,11 +181,19 @@ body {
     font-weight: 500;
     background: none;
     border: none;
-    padding-left: 8px;
     margin: 0;
     display: flex;
     align-items: center;
-    min-height: 32px;
+    flex: 1; /* Take up available space */
+    text-align: left; /* Align error text to the left */
+}
+
+.options-row a {
+    color: #0b3d2e;
+    text-decoration: none;
+    font-size: 14px;
+    white-space: nowrap; /* Prevent link from wrapping */
+    margin-left: 10px; /* Add some space between error and link */
 }
 
 /* Add this to push the form down if needed */
