@@ -13,6 +13,7 @@ use App\Http\Controllers\ProfVideoCallController;
 use App\Http\Controllers\AuthControllerProfessor;
 use App\Http\Controllers\ConsultationLogControllerProfessor;
 use App\Http\Controllers\ConsultationBookingControllerProfessor;
+use App\Http\Controllers\AdminAnalyticsController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\itisController;
@@ -307,6 +308,14 @@ Route::get("/admin/dashboard", function () {
 })
     ->name("admin.dashboard")
     ->middleware("auth:admin");
+
+// Admin analytics page & data
+Route::get('/admin-analytics', [AdminAnalyticsController::class,'index'])
+    ->name('admin.analytics')
+    ->middleware('auth:admin');
+Route::get('/api/admin/analytics', [AdminAnalyticsController::class,'data'])
+    ->name('admin.analytics.data')
+    ->middleware('auth:admin');
 
 Route::get("/admin-comsci", [ConsultationBookingController::class, "showFormAdmin"])
     ->name("admin.comsci")

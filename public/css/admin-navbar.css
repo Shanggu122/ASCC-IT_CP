@@ -81,7 +81,7 @@
 .sidebar ul li .sidebar-link:hover {
     background-color: #20543d;
 }
-}
+.sidebar ul li a.active {background-color:#1d4d39; position:relative;}
 
 /* Hamburger button */
 .hamburger {
