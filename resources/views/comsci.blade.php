@@ -458,4 +458,48 @@ chatForm.addEventListener("submit", async function (e) {
     </script>
   @endif
 </body>
+<script src="https://js.pusher.com/7.0/pusher.min.js"></script>
+<script>
+  (function(){
+    const pusher = new Pusher('{{ config('broadcasting.connections.pusher.key') }}', {cluster: '{{ config('broadcasting.connections.pusher.options.cluster') }}'});
+    const channel = pusher.subscribe('professors.dept.2'); // Dept_ID 2 for ComSci
+
+    function buildCard(data){
+      const grid = document.querySelector('.profile-cards-grid');
+      if(!grid) return;
+      // Avoid duplicates
+      if(grid.querySelector('[data-prof-id="'+data.Prof_ID+'"]')) return;
+      const div = document.createElement('div');
+      div.className='profile-card';
+      div.setAttribute('onclick','openModal(this)');
+      div.dataset.name = data.Name;
+      const imgPath = data.profile_picture ? ('{{ asset('storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
+      div.dataset.img = imgPath;
+      div.dataset.profId = data.Prof_ID;
+      div.dataset.profId = data.Prof_ID;
+      div.setAttribute('data-prof-id', data.Prof_ID);
+      div.dataset.schedule = data.Schedule || 'No schedule set';
+      div.style.width='300px';
+      div.innerHTML = `<img src="${imgPath}" alt="Profile Picture"><div class="profile-name">${data.Name}</div>`;
+      grid.prepend(div); // put newest first
+    }
+
+    channel.bind('ProfessorAdded', function(data){ buildCard(data); });
+    channel.bind('ProfessorUpdated', function(data){
+      const card = document.querySelector('[data-prof-id="'+data.Prof_ID+'"]');
+      if(card){
+        card.dataset.name = data.Name;
+        card.dataset.schedule = data.Schedule || 'No schedule set';
+        const imgPath = data.profile_picture ? ('{{ asset('storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
+        card.dataset.img = imgPath;
+        card.querySelector('.profile-name').textContent = data.Name;
+        const imgEl = card.querySelector('img'); if(imgEl) imgEl.src = imgPath;
+      } else { buildCard(data); }
+    });
+    channel.bind('ProfessorDeleted', function(data){
+      const card = document.querySelector('[data-prof-id="'+data.Prof_ID+'"]');
+      if(card) card.remove();
+    });
+  })();
+</script>
 </html>
