@@ -8,6 +8,7 @@
   <title>Computer Science (Admin)</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <link rel="stylesheet" href="{{ asset('css/admin-navbar.css') }}">
   <link rel="stylesheet" href="{{ asset('css/admin-comsci.css') }}">
 </head>
 <body>
@@ -64,7 +65,7 @@
           <label class="input-label">Email Address</label>
           <input type="email" name="Email" placeholder="Enter email address" required>
         </div>
-        <input type="hidden" name="Dept_ID" value="1">
+  <input type="hidden" name="Dept_ID" value="2">
         <div class="input-group">
           <label class="input-label">Temporary Password</label>
           <input type="text" name="Password" value="password1" required>
@@ -372,7 +373,25 @@
 
   </div>
 
+  <div id="notification" class="notification" style="display:none;">
+    <span id="notification-message"></span>
+    <button onclick="hideNotification()" class="close-btn" type="button">&times;</button>
+  </div>
+
   <script>
+    function showNotification(message, isError = false) {
+      const notif = document.getElementById('notification');
+      if(!notif) return;
+      notif.classList.toggle('error', !!isError);
+      document.getElementById('notification-message').textContent = message;
+      notif.style.display = 'flex';
+      clearTimeout(window.__notifTimer);
+      window.__notifTimer = setTimeout(hideNotification, 4000);
+    }
+    function hideNotification(){
+      const notif = document.getElementById('notification');
+      if(notif) notif.style.display='none';
+    }
     // Modal/Panel Management System
     const ModalManager = {
       activeModal: null,
@@ -746,91 +765,7 @@
       ModalManager.open('deleteConfirm');
     }
 
-    // Handle schedule formatting for new panel form submission
-    document.getElementById('addFacultyPanel').addEventListener('submit', function(e) {
-      e.preventDefault();
-      
-      const formData = new FormData(this);
-      
-      // Validate required fields
-      const requiredFields = ['Prof_ID', 'Name', 'Email'];
-      let isValid = true;
-      
-      requiredFields.forEach(field => {
-        const input = this.querySelector(`[name="${field}"]`);
-        if (!input || !input.value.trim()) {
-          isValid = false;
-          input?.focus();
-          return;
-        }
-      });
-      
-      if (!isValid) {
-        alert('Please fill in all required fields');
-        return;
-      }
-      
-      // Process schedule data
-      const day1 = formData.get('day_1');
-      const startTime1 = formData.get('start_time_1');
-      const endTime1 = formData.get('end_time_1');
-      
-      const day2 = formData.get('day_2');
-      const startTime2 = formData.get('start_time_2');
-      const endTime2 = formData.get('end_time_2');
-      
-      const day3 = formData.get('day_3');
-      const startTime3 = formData.get('start_time_3');
-      const endTime3 = formData.get('end_time_3');
-      
-      let scheduleData = [];
-      const schedules = [
-        {day: day1, start: startTime1, end: endTime1},
-        {day: day2, start: startTime2, end: endTime2},
-        {day: day3, start: startTime3, end: endTime3}
-      ];
-      
-      for (let schedule of schedules) {
-        if (schedule.day && schedule.start && schedule.end) {
-          // Check if end time is after start time
-          const startMinutes = parseInt(schedule.start.split(':')[0]) * 60 + parseInt(schedule.start.split(':')[1]);
-          const endMinutes = parseInt(schedule.end.split(':')[0]) * 60 + parseInt(schedule.end.split(':')[1]);
-          
-          if (endMinutes <= startMinutes) {
-            alert(`End time must be after start time for ${schedule.day}`);
-            return;
-          }
-          
-          // Convert to 12-hour format for display
-          const formatTime = (time) => {
-            const [hour, minute] = time.split(':');
-            const hourNum = parseInt(hour);
-            const ampm = hourNum >= 12 ? 'PM' : 'AM';
-            const displayHour = hourNum > 12 ? hourNum - 12 : (hourNum === 0 ? 12 : hourNum);
-            return `${displayHour}:${minute} ${ampm}`;
-          };
-          
-          scheduleData.push(`${schedule.day}: ${formatTime(schedule.start)}-${formatTime(schedule.end)}`);
-        }
-      }
-      
-      if (scheduleData.length === 0) {
-        // Optional: Allow creating professor without schedule
-        console.log('No schedule provided - will be created without schedule');
-      }
-      
-      // Add formatted schedule to form if any schedule data exists
-      if (scheduleData.length > 0) {
-        const scheduleInput = document.createElement('input');
-        scheduleInput.type = 'hidden';
-        scheduleInput.name = 'Schedule';
-        scheduleInput.value = scheduleData.join('\n');
-        this.appendChild(scheduleInput);
-      }
-      
-      // Submit form
-      this.submit();
-    });
+  // Removed legacy addFacultyPanel submit listener (handled by enhanceAddProfessorForm)
 
     // Handle edit form submission
     document.getElementById('editFacultyForm').addEventListener('submit', function(e) {
@@ -928,7 +863,16 @@
         console.log('Response data:', data); // Debug log
         if (data.success) {
           alert('Professor updated successfully!');
-          location.reload(); // Refresh the page to show updated data
+          // Update card locally (real-time event also handles others)
+          const profId = document.getElementById('editProfId').value;
+          const card = document.querySelector(`[data-prof-id="${profId}"]`);
+          if(card){
+            const newName = document.getElementById('editName').value;
+            card.dataset.name = newName;
+            if(card.querySelector('.profile-name')) card.querySelector('.profile-name').textContent = newName;
+            // Schedule updated via event; keep local dataset for instant UX
+          }
+          ModalManager.close('editFaculty');
         } else {
           alert('Error updating professor: ' + (data.message || 'Unknown error'));
         }
@@ -942,7 +886,127 @@
     // Initialize Modal Manager when page loads
     document.addEventListener('DOMContentLoaded', function() {
       ModalManager.init();
+      initRealtimeAdminComsci();
+      enhanceAddProfessorForm();
     });
+
+    // Use fetch for add professor to prevent full reload (server event will update others)
+    function enhanceAddProfessorForm(){
+      const form = document.getElementById('addFacultyPanel');
+      if(!form) return;
+      form.addEventListener('submit', function(ev){
+        // If schedule hidden input already appended by earlier handler, allow fetch else will be appended there.
+        if(ev.defaultPrevented) return; // already custom-handled
+      });
+      // Intercept native submit (after schedule injection) using capturing
+      form.addEventListener('submit', function(e){
+        if(form.dataset.ajaxDone) return; // avoid double
+        e.preventDefault();
+        const fd = new FormData(form);
+        fetch(form.action, {method:'POST', body: fd, headers:{
+            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept':'application/json',
+            'X-Requested-With':'XMLHttpRequest'
+        }})
+          .then(async r=>{ try{ return await r.json(); } catch(e){ showNotification('Unexpected server response', true); throw e; } })
+          .then(data=>{
+            if(data.success){
+              showNotification('Professor added successfully');
+              form.reset();
+              ModalManager.close('addFaculty');
+              if(data.professor){ addOrUpdateCard(data.professor); }
+            } else {
+              let msg = data.message || 'Failed to add professor';
+              if(data.errors){
+                try {
+                  const all = Object.values(data.errors).flat();
+                  if(all.length) msg = all.join(' • ');
+                } catch(_) { /* ignore */ }
+              }
+              showNotification(msg, true);
+            }
+          })
+          .catch(err=>{ console.error(err); showNotification('Request failed: '+(err&&err.message?err.message:'Unexpected error'), true); });
+      }, true);
+    }
+
+    function addOrUpdateCard(p){
+      const grid = document.querySelector('.profile-cards-grid');
+      if(!grid) return; const existing = grid.querySelector(`[data-prof-id="${p.Prof_ID}"]`);
+  const imgPath = p.profile_picture ? ('{{ url('/storage') }}/'+p.profile_picture) : '{{ asset("images/dprof.jpg") }}';
+      if(existing){
+        existing.dataset.name = p.Name;
+        existing.dataset.sched = p.Schedule || 'No schedule set';
+        existing.dataset.img = imgPath;
+        existing.querySelector('.profile-name').textContent = p.Name;
+        const imgEl= existing.querySelector('img'); if(imgEl) imgEl.src=imgPath;
+        bindCardEvents(existing);
+        return;
+      }
+      const div = document.createElement('div');
+      div.className='profile-card';
+      div.dataset.name=p.Name; div.dataset.img=imgPath; div.dataset.profId=p.Prof_ID; div.setAttribute('data-prof-id',p.Prof_ID); div.dataset.sched=p.Schedule||'No schedule set';
+      bindCardEvents(div);
+      div.innerHTML=`<img src="${imgPath}" alt="Profile Picture"><div class='profile-name'>${p.Name}</div>`;
+      // Insert alphabetically by name for consistency with server ordering
+      const cards = Array.from(grid.querySelectorAll('.profile-card'));
+      const newName = p.Name.toLowerCase();
+      let inserted = false;
+      for(const c of cards){
+        const cname = (c.getAttribute('data-name')||'').toLowerCase();
+        if(newName < cname){
+          grid.insertBefore(div, c);
+          inserted = true;
+          break;
+        }
+      }
+      if(!inserted) grid.appendChild(div);
+    }
+
+    function bindCardEvents(card){
+      card.onclick = function(e){
+        if (e.target.tagName === 'BUTTON') return;
+        const profId = card.getAttribute('data-prof-id');
+        const name = card.getAttribute('data-name');
+        const sched = card.getAttribute('data-sched');
+        currentProfId = profId;
+        populateEditForm(profId, name, sched);
+        ModalManager.open('editFaculty');
+      };
+    }
+    function openEditPanelFromCard(id){ /* kept for compatibility */ }
+
+    function initRealtimeAdminComsci(){
+      const script = document.createElement('script'); script.src='https://js.pusher.com/7.0/pusher.min.js'; script.onload=subscribe; document.body.appendChild(script);
+      function subscribe(){
+        const pusher = new Pusher('{{ config('broadcasting.connections.pusher.key') }}',{cluster:'{{ config('broadcasting.connections.pusher.options.cluster') }}'});
+        const channel = pusher.subscribe('professors.dept.2');
+        channel.bind('ProfessorAdded', data=> addOrUpdateCard(data));
+        channel.bind('ProfessorUpdated', data=> addOrUpdateCard(data));
+        channel.bind('ProfessorDeleted', data=> {
+          const card = document.querySelector(`[data-prof-id="${data.Prof_ID}"]`); if(card) card.remove();
+          showNotification('Professor deleted successfully');
+        });
+      }
+    }
+
+    // Intercept delete form submit to show notice immediately without full reload
+    document.addEventListener('submit', function(e){
+      const form = e.target;
+      if(form && form.id === 'deleteForm'){
+        e.preventDefault();
+        fetch(form.action, {method:'POST', headers:{'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}, body: new FormData(form)})
+          .then(r=> r.ok ? r.json().catch(()=>({success:true})) : Promise.reject(r))
+          .then(()=>{ 
+            // Optimistic local removal
+            const id = form.action.split('/').pop();
+            const card = document.querySelector(`[data-prof-id="${id}"]`);
+            if(card) card.remove();
+            ModalManager.close('deleteConfirm'); showNotification('Professor deleted successfully');
+          })
+          .catch(()=>{ ModalManager.close('deleteConfirm'); showNotification('Deletion failed', true); });
+      }
+    }, true);
   </script>
 </body>
 </html>
