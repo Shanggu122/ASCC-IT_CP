@@ -16,7 +16,7 @@
 
   <div class="main-content">
     <div class="header">
-      <h1>Computer Science</h1>
+      <h1>Computer Science DADADAS</h1>
     </div>
 
     <div class="search-container">
