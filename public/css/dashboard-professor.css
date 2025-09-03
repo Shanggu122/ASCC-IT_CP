@@ -152,10 +152,11 @@ body {
     justify-content: start;
     margin-top: 20px;
     font-size: 0.9rem;
-    background: rgba(255, 255, 255, 0.8);
-    padding: 12px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    /* Removed boxed styling to blend into page background */
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
 }
 
 .legend div {
@@ -249,18 +250,24 @@ body {
     background: transparent !important;
 }
 
+/* Responsive calendar layout (mirrors student styling) */
 .calendar-box {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    width: 70% !important;
-    max-width: 500px; /* adjust as needed */
+    flex: 1 1 640px; /* preferred width */
+    max-width: 780px;
+    width: 100%;
     margin-bottom: 2rem;
+    min-width: 300px;
 }
 
 .box {
-    width: 30%;
-    margin-left: auto; /* This pushes the box to the right */
+    flex: 1 1 400px; /* widened notifications */
+    max-width: 520px;
+    width: 100%;
+    margin-left: auto;
+    min-width: 280px;
 }
 
 .calendar-wrapper-container {
@@ -268,14 +275,14 @@ body {
 }
 
 .legend {
-    margin-top: 100px;
+    margin-top: 130px; /* lowered further on desktop */
     margin-bottom: 0;
     width: 100%;
     display: flex;
     justify-content: flex-start;
     gap: 16px;
     flex-wrap: wrap;
-    background: none;
+    background: none; /* ensure transparent */
     position: static;
 }
 
@@ -286,70 +293,85 @@ body {
     vertical-align: middle !important; /* Vertically center content */
 }
 
+/* removed stray period */
+/* Calendar day button sizing (compact like student view) */
 .pika-button {
-    height: 60px !important; /* Adjust this value for your preferred height */
+    height: 60px !important;
     min-height: 48px !important;
     width: 100%;
     display: flex;
-    align-items: center; /* Vertically center the number */
-    justify-content: center; /* Horizontally center the number */
-    /* Do not change background or color here */
-    font-size: 3rem; /* Keep original font size, adjust if needed */
-    font-weight: 1000;
-
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem !important; /* compact number size */
+    font-weight: 700;
     margin: 0 !important;
     border-radius: inherit;
     box-sizing: border-box;
 }
 
+/* Flexible parent allowing wrap */
 .flex-layout {
     display: flex;
+    align-items: flex-start;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+/* Breakpoints similar to student */
+@media (max-width: 1450px) and (min-width: 769px) {
+    /* Notification panel hidden via JS in this range: let calendar use full width */
+    .calendar-box { 
+        max-width: 100% !important; 
+        flex: 1 1 100% !important; 
+    }
+    .legend { margin-top: 110px; }
+    .flex-layout { justify-content: flex-start; }
+}
+@media (max-width: 1400px) {
+    .calendar-box { max-width: 720px; }
+}
+@media (max-width: 1300px) {
+    .calendar-box { flex: 1 1 58%; }
+    .box { flex: 1 1 38%; }
+}
+@media (max-width: 1250px) and (min-width: 769px) {
+    .box { display: none !important; }
+    .flex-layout { justify-content: center; }
+    .calendar-box { flex: 1 1 100%; max-width: 100%; }
+    .legend { margin-top: 85px; }
+}
+@media (max-width: 992px) {
+    .flex-layout { flex-direction: column; }
 }
 
 @media (max-width: 768px) {
-    .header {
-        margin-top: 40px; /* Add space for the navbar */
-    }
-    .flex-layout {
-        flex-direction: column;
-    }
-    .calendar-box {
-        width: 100% !important;
-    }
-    .box {
-        width: 100%;
-    }
+    .header { margin-top: 40px; justify-content: center; }
+    .header h1 { width:100%; padding-left:18px; }
+    .flex-layout { flex-direction: column; }
+    .calendar-box { width:100%!important; max-width:none; margin-left:0; margin-right:0; align-items:flex-start; }
+    .box { width:100%; }
+    .main-content { padding-left:0; padding-right:0.75rem; padding-bottom:60px; }
+    .calendar-wrapper-container, .pika-single { width:100%; max-width:100%; margin:0; min-height:560px; }
+    .pika-button { font-size:0.95rem !important; height:60px !important; }
+    /* Legend placed AFTER calendar (no overlay) */
+    .legend { position:static; width:100%; background:transparent; padding:0 12px; margin:20px 0 10px !important; box-shadow:none; gap:16px; flex-wrap:wrap; justify-content:flex-start; font-size:0.9rem; }
+    .legend div { margin:4px 14px 0 0 !important; }
+    .legend-box { width:40px; height:16px; margin-right:6px; }
+    .chat-button { bottom:18px !important; }
+    .pika-table .pika-button { user-select:none; }
+    .pika-button.has-multiple-bookings::before, .pika-button.has-high-volume::before { font-size:6px; top:1px; right:2px; }
+}
 
-    /* Adjust legend for mobile */
-    .legend {
-        flex-wrap: wrap;
-        gap: 8px;
-        font-size: 0.8rem;
-    }
+/* Ultra-small devices */
+@media (max-width: 380px) {
+    .main-content { padding: 1.2rem 1rem 4rem; }
+    .legend { gap:10px; }
+    .pika-button { font-size:0.9rem !important; height:50px !important; }
+    .pika-table td { height:55px !important; }
+}
 
-    .legend div {
-        margin: 4px 6px;
-    }
-
-    .legend-box {
-        width: 30px;
-        height: 12px;
-        margin-right: 4px;
-    }
-
-    /* Disable calendar date selection on mobile while preserving hover */
-    .pika-table .pika-button {
-        user-select: none;
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-    }
-
-    /* Smaller indicators on mobile */
-    .pika-button.has-multiple-bookings::before,
-    .pika-button.has-high-volume::before {
-        font-size: 6px;
-        top: 1px;
-        right: 2px;
-    }
+/* Short viewport adjustments */
+@media (max-height: 820px) and (min-width: 769px) {
+    .pika-table td { height:60px !important; }
+    .pika-button { height:54px !important; }
 }

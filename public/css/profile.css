@@ -21,6 +21,21 @@ body {
     gap: 1rem;
 }
 
+/* Responsive tweaks */
+@media (max-width: 900px) {
+    .main-content { padding: 1.5rem 1.25rem 4rem; }
+    .user-name { font-size: 1.5rem; }
+    .profile-picture { width: 100px; height: 100px; }
+}
+@media (max-width: 600px) {
+    .header-info { align-items: flex-start; }
+    .main-content { padding: 1.25rem 1rem 4.5rem; }
+    .profile-picture { width: 80px; height: 80px; }
+    .user-name { font-size: 1.3rem; }
+    .info-table td { padding: 0.75rem; }
+    .section-title { padding: 0.75rem; font-size: 0.9rem; }
+}
+
 .profile-picture {
     width: 120px;
     height: 120px;

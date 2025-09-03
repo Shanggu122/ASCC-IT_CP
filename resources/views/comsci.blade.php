@@ -142,13 +142,12 @@
 
     <div class="profile-cards-grid">
       @foreach($professors as $prof)
-        <div class="profile-card"
-             onclick="openModal(this)"
-             data-name="{{ $prof->Name }}"
-             data-img="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}"
-             data-prof-id="{{ $prof->Prof_ID }}"
-             data-schedule="{{ $prof->Schedule ?: 'No schedule set' }}"
-             style="width: 300px;">
+  <div class="profile-card"
+       onclick="openModal(this)"
+       data-name="{{ $prof->Name }}"
+       data-img="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}"
+       data-prof-id="{{ $prof->Prof_ID }}"
+       data-schedule="{{ $prof->Schedule ?: 'No schedule set' }}">
           <img src="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
           <div class="profile-name">{{ $prof->Name }}</div>
         </div>
@@ -362,7 +361,7 @@ window.professors = @json($professors);
 
 // === Chatbot ===
 function toggleChat() {
-    document.getElementById("chatOverlay").classList.toggle("open");
+  document.getElementById("chatOverlay").classList.toggle("open");
 }
 
 const csrfToken = document
@@ -479,7 +478,7 @@ chatForm.addEventListener("submit", async function (e) {
       div.dataset.profId = data.Prof_ID;
       div.setAttribute('data-prof-id', data.Prof_ID);
       div.dataset.schedule = data.Schedule || 'No schedule set';
-      div.style.width='300px';
+  /* Width managed by responsive CSS grid */
       div.innerHTML = `<img src="${imgPath}" alt="Profile Picture"><div class="profile-name">${data.Name}</div>`;
       grid.prepend(div); // put newest first
     }

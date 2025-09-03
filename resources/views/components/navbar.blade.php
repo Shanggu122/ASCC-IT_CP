@@ -46,6 +46,8 @@
             <li><a href="{{ url('/logout') }}">Sign Out</a></li>
         </ul>
     </div>
+    <!-- Grey overlay shown when mobile sidebar is open (all student pages) -->
+    <div id="sidebarOverlay" class="sidebar-overlay" aria-hidden="true"></div>
 
     @if (Request::is('dashboard'))
         <!-- Mobile Notifications Dropdown (dashboard only) -->
@@ -70,10 +72,25 @@
         // Only run if hamburger exists (mobile)
         const hamburger = document.getElementById('hamburger');
         const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
         if (hamburger) {
             hamburger.addEventListener('click', () => {
                 sidebar.classList.toggle('active');
                 hamburger.classList.toggle('active'); // Add this line
+                if(overlay){ overlay.classList.toggle('active', sidebar.classList.contains('active')); }
+                if(document.body){
+                    if(sidebar.classList.contains('active')){ document.body.classList.add('no-scroll'); }
+                    else { document.body.classList.remove('no-scroll'); }
+                }
+            });
+        }
+        if(overlay){
+            overlay.addEventListener('click', () => {
+                // Close when tapping grey area
+                sidebar.classList.remove('active');
+                hamburger && hamburger.classList.remove('active');
+                overlay.classList.remove('active');
+                document.body && document.body.classList.remove('no-scroll');
             });
         }
 
