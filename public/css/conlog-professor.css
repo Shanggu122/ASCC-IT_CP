@@ -755,6 +755,8 @@ body {
 .table-container {
     margin: 1rem 0;
     margin-bottom: 80px; /* Add space so chat overlay does not cover last row */
+    overflow-x: visible; /* default */
+    -webkit-overflow-scrolling: touch;
 }
 
 .table {
@@ -779,6 +781,27 @@ body {
     display: table-cell;
     padding: 1rem;
     border: 1px solid #ccc;
+}
+
+/* Constrain table width on ultra-wide screens similar to student */
+.table { max-width: 1600px; margin-left: auto; margin-right: auto; }
+
+/* Sticky header on wider screens */
+@media (min-width: 769px) {
+    .table-header { position: sticky; top: 0; z-index: 5; }
+}
+
+/* Mid-width adjustments (laptop) */
+@media (max-width: 1250px) and (min-width: 769px) {
+    .table-cell { padding: 0.8rem; font-size: 0.92rem; }
+    .table-header .table-cell { font-size: 0.9rem; }
+}
+
+/* Narrow laptop: enable horizontal scroll & slightly reduce font */
+@media (max-width: 1050px) and (min-width: 769px) {
+    .table-container { overflow-x: auto; }
+    .table { width: 1100px; } /* allow sideways scroll */
+    .table-cell { white-space: nowrap; }
 }
 
 .search-container {

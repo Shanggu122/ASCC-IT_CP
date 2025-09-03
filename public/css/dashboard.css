@@ -204,18 +204,28 @@ body {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    width: 70% !important;
-    max-width: 500px; /* adjust as needed */
+    /* Fluid instead of fixed 70% */
+    flex: 1 1 640px; /* grow/shrink with a preferred width */
+    max-width: 780px;
+    width: 100%;
     margin-bottom: 2rem;
+    min-width: 300px;
 }
 
 .box {
-    width: 30%;
-    margin-left: auto; /* This pushes the box to the right */
+    /* Notifications panel becomes flexible */
+    /* Widened panel for better readability on large screens */
+    flex: 1 1 400px;
+    max-width: 520px;
+    width: 100%;
+    margin-left: auto; /* stay to right on wide screens */
+    min-width: 280px;
 }
 
 .calendar-wrapper-container {
     width: 100%;
+    /* Reserve full height for a 6-week month so legend below does not jump */
+    min-height: 560px; /* adjust if your calendar cell size changes */
 }
 
 .legend {
@@ -258,16 +268,15 @@ body {
 }
 
 .pika-button {
-    height: 60px !important; /* Adjust this value for your preferred height */
+    height: 60px !important;
     min-height: 48px !important;
     width: 100%;
     display: flex;
-    align-items: center; /* Vertically center the number */
-    justify-content: center; /* Horizontally center the number */
-    /* Do not change background or color here */
-    font-size: 3rem; /* Keep original font size, adjust if needed */
-    font-weight: 1000;
-
+    align-items: center;
+    justify-content: center;
+    /* Revert to more compact sizing */
+    font-size: 0.8rem !important;
+    font-weight: 700;
     margin: 0 !important;
     border-radius: inherit;
     box-sizing: border-box;
@@ -275,6 +284,47 @@ body {
 
 .flex-layout {
     display: flex;
+    align-items: flex-start;
+    gap: 2rem;
+    flex-wrap: wrap; /* allow wrapping on mid screens */
+}
+
+/* Laptop & mid-width tuning */
+@media (max-width: 1400px) {
+    .calendar-box { max-width: 720px; }
+}
+@media (max-width: 1300px) {
+    .calendar-box { flex: 1 1 58%; }
+    .box { flex: 1 1 38%; }
+}
+/* Mid-width: switch to bell icon (avoid stacking notifications below calendar) */
+@media (max-width: 1450px) and (min-width: 769px) {
+    /* Convert hidden panel into off-canvas drawer space (will be toggled via JS if needed) */
+    .box { 
+        display: none !important; /* default hidden; bell will control a cloned/dropdown container */
+    }
+    .flex-layout { justify-content: center; }
+    .calendar-box { flex: 1 1 100%; max-width: 100%; }
+    /* Ensure legend spacing tighter when full-width */
+    .legend { margin-top: 40px; }
+}
+
+/* Off-canvas style for notifications when shown from bell mid-width */
+@media (max-width:1450px) and (min-width:769px) {
+    .mobile-notifications-dropdown {
+        width: 480px !important; /* wider than mobile */
+        max-height: 80vh;
+        overflow-y: auto;
+        right: 20px;
+        left: auto;
+    }
+}
+@media (max-width: 1150px) {
+    .calendar-box { flex: 1 1 100%; max-width: 100%; }
+    .box { flex: 1 1 100%; max-width: 100%; }
+}
+@media (max-width: 992px) {
+    .flex-layout { flex-direction: column; }
 }
 
 @media (max-width: 768px) {
@@ -314,6 +364,8 @@ body {
         width: 100%;
         max-width: 100%;
         margin: 0; /* align left */
+    /* Slightly smaller reserved height on mobile */
+    min-height: 500px;
     }
     /* shift legend slightly right only on mobile */
     .legend {
@@ -323,6 +375,29 @@ body {
     .legend div:nth-child(2) {
         margin-left: 34px;
     }
+
+    /* --- Fix legend from moving when month height changes --- */
+    /* Pin legend near bottom above chat button so calendar height changes don't shift it */
+    .legend {
+        position: fixed;
+        left: 0;
+        bottom: 76px; /* leave room above chat button */
+        width: 100%;
+    background: #e5f0ed; /* exact body background for seamless blend */
+    padding: 10px 18px 12px;
+    margin: 0 !important;
+    box-shadow: none; /* remove contrast line */
+        z-index: 1200; /* above calendar cells */
+        gap: 22px;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+    .legend div { margin: 4px 16px 0 0 !important; }
+    .legend div:nth-child(2) { margin-left: 0 !important; }
+    /* Ensure page content not hidden behind fixed legend */
+    .main-content { padding-bottom: 160px; }
+    /* Lift chat button slightly so it doesn't overlap legend */
+    .chat-button { bottom: 18px !important; }
 }
 
 /* LAYERING: CHATBOT ON TOP, NOTIFICATIONS SECOND, EVERYTHING ELSE BELOW */
@@ -353,14 +428,26 @@ body:not(.chat-open) #mobileNotificationBell {
 
 /* Slightly larger calendar numbers on mobile for better readability */
 @media (max-width: 768px) {
-    .pika-button {
-        font-size: 1rem !important; /* increase day number size */
-    }
+    .pika-button { font-size: 0.95rem !important; }
     /* Enlarge weekday labels (Mon Tue ...) */
     .pika-table th abbr {
         font-size: 0.9rem !important;
         letter-spacing: 0.5px;
     }
+}
+
+/* Ultra-small devices */
+@media (max-width: 380px) {
+    .main-content { padding: 1.2rem 1rem 4rem; }
+    .legend { gap: 10px; }
+    .pika-button { font-size: 0.9rem !important; height: 50px !important; }
+    .pika-table td { height: 55px !important; }
+}
+
+/* Short viewport adjustments (small laptops) */
+@media (max-height: 820px) and (min-width: 769px) {
+    .pika-table td { height: 60px !important; }
+    .pika-button { height: 54px !important; }
 }
 
 /* (Removed legend enlargement user disliked) */

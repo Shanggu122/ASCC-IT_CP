@@ -382,6 +382,13 @@ div.mobile-header button#mobileNotificationBell.mobile-notification-bell {
     }
 }
 
+/* Mid-width dashboard: keep bell visible (no hamburger) */
+@media (max-width: 1450px) and (min-width: 769px) {
+    .mobile-header { display: block; pointer-events: none; }
+    .mobile-header .hamburger { display: none !important; }
+    .mobile-notification-bell { display: block !important; pointer-events: all; }
+}
+
 /* On desktop, if you have a wrapper for your main content, make sure it has: */
 @media (min-width: 768px) {
     .main-content {
@@ -393,6 +400,10 @@ div.mobile-header button#mobileNotificationBell.mobile-notification-bell {
         margin-top: 30px !important; /* Adjust this value as needed */
         margin-bottom: 30px !important; /* Optional: reduce bottom margin for better spacing */
     }
+}
+
+@media (min-width: 1451px) {
+    #mobileNotificationBell.mobile-notification-bell { display: none !important; }
 }
 
 /* FINAL OVERRIDE - FORCE NOTIFICATION BELL BEHIND CHATBOT */
@@ -414,4 +425,20 @@ button#mobileNotificationBell,
 .mobile-notification-bell {
     z-index: 1000000 !important;
     position: fixed !important;
+}
+
+/* ===== Mobile Sidebar Overlay (ComSci page) ===== */
+@media (max-width: 768px) {
+    .sidebar-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.45); /* grey/black semi-transparent */
+        backdrop-filter: blur(2px);
+    z-index: 900; /* below sidebar (1000) and hamburger (5000) */
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s ease;
+    }
+    .sidebar-overlay.active { opacity: 1; pointer-events: auto; }
+    body.no-scroll { overflow: hidden; touch-action: none; }
 }
