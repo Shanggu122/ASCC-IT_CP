@@ -314,6 +314,27 @@
   {{-- <script src="{{ asset('js/dashboard.js') }}"></script> --}}
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
   <script>
+    // Responsive notification visibility: hide panel between 769-1450px (bell only)
+    (function(){
+      function applyProfessorNotifMode(){
+        const w = window.innerWidth;
+        const panel = document.querySelector('.inbox-notifications');
+        const bell = document.getElementById('mobileNotificationBell');
+        if(!panel) return; // bail if markup missing
+        if(w <= 1450 && w >= 769){
+          panel.style.display = 'none';
+          if(bell){ bell.style.display = 'block'; bell.style.opacity = '1'; }
+        } else if (w >= 1451){
+          panel.style.display = '';
+          if(bell){ bell.style.display = 'none'; }
+        } else { // mobile (<769)
+          panel.style.display = 'none';
+          if(bell){ bell.style.display = 'block'; }
+        }
+      }
+      window.addEventListener('resize', applyProfessorNotifMode);
+      document.addEventListener('DOMContentLoaded', applyProfessorNotifMode);
+    })();
     // Wait for DOM to be fully loaded
     document.addEventListener('DOMContentLoaded', function() {
       // Load initial mobile notifications
@@ -477,6 +498,19 @@
           console.log('Calendar onDraw called');
           const cells = document.querySelectorAll('.pika-button');
           console.log('Found calendar cells:', cells.length);
+          // Dynamic height adjustment on mobile to prevent legend overlap
+          try {
+            if (window.innerWidth <= 768) {
+              const wrapper = document.querySelector('.calendar-wrapper-container');
+              const rowCount = document.querySelectorAll('.pika-table tbody tr').length;
+              if (wrapper) {
+                // Base heights tuned to match student dashboard spacing
+                const heightFor5 = 560; // px
+                const heightFor6 = 640; // px (extra space for 6th row)
+                wrapper.style.minHeight = (rowCount >= 6 ? heightFor6 : heightFor5) + 'px';
+              }
+            }
+          } catch(e) { /* silent */ }
           
           cells.forEach(cell => {
           const day = cell.getAttribute('data-pika-day');
@@ -543,6 +577,16 @@
       });
       picker.show();
       picker.draw();
+      // Run once after initial draw in case first month has 6 rows
+      (function adjustInitialMobileHeight(){
+        if (window.innerWidth <= 768) {
+          const wrapper = document.querySelector('.calendar-wrapper-container');
+          const rowCount = document.querySelectorAll('.pika-table tbody tr').length;
+          if (wrapper) {
+            wrapper.style.minHeight = (rowCount >= 6 ? 640 : 560) + 'px';
+          }
+        }
+      })();
       
       // Store picker globally for real-time updates
       window.professorPicker = picker;

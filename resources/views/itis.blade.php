@@ -137,8 +137,7 @@
              data-name="{{ $prof->Name }}"
              data-img="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}"
              data-prof-id="{{ $prof->Prof_ID }}"
-             data-schedule="{{ $prof->Schedule ?: 'No schedule set' }}"
-             style="width: 300px;">
+             data-schedule="{{ $prof->Schedule ?: 'No schedule set' }}">
           <img src="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
           <div class="profile-name">{{ $prof->Name }}</div>
         </div>
@@ -472,7 +471,7 @@ chatForm.addEventListener("submit", async function (e) {
       div.dataset.img = imgPath;
       div.setAttribute('data-prof-id', data.Prof_ID);
       div.dataset.schedule = data.Schedule || 'No schedule set';
-      div.style.width='300px';
+  /* Width now controlled by responsive CSS grid */
       div.innerHTML = `<img src="${imgPath}" alt="Profile Picture"><div class="profile-name">${data.Name}</div>`;
       grid.prepend(div);
     }

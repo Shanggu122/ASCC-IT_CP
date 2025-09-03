@@ -45,11 +45,11 @@
     .pika-single {
       display: block !important;
       border: none;
-      min-height: 500px;   /* Set your desired height */
-      height: 500px;
-      max-height: 1000px;
+      /* Make height adaptive instead of fixed 500px */
+      min-height: 420px;
+      height: auto;
+      max-height: 70vh;
       box-sizing: border-box;
-      
     }
     .pika-table {
       border-radius: 3px;
@@ -75,10 +75,11 @@
       background-color: #cac7c7;
       border-radius: 4px;
       color: #ffffff;
-      padding: 10px;
-      height: 50px;
-      margin: 5px 0;
+      padding: 6px;
+      height: 48px;
+      margin: 4px 0;
       pointer-events: none;
+      font-size: clamp(0.7rem, 2vw, 1rem);
     }
     .pika-button:hover, .pika-row.pick-whole-week:hover .pika-button {
       color: #fff;
@@ -193,6 +194,27 @@
   <script src="{{ asset('js/dashboard.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
   <script>
+  // Mid-width (tablet/small desktop) notification panel toggle
+  (function(){
+    const notifPanelSelector = '.inbox-notifications';
+    function applyNotifMode(){
+      const w = window.innerWidth;
+      const panel = document.querySelector(notifPanelSelector);
+      const bell = document.getElementById('mobileNotificationBell');
+      if(!panel) return;
+    if(w <= 1450 && w >= 769){
+        panel.style.display = 'none';
+        if(bell){ bell.style.display = 'block'; bell.style.opacity = '1'; }
+    } else if (w >= 1451) {
+        panel.style.display = '';
+        if(bell){ bell.style.display = 'none'; }
+      } else { // real mobile keeps existing mobile styles
+        if(bell){ bell.style.display = 'block'; }
+      }
+    }
+    window.addEventListener('resize', applyNotifMode);
+    document.addEventListener('DOMContentLoaded', applyNotifMode);
+  })();
     
    const bookingMap = new Map();
   
