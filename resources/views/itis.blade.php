@@ -54,18 +54,6 @@
   .pika-prev:after { content: '\2039'; }
   .pika-next:after { content: '\203A'; }
 
-  /* Weekday header base styling (will be dynamically adjusted) */
-  .pika-table th { 
-    background-color: #0d2b20; /* unified dark green */
-    color:#fff; 
-    border-radius:4px; 
-    padding:6px 5px; 
-    transition:background-color .25s, opacity .25s; 
-  }
-  .pika-table th.allowed-day { background-color:#0d2b20; opacity:1; }
-  .pika-table th.disallowed-day { background-color:#0d2b20; opacity:1; }
-  .pika-table th.weekend-day { background-color:#0d2b20; opacity:1; }
-
 
   .pika-single {
     display: block !important;  /* Make sure the calendar is always visible */
@@ -276,11 +264,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
   <script>
-  // Global picker reference so we can reconfigure per professor
-  let picker = null;
-
   document.addEventListener("DOMContentLoaded", function() {
-      picker = new Pikaday({
+      var picker = new Pikaday({
         field: document.getElementById('calendar'),
         format: 'ddd, MMM DD YYYY',
         onSelect: function() {
@@ -290,33 +275,9 @@
         firstDay: 1,
         bound: false,
         minDate: new Date(),
-        // Placeholder disable function – replaced when a professor is chosen
-        disableDayFn: function(date){
-          // Block weekends by default; all weekdays enabled until professor picked
-          const d = date.getDay();
-            return d === 0 || d === 6; // Sunday(0), Saturday(6)
-        }
       });
       picker.show();
-      // Initial header marking (no professor yet)
-      updateWeekdayHeaders([]);
-  });
-
-  // Map weekday name to JS day index
-  const weekdayIndex = { 'sunday':0,'monday':1,'tuesday':2,'wednesday':3,'thursday':4,'friday':5,'saturday':6 };
-
-  // Update calendar header styling to reflect allowed days
-  function updateWeekdayHeaders(allowedIndices){
-    const headerAbbrs = document.querySelectorAll('.pika-table thead th abbr');
-    headerAbbrs.forEach(abbr=>{
-      const title = (abbr.getAttribute('title')||'').toLowerCase();
-      const th = abbr.parentElement; if(!th) return;
-      th.classList.remove('allowed-day','disallowed-day','weekend-day');
-      const idx = weekdayIndex[title];
-      if(idx === 0 || idx === 6){ th.classList.add('weekend-day'); return; }
-      if(allowedIndices.includes(idx)) th.classList.add('allowed-day'); else th.classList.add('disallowed-day');
-    });
-  }
+});
 
 // Open modal and set professor info
 function openModal(card) {
@@ -326,7 +287,7 @@ function openModal(card) {
     const name = card.getAttribute("data-name");
     const img = card.getAttribute("data-img");
     const profId = card.getAttribute("data-prof-id");
-  const schedule = card.getAttribute("data-schedule");
+    const schedule = card.getAttribute("data-schedule");
     
     // Find professor in JS (pass professors data as JSON to the page)
     const prof = window.professors.find(p => p.Prof_ID == profId);
@@ -358,44 +319,11 @@ function openModal(card) {
     
     // Populate schedule
     const scheduleDiv = document.getElementById("modalSchedule");
-    let allowedWeekdayIndices = [];
     if (schedule && schedule !== 'No schedule set') {
         const scheduleLines = schedule.split('\n');
         scheduleDiv.innerHTML = scheduleLines.map(line => `<p>${line}</p>`).join('');
-        // Extract weekday names at start of each line
-        scheduleLines.forEach(line=>{
-          const m = line.trim().match(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i);
-          if(m){
-            const day = m[1].toLowerCase();
-            const idx = weekdayIndex[day];
-            // Exclude weekends intentionally even if present in schedule (per requirement)
-            if(idx !== 0 && idx !== 6 && !allowedWeekdayIndices.includes(idx)){
-              allowedWeekdayIndices.push(idx);
-            }
-          }
-        });
     } else {
         scheduleDiv.innerHTML = '<p style="color: #888;">No schedule available</p>';
-    }
-
-    // Reconfigure picker disabling logic based on allowedWeekdayIndices
-    if(picker){
-      picker._o.disableDayFn = function(date){
-        const d = date.getDay();
-        if(d === 0 || d === 6) return true; // Always block weekends
-        if(allowedWeekdayIndices.length === 0) return true; // If no schedule => block all
-        return !allowedWeekdayIndices.includes(d);
-      };
-      picker.draw();
-      updateWeekdayHeaders(allowedWeekdayIndices);
-      // Clear selected date if it's now invalid
-      const currentVal = document.getElementById('calendar').value;
-      if(currentVal){
-        const parsed = new Date(currentVal);
-        if(isNaN(parsed.getTime()) || picker._o.disableDayFn(parsed)){
-          document.getElementById('calendar').value = '';
-        }
-      }
     }
 }
 
@@ -564,9 +492,7 @@ chatForm.addEventListener("submit", async function (e) {
       div.className='profile-card';
       div.setAttribute('onclick','openModal(this)');
       div.dataset.name = data.Name;
-  const storageBase = @json(asset('storage'));
-  const defaultProfImg = @json(asset('images/dprof.jpg'));
-  const imgPath = data.profile_picture ? (storageBase + '/' + data.profile_picture) : defaultProfImg;
+      const imgPath = data.profile_picture ? ('{{ asset('storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
       div.dataset.img = imgPath;
       div.setAttribute('data-prof-id', data.Prof_ID);
       div.dataset.schedule = data.Schedule || 'No schedule set';
@@ -581,9 +507,7 @@ chatForm.addEventListener("submit", async function (e) {
       if(card){
         card.dataset.name = data.Name;
         card.dataset.schedule = data.Schedule || 'No schedule set';
-  const storageBase = @json(asset('storage'));
-  const defaultProfImg = @json(asset('images/dprof.jpg'));
-  const imgPath = data.profile_picture ? (storageBase + '/' + data.profile_picture) : defaultProfImg;
+        const imgPath = data.profile_picture ? ('{{ asset('storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
         card.dataset.img = imgPath;
         card.querySelector('.profile-name').textContent = data.Name;
         const imgEl = card.querySelector('img'); if(imgEl) imgEl.src = imgPath;
