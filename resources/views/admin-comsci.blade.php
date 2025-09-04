@@ -25,12 +25,17 @@
 
     <div class="profile-cards-grid">
       @foreach($professors as $prof)
+        @php
+          $photoUrl = isset($prof->profile_photo_url)
+              ? $prof->profile_photo_url
+              : ($prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg'));
+        @endphp
         <div class="profile-card"
              data-name="{{ $prof->Name }}"
-             data-img="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}"
+             data-img="{{ $photoUrl }}"
              data-prof-id="{{ $prof->Prof_ID }}"
              data-sched="{{ $prof->Schedule ? str_replace('\n', '&#10;', $prof->Schedule) : 'No schedule set' }}">
-          <img src="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
+          <img src="{{ $photoUrl }}" alt="Profile Picture">
           <div class="profile-name">{{ $prof->Name }}</div>
         </div>
       @endforeach

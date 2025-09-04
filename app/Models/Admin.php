@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Models\Concerns\HasProfilePhoto;
 
 class Admin extends Authenticatable
 {
-    use Notifiable;
+    use Notifiable, HasProfilePhoto;
 
     protected $table = 'admin';
     protected $primaryKey = 'Admin_ID';

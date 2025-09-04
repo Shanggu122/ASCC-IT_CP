@@ -21,28 +21,50 @@
     display: none !important; /* Hide the calendar input field */
    }
 
+  /* Reverted original nav button styling */
   .pika-prev, .pika-next {
-    background-color: #01703c;
-    border-radius: 50%;              /* Circular shape */
-    color: #12372a;                    /* Green arrow color */
-    border: 2px solid #12372a;         /* Green border around the circle */
-    font-size: 18px;                 /* Adjust font size for visibility */
-    padding: 10px;                   /* Padding to make the circle big enough */
-    width: 35px !important;
+    background-color: #0d2b20; /* darker fill */
+    border-radius: 50%;
+    color: #ffffff;
+    border: 2px solid #071a13; /* even darker edge */
+    font-size: 18px;
+    padding: 10px;
+    width: 38px !important;
+    height: 38px;
+    display: flex; align-items: center; justify-content: center;
     opacity: 100%;
+    text-indent: -9999px; /* hide default text */
+    position: relative;
+    overflow: hidden;
+    background-image:none !important;
   }
+  .pika-prev:after, .pika-next:after {
+    content: '';
+    position: absolute;
+    top: 46%; /* slightly upward */
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px; /* bigger arrow */
+    line-height: 1;
+    font-weight: 700;
+    color: #ffffff; /* white arrow */
+    text-indent: 0;
+    z-index: 2;
+  }
+  .pika-prev:after { content: '\2039'; }
+  .pika-next:after { content: '\203A'; }
 
   /* Weekday header base styling (will be dynamically adjusted) */
   .pika-table th { 
-    background-color: #12372a; 
+    background-color: #0d2b20; /* unified dark green */
     color:#fff; 
     border-radius:4px; 
     padding:6px 5px; 
     transition:background-color .25s, opacity .25s; 
   }
-  .pika-table th.allowed-day { background-color:#01703c; opacity:1; }
-  .pika-table th.disallowed-day { background-color:#888888; opacity:.55; }
-  .pika-table th.weekend-day { background-color:#555555; opacity:.45; }
+  .pika-table th.allowed-day { background-color:#0d2b20; opacity:1; }
+  .pika-table th.disallowed-day { background-color:#0d2b20; opacity:1; }
+  .pika-table th.weekend-day { background-color:#0d2b20; opacity:1; }
 
 
   .pika-single {
@@ -107,6 +129,28 @@
     color: #ffffff
   }
 
+  /* Better contrast for disabled (blocked) days so they don't blend with page background */
+  .is-disabled .pika-button,
+  .pika-button.is-disabled {
+    background: #e5f0ed !important; /* match page background */
+    color: #94a5a0 !important;      /* softened text */
+    border: 1px solid #d0dbd8;      /* subtle outline */
+    opacity: 1 !important;
+    cursor: not-allowed;
+  }
+  .is-disabled .pika-button { background-image: none; }
+
+  /* Larger label for Select Date */
+  .calendar-wrapper-container label[for="calendar"] {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #12372a;
+    display: inline-block;
+    margin-bottom: 6px;
+  }
+  /* Hover should not change disabled look */
+  .is-disabled .pika-button:hover { background: #f1f4f6 !important; color:#b3bcc3 !important; }
+
 
 
   </style>
@@ -125,13 +169,13 @@
 
     <div class="profile-cards-grid">
       @foreach($professors as $prof)
-        <div class="profile-card"
-             onclick="openModal(this)"
-             data-name="{{ $prof->Name }}"
-             data-img="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}"
-             data-prof-id="{{ $prof->Prof_ID }}"
-             data-schedule="{{ $prof->Schedule ?: 'No schedule set' }}">
-          <img src="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
+  <div class="profile-card"
+       onclick="openModal(this)"
+       data-name="{{ $prof->Name }}"
+       data-img="{{ $prof->profile_photo_url }}"
+       data-prof-id="{{ $prof->Prof_ID }}"
+       data-schedule="{{ $prof->Schedule ?: 'No schedule set' }}">
+    <img src="{{ $prof->profile_photo_url }}" alt="Profile Picture">
           <div class="profile-name">{{ $prof->Name }}</div>
         </div>
       @endforeach

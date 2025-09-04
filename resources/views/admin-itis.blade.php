@@ -25,12 +25,17 @@
 
     <div class="profile-cards-grid">
       @foreach($professors as $prof)
+        @php
+          $photoUrl = isset($prof->profile_photo_url)
+              ? $prof->profile_photo_url
+              : ($prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg'));
+        @endphp
         <div class="profile-card"
              data-name="{{ $prof->Name }}"
-             data-img="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}"
+             data-img="{{ $photoUrl }}"
              data-prof-id="{{ $prof->Prof_ID }}"
              data-sched="{{ $prof->Schedule ? str_replace('\n', '&#10;', $prof->Schedule) : 'No schedule set' }}">
-          <img src="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
+          <img src="{{ $photoUrl }}" alt="Profile Picture">
           <div class="profile-name">{{ $prof->Name }}</div>
         </div>
       @endforeach
@@ -928,7 +933,7 @@
     function addOrUpdateCardItis(p){
       const grid = document.querySelector('.profile-cards-grid'); if(!grid) return;
       const existing = grid.querySelector(`[data-prof-id="${p.Prof_ID}"]`);
-  const imgPath = p.profile_picture ? ('{{ url('/storage') }}/'+p.profile_picture) : '{{ asset('images/dprof.jpg') }}';
+  const imgPath = p.profile_photo_url || (p.profile_picture ? ('{{ url('/storage') }}/'+p.profile_picture) : '{{ asset('images/dprof.jpg') }}');
       if(existing){
         existing.dataset.name = p.Name;
         existing.dataset.sched = p.Schedule || 'No schedule set';
