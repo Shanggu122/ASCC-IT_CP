@@ -17,10 +17,14 @@ class NotificationController extends Controller
             return response()->json(['notifications' => []]);
         }
 
+        // Get most recent notification per booking (student view) ordered by latest update
         $notifications = Notification::where('user_id', $userId)
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
+            ->select('*')
+            ->orderBy('updated_at', 'desc')
+            ->get()
+            ->unique('booking_id')
+            ->take(10)
+            ->values();
 
         return response()->json(['notifications' => $notifications]);
     }
@@ -78,10 +82,14 @@ class NotificationController extends Controller
             return response()->json(['notifications' => []]);
         }
 
+        // Professor: show only one (latest) notification per booking, newest updates first
         $notifications = Notification::where('user_id', $professorId)
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
+            ->select('*')
+            ->orderBy('updated_at', 'desc')
+            ->get()
+            ->unique('booking_id')
+            ->take(10)
+            ->values();
 
         return response()->json(['notifications' => $notifications]);
     }
@@ -164,24 +172,28 @@ class NotificationController extends Controller
 
         foreach ($allNotifications as $notification) {
             $bookingId = $notification->booking_id;
-            
+
             if (!isset($seenBookings[$bookingId])) {
-                // First notification for this booking
+                // First encountered (currently most recent due to initial ordering)
                 $seenBookings[$bookingId] = $notification;
                 $uniqueNotifications->push($notification);
-            } else {
-                // We've seen this booking before
-                $existing = $seenBookings[$bookingId];
-                
-                // Replace if current is student notification and existing is not
-                if ($notification->is_student_notification && !$existing->is_student_notification) {
-                    // Remove the old one and add the new one
-                    $uniqueNotifications = $uniqueNotifications->filter(function($item) use ($existing) {
-                        return $item->id !== $existing->id;
-                    });
-                    $uniqueNotifications->push($notification);
-                    $seenBookings[$bookingId] = $notification;
-                }
+                continue;
+            }
+
+            $existing = $seenBookings[$bookingId];
+
+            // Decide replacement: pick the one with newer updated_at.
+            // If same timestamp, prefer student notification for clearer admin context.
+            if (
+                $notification->updated_at > $existing->updated_at ||
+                ($notification->updated_at == $existing->updated_at && $notification->is_student_notification && !$existing->is_student_notification)
+            ) {
+                // Replace existing entry in collection
+                $uniqueNotifications = $uniqueNotifications->filter(function ($item) use ($existing) {
+                    return $item->id !== $existing->id;
+                });
+                $uniqueNotifications->push($notification);
+                $seenBookings[$bookingId] = $notification;
             }
         }
 

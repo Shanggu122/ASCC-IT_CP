@@ -30,6 +30,7 @@ use App\Models\Professor;
 use App\Models\Notification;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ProfessorConsultationPdfController;
 
 Route::get("/", [LandingController::class, "index"])->name("landing");
 
@@ -102,7 +103,9 @@ Route::middleware(["auth:professor"])->group(function () {
     Route::get("/profile-professor", [ProfessorProfileController::class, "show"])->name(
         "profile.professor",
     );
-    Route::post('/conlog-professor/pdf', [\App\Http\Controllers\ProfessorConsultationPdfController::class, 'download'])->name('conlog-professor.pdf');
+    // Export professor consultation logs to PDF
+    Route::post('/conlog-professor/pdf', [ProfessorConsultationPdfController::class, 'download'])
+        ->name('conlog-professor.pdf');
     Route::post("/profile-professor/change-password", [
         AuthControllerProfessor::class,
         "changePassword",
@@ -173,6 +176,17 @@ Route::get("/api/professor/consultation-logs", [
 Route::post("/consultation-book-professor", [ConsultationBookingController::class, "store"])->name(
     "consultation-book.professor",
 );
+
+// Signed email action routes (professor can act directly from email)
+Route::get('/email-action/consultations/{bookingId}/{profId}/accept', [\App\Http\Controllers\ConsultationEmailActionController::class,'accept'])
+    ->name('consultation.email.accept')
+    ->middleware('signed');
+Route::get('/email-action/consultations/{bookingId}/{profId}/reschedule', [\App\Http\Controllers\ConsultationEmailActionController::class,'rescheduleForm'])
+    ->name('consultation.email.reschedule.form')
+    ->middleware('signed');
+Route::post('/email-action/consultations/{bookingId}/{profId}/reschedule', [\App\Http\Controllers\ConsultationEmailActionController::class,'rescheduleSubmit'])
+    ->name('consultation.email.reschedule.submit')
+    ->middleware('signed');
 
 Route::post("/api/consultations/update-status", function (Request $request) {
     try {
@@ -259,6 +273,13 @@ Route::post("/api/consultations/update-status", function (Request $request) {
         ]);
     }
 });
+
+// Professor notifications (existing student routes above) - ensure professor guard usage
+Route::get('/api/professor/notifications', [NotificationController::class,'getProfessorNotifications']);
+Route::post('/api/professor/notifications/mark-read', [NotificationController::class,'markProfessorAsRead']);
+Route::post('/api/professor/notifications/mark-all-read', [NotificationController::class,'markAllProfessorAsRead']);
+Route::get('/api/professor/notifications/unread-count', [NotificationController::class,'getProfessorUnreadCount']);
+
 
 Route::post("/professor/login-professor", [AuthControllerProfessor::class, "apiLogin"]);
 

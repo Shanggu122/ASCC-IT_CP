@@ -39,6 +39,7 @@ class ConsultationBookingController extends Controller
             'booking_date.required' => 'Please select a booking date.',
             'mode.required' => 'Please select consultation mode (Online or Onsite).',
             'prof_id.required' => 'Professor information is missing. Please try again.',
+            'other_type_text.required' => 'Please specify the consultation type in the Others field.'
         ]);
 
         // Normalize to Asia/Manila and enforce weekday (Mon-Fri) only
@@ -64,7 +65,10 @@ class ConsultationBookingController extends Controller
 
         // Check if "Others" is selected (Consult_type_ID = 6 in your DB)
         $customType = null;
-        if (in_array(6, $data['types']) && !empty($data['other_type_text'])) {
+        if (in_array(6, $data['types'])) {
+            if (empty($data['other_type_text'])) {
+                return redirect()->back()->withErrors(['other_type_text' => 'Please specify the consultation type in the Others field.'])->withInput();
+            }
             $customType = $data['other_type_text'];
         }
 

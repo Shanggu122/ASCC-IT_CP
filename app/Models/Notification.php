@@ -97,7 +97,8 @@ class Notification extends Model
             'accepted' => 'Consultation Accepted',
             'completed' => 'Consultation Completed',
             'rescheduled' => 'Consultation Rescheduled',
-            'cancelled' => 'Consultation Cancelled'
+            'cancelled' => 'Consultation Cancelled',
+            'today_reminder' => 'Today\'s Consultation Reminder'
         ];
 
         // Student-specific messages
@@ -106,7 +107,8 @@ class Notification extends Model
             'accepted' => "Your consultation with {$professorName} has been accepted for {$date}.",
             'completed' => "Your consultation with {$professorName} has been completed. Please rate your experience.",
             'rescheduled' => "Your consultation with {$professorName} has been rescheduled to {$date}." . ($reason ? " Reason: {$reason}" : ""),
-            'cancelled' => "Your consultation with {$professorName} has been cancelled."
+            'cancelled' => "Your consultation with {$professorName} has been cancelled.",
+            'today_reminder' => "Reminder: You have a consultation today with {$professorName}."
         ];
 
         // Professor-specific messages
@@ -115,7 +117,8 @@ class Notification extends Model
             'accepted' => "You accepted {$booking->Student_Name}'s consultation for {$date}.",
             'completed' => "Consultation with {$booking->Student_Name} has been completed.",
             'rescheduled' => "You rescheduled {$booking->Student_Name}'s consultation to {$date}." . ($reason ? " Reason: {$reason}" : ""),
-            'cancelled' => "Consultation with {$booking->Student_Name} has been cancelled."
+            'cancelled' => "Consultation with {$booking->Student_Name} has been cancelled.",
+            'today_reminder' => "You have a consultation today with {$booking->Student_Name}. Please accept or reschedule."
         ];
 
         $updatedCount = 0;
@@ -217,7 +220,8 @@ class Notification extends Model
             'accepted' => 'Consultation Accepted',
             'completed' => 'Consultation Completed',
             'rescheduled' => 'Consultation Rescheduled',
-            'cancelled' => 'Consultation Cancelled'
+            'cancelled' => 'Consultation Cancelled',
+            'today_reminder' => 'Today\'s Consultation Reminder'
         ];
 
         $messages = [
@@ -225,7 +229,8 @@ class Notification extends Model
             'accepted' => "Your consultation with {$professorName} has been accepted for {$date}.",
             'completed' => "Your consultation with {$professorName} has been completed. Please rate your experience.",
             'rescheduled' => "Your consultation with {$professorName} has been rescheduled to {$date}." . ($reason ? " Reason: {$reason}" : ""),
-            'cancelled' => "Your consultation with {$professorName} has been cancelled."
+            'cancelled' => "Your consultation with {$professorName} has been cancelled.",
+            'today_reminder' => "Reminder: You have a consultation today with {$professorName}."
         ];
 
         // Try to find existing notification for this booking and user
@@ -255,4 +260,29 @@ class Notification extends Model
             ]);
         }
     }
+
+    /**
+     * Refresh existing professor & student notifications for a booking that is happening today
+     * WITHOUT creating duplicates. Marks them unread and appends a short today tag once.
+     * Only acts on notifications whose type is accepted or rescheduled (already approved flow).
+     */
+    public static function refreshTodayReminder(int $bookingId, string $date): void
+    {
+        $notifications = self::where('booking_id', $bookingId)
+            ->whereIn('type', ['accepted','rescheduled'])
+            ->get();
+        foreach ($notifications as $n) {
+            $msg = $n->message;
+            if (!str_contains($msg, '[Today]')) {
+                // Lightweight tag so UI can highlight; keep original message text
+                $msg .= ' [Today]';
+            }
+            $n->update([
+                'message' => $msg,
+                'is_read' => false, // make it surface again
+                'updated_at' => now()
+            ]);
+        }
+    }
+
 }
