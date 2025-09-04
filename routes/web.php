@@ -102,6 +102,7 @@ Route::middleware(["auth:professor"])->group(function () {
     Route::get("/profile-professor", [ProfessorProfileController::class, "show"])->name(
         "profile.professor",
     );
+    Route::post('/conlog-professor/pdf', [\App\Http\Controllers\ProfessorConsultationPdfController::class, 'download'])->name('conlog-professor.pdf');
     Route::post("/profile-professor/change-password", [
         AuthControllerProfessor::class,
         "changePassword",
