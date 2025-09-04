@@ -465,11 +465,17 @@
       const date = new Date(dateString);
       const now = new Date();
       const diffInSeconds = Math.floor((now - date) / 1000);
-      
       if (diffInSeconds < 60) return 'Just now';
-      if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
-      if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hrs ago`;
-      return `${Math.floor(diffInSeconds / 86400)} days ago`;
+      if (diffInSeconds < 3600) {
+        const m = Math.floor(diffInSeconds / 60);
+        return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
+      }
+      if (diffInSeconds < 86400) {
+        const h = Math.floor(diffInSeconds / 3600);
+        return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
+      }
+      const d = Math.floor(diffInSeconds / 86400);
+      return `${d} ${d === 1 ? 'day' : 'days'} ago`;
     }
 
     // Close mobile notifications when clicking outside
@@ -684,6 +690,25 @@ document.addEventListener('mouseover', function(e) {
       const countText = consultations.length === 1 ? '1 Consultation' : `${consultations.length} Consultations`;
       html += `<div style="font-weight: bold; margin-bottom: 8px; color: #12372a; border-bottom: 1px solid #ddd; padding-bottom: 4px;">${countText}</div>`;
       
+      // Helper to convert 'YYYY-MM-DD HH:MM:SS' to 12-hour format with AM/PM
+      function formatTo12Hour(ts) {
+        if (!ts) return '';
+        const parts = ts.split(' ');
+        if (parts.length < 2) return ts;
+        const datePart = parts[0];
+        const timePart = parts[1];
+        const tPieces = timePart.split(':');
+        if (tPieces.length < 2) return ts;
+        let hour = parseInt(tPieces[0], 10);
+        const minute = tPieces[1];
+        const second = tPieces[2] || '00';
+        if (isNaN(hour)) return ts;
+        const suffix = hour >= 12 ? 'PM' : 'AM';
+        const hour12 = ((hour + 11) % 12) + 1; // 0 -> 12
+        const hourStr = hour12.toString().padStart(2, '0');
+        return `${datePart} ${hourStr}:${minute}:${second} ${suffix}`;
+      }
+
       consultations.forEach((entry, index) => {
         html += `
           <div class="consultation-entry" style="${index > 0 ? 'border-top: 1px solid #eee; padding-top: 6px; margin-top: 6px;' : ''}">
@@ -692,7 +717,7 @@ document.addEventListener('mouseover', function(e) {
             <div class="detail-row">Type: ${entry.type}</div>
             <div class="detail-row">Mode: ${entry.Mode}</div>
             <div class="status-row" style="color:${getStatusColor(entry.Status)};">Status: ${entry.Status}</div>
-            <div class="booking-time">Booked: ${entry.Created_At}</div>
+            <div class="booking-time">Booked: ${formatTo12Hour(entry.Created_At)}</div>
           </div>
         `;
       });
@@ -704,31 +729,26 @@ document.addEventListener('mouseover', function(e) {
       
       tooltip.innerHTML = html;
       tooltip.style.display = 'block';
-      
-      // Smart positioning to keep tooltip within viewport (only on new cell hover)
-      let left = e.clientX + 20;
-      let top = e.clientY - 20;
-      
-      // Get tooltip dimensions after it's displayed
+
+      // Anchor tooltip to the right of the hovered cell (consistent UI)
+      const cellRect = target.getBoundingClientRect();
       const tooltipRect = tooltip.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      
-      // Adjust horizontal position if tooltip would go off-screen
-      if (left + tooltipRect.width > viewportWidth - 10) {
-        left = e.clientX - tooltipRect.width - 20;
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      const scrollX = window.scrollX || document.documentElement.scrollLeft;
+      const GAP = 12;
+      let left = cellRect.right + GAP + scrollX;
+      let top = cellRect.top + scrollY;
+      if (top + tooltipRect.height > scrollY + viewportHeight - 10) {
+        top = scrollY + viewportHeight - tooltipRect.height - 10;
       }
-      
-      // Adjust vertical position if tooltip would go off-screen
-      if (top + tooltipRect.height > viewportHeight - 10) {
-        top = Math.max(10, viewportHeight - tooltipRect.height - 10);
+      if (top < scrollY + 10) {
+        top = scrollY + 10;
       }
-      
-      // Ensure tooltip doesn't go above viewport
-      if (top < 10) {
-        top = 10;
+      const maxRight = scrollX + window.innerWidth - 10;
+      if (left + tooltipRect.width > maxRight) {
+        left = Math.min(left, maxRight - tooltipRect.width);
       }
-      
       tooltip.style.left = left + 'px';
       tooltip.style.top = top + 'px';
     }
@@ -1089,11 +1109,17 @@ function getTimeAgo(dateString) {
   const date = new Date(dateString);
   const now = new Date();
   const diffInSeconds = Math.floor((now - date) / 1000);
-  
   if (diffInSeconds < 60) return 'Just now';
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hrs ago`;
-  return `${Math.floor(diffInSeconds / 86400)} days ago`;
+  if (diffInSeconds < 3600) {
+    const m = Math.floor(diffInSeconds / 60);
+    return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
+  }
+  if (diffInSeconds < 86400) {
+    const h = Math.floor(diffInSeconds / 3600);
+    return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
+  }
+  const d = Math.floor(diffInSeconds / 86400);
+  return `${d} ${d === 1 ? 'day' : 'days'} ago`;
 }
 
 // Helper function for status colors
