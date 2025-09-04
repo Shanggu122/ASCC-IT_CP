@@ -21,28 +21,38 @@
     display: none !important; /* Hide the calendar input field */
    }
 
+  /* Reverted original nav button styling */
   .pika-prev, .pika-next {
-    background-color: #01703c;
-    border-radius: 50%;              /* Circular shape */
-    color: #12372a;                    /* Green arrow color */
-    border: 2px solid #12372a;         /* Green border around the circle */
-    font-size: 18px;                 /* Adjust font size for visibility */
-    padding: 10px;                   /* Padding to make the circle big enough */
-    width: 35px !important;
+    background-color: #0d2b20; /* darker fill */
+    border-radius: 50%;
+    color: #ffffff;
+    border: 2px solid #071a13; /* even darker edge */
+    font-size: 18px;
+    padding: 10px;
+    width: 38px !important;
+    height: 38px;
+    display: flex; align-items: center; justify-content: center;
     opacity: 100%;
+    text-indent: -9999px; /* hide default text */
+    position: relative;
+    overflow: hidden;
+    background-image:none !important;
   }
-
-  /* Weekday header base styling (will be dynamically adjusted) */
-  .pika-table th { 
-    background-color: #12372a; 
-    color:#fff; 
-    border-radius:4px; 
-    padding:6px 5px; 
-    transition:background-color .25s, opacity .25s; 
+  .pika-prev:after, .pika-next:after {
+    content: '';
+    position: absolute;
+    top: 46%; /* slightly upward */
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px; /* bigger arrow */
+    line-height: 1;
+    font-weight: 700;
+    color: #ffffff; /* white arrow */
+    text-indent: 0;
+    z-index: 2;
   }
-  .pika-table th.allowed-day { background-color:#01703c; opacity:1; }
-  .pika-table th.disallowed-day { background-color:#888888; opacity:.55; }
-  .pika-table th.weekend-day { background-color:#555555; opacity:.45; }
+  .pika-prev:after { content: '\2039'; }
+  .pika-next:after { content: '\203A'; }
 
 
   .pika-single {
@@ -107,6 +117,47 @@
     color: #ffffff
   }
 
+  /* Better contrast for disabled (blocked) days so they don't blend with page background */
+  .is-disabled .pika-button,
+  .pika-button.is-disabled {
+    background: #e5f0ed !important; /* match page background */
+    color: #94a5a0 !important;      /* softened text */
+    border: 1px solid #d0dbd8;      /* subtle outline */
+    opacity: 1 !important;
+    cursor: not-allowed;
+  }
+  .is-disabled .pika-button { background-image: none; }
+
+  /* Larger label for Select Date */
+  .calendar-wrapper-container label[for="calendar"] {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #12372a;
+    display: inline-block;
+    margin-bottom: 6px;
+  }
+  /* Hover should not change disabled look */
+  .is-disabled .pika-button:hover { background: #f1f4f6 !important; color:#b3bcc3 !important; }
+
+  /* === Restored weekday header styling (green variants) === */
+  .pika-table th { 
+    background-color: #12372a; /* default for Tue-Sat (except Sunday & Monday variant) */
+    color: #fff; 
+    border-radius: 4px; 
+    padding: 5px; 
+    transition: background-color .25s, opacity .25s; 
+  }
+  /* Monday & Sunday variant (lighter green, larger padding like original) */
+  .pika-table th.weekday-mon,
+  .pika-table th.weekday-sun { 
+    background-color: #01703c; 
+    padding: 10px; 
+  }
+  /* Keep semantic state classes (opacity changes only if you later want) */
+  .pika-table th.allowed-day { /* intentionally same bg, full opacity */ }
+  .pika-table th.disallowed-day { /* could dim if desired */ }
+  .pika-table th.weekend-day { /* Sunday already styled via weekday-sun; Saturday keeps default */ }
+
 
 
   </style>
@@ -125,13 +176,13 @@
 
     <div class="profile-cards-grid">
       @foreach($professors as $prof)
-        <div class="profile-card"
-             onclick="openModal(this)"
-             data-name="{{ $prof->Name }}"
-             data-img="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}"
-             data-prof-id="{{ $prof->Prof_ID }}"
-             data-schedule="{{ $prof->Schedule ?: 'No schedule set' }}">
-          <img src="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
+  <div class="profile-card"
+       onclick="openModal(this)"
+       data-name="{{ $prof->Name }}"
+       data-img="{{ $prof->profile_photo_url }}"
+       data-prof-id="{{ $prof->Prof_ID }}"
+       data-schedule="{{ $prof->Schedule ?: 'No schedule set' }}">
+    <img src="{{ $prof->profile_photo_url }}" alt="Profile Picture">
           <div class="profile-name">{{ $prof->Name }}</div>
         </div>
       @endforeach
@@ -232,11 +283,57 @@
 
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
   <script>
-  // Global picker reference so we can reconfigure per professor
-  let picker = null;
-
   document.addEventListener("DOMContentLoaded", function() {
-      picker = new Pikaday({
+      // Will be updated whenever modal opened
+      let allowedWeekdays = new Set(); // numeric 1-5 (Mon-Fri) allowed for selected professor
+
+      function disableDayFn(date){
+        const day = date.getDay(); // 0 Sun .. 6 Sat
+        // Always block weekends
+  if(day === 0 || day === 6) return true;
+  // If no schedule (allowedWeekdays empty) block ALL weekdays
+  if(allowedWeekdays.size === 0) return true;
+  // Otherwise block days not in allowed set
+  if(!allowedWeekdays.has(day)) return true;
+        return false;
+      }
+
+      function updateWeekdayHeaders(){
+        const headers = document.querySelectorAll('.pika-table th');
+        if(!headers.length) return;
+        headers.forEach(th=>{
+          th.classList.remove('allowed-day','disallowed-day','weekend-day','weekday-mon','weekday-sun');
+          const titleEl = th.querySelector('abbr');
+          if(!titleEl) return;
+          const title = titleEl.getAttribute('title');
+          const map = { 'Sunday':0,'Monday':1,'Tuesday':2,'Wednesday':3,'Thursday':4,'Friday':5,'Saturday':6 };
+            const d = map[title];
+            if(d===1) th.classList.add('weekday-mon');
+            if(d===0) th.classList.add('weekday-sun');
+            if(d===0 || d===6){ th.classList.add('weekend-day'); return; }
+            if(allowedWeekdays.size===0){ th.classList.add('disallowed-day'); return; }
+            if(allowedWeekdays.has(d)) th.classList.add('allowed-day'); else th.classList.add('disallowed-day');
+        });
+      }
+
+      window.__updateAllowedWeekdays = function(scheduleText){
+        allowedWeekdays.clear();
+        if(!scheduleText) { picker.draw(); updateWeekdayHeaders(); return; }
+        // Extract weekday names at line starts before colon
+        const lines = scheduleText.split(/\n|<br\s*\/>/i).map(l=>l.trim()).filter(Boolean);
+        const nameToNum = { Monday:1, Tuesday:2, Wednesday:3, Thursday:4, Friday:5 };
+        lines.forEach(line=>{
+          const m = line.match(/^(Monday|Tuesday|Wednesday|Thursday|Friday)\b/i);
+          if(m){
+            const key = m[1].charAt(0).toUpperCase()+m[1].slice(1).toLowerCase();
+            if(nameToNum[key]) allowedWeekdays.add(nameToNum[key]);
+          }
+        });
+        picker.draw();
+        updateWeekdayHeaders();
+      };
+
+      var picker = new Pikaday({
         field: document.getElementById('calendar'),
         format: 'ddd, MMM DD YYYY',
         onSelect: function() {
@@ -246,33 +343,18 @@
         firstDay: 1,
         bound: false,
         minDate: new Date(),
-        // Placeholder disable function – replaced when a professor is chosen
-        disableDayFn: function(date){
-          // Block weekends by default; all weekdays enabled until professor picked
-          const d = date.getDay();
-            return d === 0 || d === 6; // Sunday(0), Saturday(6)
-        }
+        disableDayFn: disableDayFn
       });
+      // Ensure header styling persists after navigating months (Pikaday redraws table)
+      const _origDraw = picker.draw.bind(picker);
+      picker.draw = function(){
+        _origDraw();
+        updateWeekdayHeaders();
+      };
       picker.show();
-      // Initial header marking (no professor yet)
-      updateWeekdayHeaders([]);
-  });
-
-  // Map weekday name to JS day index
-  const weekdayIndex = { 'sunday':0,'monday':1,'tuesday':2,'wednesday':3,'thursday':4,'friday':5,'saturday':6 };
-
-  // Update calendar header styling to reflect allowed days
-  function updateWeekdayHeaders(allowedIndices){
-    const headerAbbrs = document.querySelectorAll('.pika-table thead th abbr');
-    headerAbbrs.forEach(abbr=>{
-      const title = (abbr.getAttribute('title')||'').toLowerCase();
-      const th = abbr.parentElement; if(!th) return;
-      th.classList.remove('allowed-day','disallowed-day','weekend-day');
-      const idx = weekdayIndex[title];
-      if(idx === 0 || idx === 6){ th.classList.add('weekend-day'); return; }
-      if(allowedIndices.includes(idx)) th.classList.add('allowed-day'); else th.classList.add('disallowed-day');
-    });
-  }
+      updateWeekdayHeaders();
+      window.picker = picker;
+});
 
 // Open modal and set professor info
 function openModal(card) {
@@ -282,7 +364,7 @@ function openModal(card) {
     const name = card.getAttribute("data-name");
     const img = card.getAttribute("data-img");
     const profId = card.getAttribute("data-prof-id");
-  const schedule = card.getAttribute("data-schedule");
+    const schedule = card.getAttribute("data-schedule");
     
     // Find professor in JS (pass professors data as JSON to the page)
     const prof = window.professors.find(p => p.Prof_ID == profId);
@@ -314,45 +396,23 @@ function openModal(card) {
     
     // Populate schedule
     const scheduleDiv = document.getElementById("modalSchedule");
-    let allowedWeekdayIndices = [];
-    if (schedule && schedule !== 'No schedule set') {
-        const scheduleLines = schedule.split('\n');
-        scheduleDiv.innerHTML = scheduleLines.map(line => `<p>${line}</p>`).join('');
-        // Extract weekday names at start of each line
-        scheduleLines.forEach(line=>{
-          const m = line.trim().match(/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i);
-          if(m){
-            const day = m[1].toLowerCase();
-            const idx = weekdayIndex[day];
-            // Exclude weekends intentionally even if present in schedule (per requirement)
-            if(idx !== 0 && idx !== 6 && !allowedWeekdayIndices.includes(idx)){
-              allowedWeekdayIndices.push(idx);
-            }
-          }
-        });
-    } else {
-        scheduleDiv.innerHTML = '<p style="color: #888;">No schedule available</p>';
-    }
+  if (schedule && schedule !== 'No schedule set') {
+    const scheduleLines = schedule.split('\n');
+    scheduleDiv.innerHTML = scheduleLines.map(line => `<p>${line}</p>`).join('');
+    if(window.__updateAllowedWeekdays){ window.__updateAllowedWeekdays(schedule); }
+  } else {
+    scheduleDiv.innerHTML = '<p style="color: #888;">No schedule available</p>';
+    if(window.__updateAllowedWeekdays){ window.__updateAllowedWeekdays(''); }
+  }
 
-    // Reconfigure picker disabling logic based on allowedWeekdayIndices
-    if(picker){
-      picker._o.disableDayFn = function(date){
-        const d = date.getDay();
-        if(d === 0 || d === 6) return true; // Always block weekends
-        if(allowedWeekdayIndices.length === 0) return true; // If no schedule => block all
-        return !allowedWeekdayIndices.includes(d);
-      };
-      picker.draw();
-      updateWeekdayHeaders(allowedWeekdayIndices);
-      // Clear selected date if it's now invalid
-      const currentVal = document.getElementById('calendar').value;
-      if(currentVal){
-        const parsed = new Date(currentVal);
-        if(isNaN(parsed.getTime()) || picker._o.disableDayFn(parsed)){
-          document.getElementById('calendar').value = '';
-        }
-      }
-    }
+  // Disable submit if no schedule
+  const submitBtn = document.querySelector('#bookingForm .submit-btn');
+  if(submitBtn){
+    const hasSchedule = schedule && schedule !== 'No schedule set';
+    submitBtn.disabled = !hasSchedule;
+    submitBtn.classList.toggle('no-schedule', !hasSchedule);
+    submitBtn.title = !hasSchedule ? 'Cannot book: professor has no schedule set.' : '';
+  }
 }
 
 // Custom dropdown (isolated; mirrors comsci implementation)
@@ -520,9 +580,7 @@ chatForm.addEventListener("submit", async function (e) {
       div.className='profile-card';
       div.setAttribute('onclick','openModal(this)');
       div.dataset.name = data.Name;
-  const storageBase = @json(asset('storage'));
-  const defaultProfImg = @json(asset('images/dprof.jpg'));
-  const imgPath = data.profile_picture ? (storageBase + '/' + data.profile_picture) : defaultProfImg;
+      const imgPath = data.profile_picture ? ('{{ asset('storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
       div.dataset.img = imgPath;
       div.setAttribute('data-prof-id', data.Prof_ID);
       div.dataset.schedule = data.Schedule || 'No schedule set';
@@ -537,9 +595,7 @@ chatForm.addEventListener("submit", async function (e) {
       if(card){
         card.dataset.name = data.Name;
         card.dataset.schedule = data.Schedule || 'No schedule set';
-  const storageBase = @json(asset('storage'));
-  const defaultProfImg = @json(asset('images/dprof.jpg'));
-  const imgPath = data.profile_picture ? (storageBase + '/' + data.profile_picture) : defaultProfImg;
+        const imgPath = data.profile_picture ? ('{{ asset('storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
         card.dataset.img = imgPath;
         card.querySelector('.profile-name').textContent = data.Name;
         const imgEl = card.querySelector('img'); if(imgEl) imgEl.src = imgPath;

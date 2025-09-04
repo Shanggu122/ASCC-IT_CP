@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Models\Concerns\HasProfilePhoto;
 
 class User extends Authenticatable
 {
-    use Notifiable;
+    use Notifiable, HasProfilePhoto;
 
     protected $table = 't_student';
     protected $primaryKey = 'Stud_ID';

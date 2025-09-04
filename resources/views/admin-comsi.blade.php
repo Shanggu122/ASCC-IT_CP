@@ -24,17 +24,22 @@
     </div>
 
     <div class="profile-cards-grid">
-      @foreach($professors as $prof)
-        <div class="profile-card"
-             data-name="{{ $prof->Name }}"
-             data-img="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}"
-             data-prof-id="{{ $prof->Prof_ID }}"
-             style="width: 300px;">
-          <img src="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
-          <div class="profile-name">{{ $prof->Name }}</div>
-          <button type="button" class="assign-subjects-btn" data-prof-id="{{ $prof->Prof_ID }}">Assign Subjects</button>
-        </div>
-      @endforeach
+                    @foreach($professors as $prof)
+                        @php
+                            $photoUrl = isset($prof->profile_photo_url)
+                                    ? $prof->profile_photo_url
+                                    : ($prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg'));
+                        @endphp
+                        <div class="profile-card"
+                                 data-name="{{ $prof->Name }}"
+                                 data-img="{{ $photoUrl }}"
+                                 data-prof-id="{{ $prof->Prof_ID }}"
+                                 style="width: 300px;">
+                            <img src="{{ $photoUrl }}" alt="Profile Picture">
+                            <div class="profile-name">{{ $prof->Name }}</div>
+                            <button type="button" class="assign-subjects-btn" data-prof-id="{{ $prof->Prof_ID }}">Assign Subjects</button>
+                        </div>
+                    @endforeach
     </div>
   </div>
 

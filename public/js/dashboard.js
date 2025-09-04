@@ -5,6 +5,7 @@ function toggleChat() {
     const bell = document.getElementById('mobileNotificationBell');
     const isOpen = overlay.classList.contains('open');
     document.body.classList.toggle('chat-open', isOpen);
+    // History removed – FAQ only
     if (bell) {
         if (isOpen) {
             bell.style.zIndex = '0';
@@ -22,11 +23,39 @@ const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute
 const chatForm = document.getElementById('chatForm');
 const input = document.getElementById('message');
 const chatBody = document.getElementById('chatBody');
+const quickReplies = document.getElementById('quickReplies');
+const quickRepliesToggle = document.getElementById('quickRepliesToggle');
+
+function sendQuick(text){
+    if(!text) return;
+    input.value = text;
+    chatForm.dispatchEvent(new Event('submit'));
+}
+
+quickReplies?.addEventListener('click', e => {
+    const btn = e.target.closest('.quick-reply');
+    if(btn){
+        sendQuick(btn.dataset.message);
+    }
+});
+
+quickRepliesToggle?.addEventListener('click', () => {
+    if(quickReplies){
+        quickReplies.style.display='flex';
+        quickRepliesToggle.style.display='none';
+    }
+});
 
 chatForm.addEventListener('submit', async function (e) {
     e.preventDefault();
     const text = input.value.trim();
     if (!text) return;
+
+    // hide quick replies on first real interaction
+    if(quickReplies && quickReplies.style.display !== 'none'){
+        quickReplies.style.display = 'none';
+        if(quickRepliesToggle) quickRepliesToggle.style.display='flex';
+    }
 
     const um = document.createElement('div');
     um.classList.add('message', 'user');

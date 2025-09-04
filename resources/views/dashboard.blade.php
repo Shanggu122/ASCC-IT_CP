@@ -14,16 +14,39 @@
     #calendar {
       visibility: hidden;
     }
+    /* Unified arrow styling (matches consultation form) */
     .pika-prev, .pika-next {
-      background-color: #12372a;
+      background-color: #0d2b20; /* dark fill */
       border-radius: 50%;
-      color: #12372a;
-      border: 2px solid #12372a;
+      color: #ffffff;
+      border: 2px solid #071a13; /* darker rim */
       font-size: 18px;
       padding: 10px;
-      width: 35px !important;
-      opacity: 100%;
+      width: 38px !important;
+      height: 38px;
+      display:flex; align-items:center; justify-content:center;
+      opacity:1;
+      text-indent:-9999px; /* hide default */
+      position:relative;
+      overflow:hidden;
+      background-image:none !important;
+      box-shadow:none;
     }
+    .pika-prev:after, .pika-next:after {
+      content:'';
+      position:absolute;
+      top:46%;
+      left:50%;
+      transform:translate(-50%, -50%);
+      font-size:24px;
+      line-height:1;
+      font-weight:700;
+      color:#ffffff;
+      text-indent:0;
+      z-index:2;
+    }
+    .pika-prev:after { content:'\2039'; }
+    .pika-next:after { content:'\203A'; }
     .pika-table th:has([title="Saturday"]),
     .pika-table th:has([title="Tuesday"]),
     .pika-table th:has([title="Wednesday"]),
@@ -183,6 +206,17 @@
         <div class="message bot">Hi! How can I help you today?</div>
         <div id="chatBox"></div>
       </div>
+      <div id="quickReplies" class="quick-replies">
+        <button type="button" class="quick-reply" data-message="How do I book a consultation?">How do I book?</button>
+        <button type="button" class="quick-reply" data-message="What are the consultation statuses?">Statuses?</button>
+        <button type="button" class="quick-reply" data-message="How can I reschedule my consultation?">Reschedule</button>
+        <button type="button" class="quick-reply" data-message="Can I cancel my booking?">Cancel booking</button>
+        <button type="button" class="quick-reply" data-message="When is my next consultation?">Next consultation</button>
+        <button type="button" class="quick-reply" data-message="How do I contact my professor after booking?">Contact professor</button>
+      </div>
+      <button type="button" id="quickRepliesToggle" class="quick-replies-toggle" style="display:none" title="Show FAQs">
+        <i class='bx bx-help-circle'></i>
+      </button>
 
       <form id="chatForm">
         <input type="text" id="message" placeholder="Type your message" required>

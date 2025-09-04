@@ -43,7 +43,7 @@
           <td class="info-label">Password</td>
           <td>
             <a href="javascript:void(0)" onclick="togglePanel('passwordPanel')" class="change-link">Change Password</a>
-            <i class='bx bx-edit-alt edit-icon'></i>
+            <i class='bx bx-edit-alt edit-icon' title="Edit Password"></i>
           </td>
         </tr>
       </table>

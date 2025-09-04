@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Services\DialogflowService;
+// Conversation persistence removed (FAQ only)
 
 class ChatBotController extends Controller
 {
@@ -14,7 +15,7 @@ class ChatBotController extends Controller
         $sessionId = session()->getId();
 
         try {
-            $reply = $dialogflow->detectIntent($text, $sessionId);
+            $reply  = $dialogflow->detectIntent($text, $sessionId);
             return response()->json(['reply' => $reply]);
         } catch (\Throwable $e) {
             Log::error('Dialogflow Error: '.$e->getMessage());

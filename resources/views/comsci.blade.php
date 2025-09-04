@@ -21,35 +21,42 @@
     display: none !important; /* Hide the calendar input field */
    }
 
+  /* Unified arrow styling to match IT&IS */
   .pika-prev, .pika-next {
-    background-color: #01703c;
-    border-radius: 50%;              /* Circular shape */
-    color: #12372a;                    /* Green arrow color */
-    border: 2px solid #12372a;         /* Green border around the circle */
-    font-size: 18px;                 /* Adjust font size for visibility */
-    padding: 10px;                   /* Padding to make the circle big enough */
-    width: 35px !important;
-    opacity: 100%;
-  }
-
-  .pika-table th:has( [title="Saturday"] ), 
-  .pika-table th:has( [title="Tuesday"] ), 
-  .pika-table th:has( [title="Wednesday"] ), 
-  .pika-table th:has( [title="Thursday"] ), 
-  .pika-table th:has( [title="Friday"] ) {
-    background-color: #12372a;
-    color: #fff;
-    border-radius: 4px;
-    padding: 5px;
-  }
-
-  .pika-table th:has( [title="Monday"] ), 
-  .pika-table th:has( [title="Sunday"] ) {
-    background-color: #01703c;
-    color: #fff;
-    border-radius: 4px;    
+    background-color: #0d2b20; /* darker fill */
+    border-radius: 50%;
+    color: #ffffff;
+    border: 2px solid #071a13; /* darker edge */
+    font-size: 18px;
     padding: 10px;
+    width: 38px !important;
+    height: 38px;
+    display: flex; align-items:center; justify-content:center;
+    opacity: 100%;
+    text-indent: -9999px; /* hide default */
+    position: relative;
+    background-image:none !important;
   }
+  .pika-prev:after, .pika-next:after { content:''; position:absolute; top:46%; left:50%; transform:translate(-50%,-50%); font-size:24px; font-weight:700; color:#fff; text-indent:0; }
+  .pika-prev:after { content:'\2039'; }
+  .pika-next:after { content:'\203A'; }
+
+  /* Weekday header styling (dynamic classes applied via JS) */
+  .pika-table th { 
+    background-color:#12372a; /* default Tue-Sat */
+    color:#fff;
+    border-radius:4px;
+    padding:5px;
+    transition:background-color .25s, opacity .25s;
+  }
+  .pika-table th.weekday-mon, .pika-table th.weekday-sun { background-color:#01703c; padding:10px; }
+  .pika-table th.allowed-day { }
+  .pika-table th.disallowed-day { }
+  .pika-table th.weekend-day { }
+
+  /* Disabled (blocked) days clearer */
+  .is-disabled .pika-button, .pika-button.is-disabled { background:#e5f0ed !important; color:#94a5a0 !important; border:1px solid #d0dbd8; opacity:1 !important; cursor:not-allowed; }
+  .is-disabled .pika-button:hover { background:#f1f4f6 !important; color:#b3bcc3 !important; }
 
 
   .pika-single {
@@ -145,10 +152,10 @@
   <div class="profile-card"
        onclick="openModal(this)"
        data-name="{{ $prof->Name }}"
-       data-img="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}"
+       data-img="{{ $prof->profile_photo_url }}"
        data-prof-id="{{ $prof->Prof_ID }}"
        data-schedule="{{ $prof->Schedule ?: 'No schedule set' }}">
-          <img src="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
+          <img src="{{ $prof->profile_photo_url }}" alt="Profile Picture">
           <div class="profile-name">{{ $prof->Name }}</div>
         </div>
       @endforeach
@@ -251,19 +258,64 @@
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
   <script>
   document.addEventListener("DOMContentLoaded", function() {
+      let allowedWeekdays = new Set(); // numeric 1-5 Mon-Fri allowed for selected professor
+
+      function disableDayFn(date){
+        const day = date.getDay(); // 0 Sun..6 Sat
+        if(day===0 || day===6) return true; // block weekends always
+        if(allowedWeekdays.size>0 && !allowedWeekdays.has(day)) return true;
+        return false;
+      }
+
+      function updateWeekdayHeaders(){
+        const headers=document.querySelectorAll('.pika-table th');
+        if(!headers.length) return;
+        headers.forEach(th=>{
+          th.classList.remove('allowed-day','disallowed-day','weekend-day','weekday-mon','weekday-sun');
+          const ab=th.querySelector('abbr'); if(!ab) return;
+          const title=ab.getAttribute('title');
+          const map={'Sunday':0,'Monday':1,'Tuesday':2,'Wednesday':3,'Thursday':4,'Friday':5,'Saturday':6};
+          const d=map[title];
+          if(d===1) th.classList.add('weekday-mon');
+          if(d===0) th.classList.add('weekday-sun');
+          if(d===0 || d===6){ th.classList.add('weekend-day'); return; }
+          if(allowedWeekdays.size===0){ th.classList.add('disallowed-day'); return; }
+          if(allowedWeekdays.has(d)) th.classList.add('allowed-day'); else th.classList.add('disallowed-day');
+        });
+      }
+
+      window.__updateAllowedWeekdays = function(scheduleText){
+        allowedWeekdays.clear();
+        if(!scheduleText){ picker.draw(); updateWeekdayHeaders(); return; }
+        const lines = scheduleText.split(/\n|<br\s*\/>/i).map(l=>l.trim()).filter(Boolean);
+        const nameToNum = { Monday:1, Tuesday:2, Wednesday:3, Thursday:4, Friday:5 };
+        lines.forEach(line=>{
+          const m=line.match(/^(Monday|Tuesday|Wednesday|Thursday|Friday)\b/i);
+          if(m){
+            const key=m[1].charAt(0).toUpperCase()+m[1].slice(1).toLowerCase();
+            if(nameToNum[key]) allowedWeekdays.add(nameToNum[key]);
+          }
+        });
+        picker.draw();
+        updateWeekdayHeaders();
+      };
+
       var picker = new Pikaday({
         field: document.getElementById('calendar'),
         format: 'ddd, MMM DD YYYY',
-        onSelect: function() {
-          document.getElementById('calendar').value = this.toString('ddd, MMM DD YYYY');
-        },
+        onSelect: function(){ document.getElementById('calendar').value = this.toString('ddd, MMM DD YYYY'); },
         showDaysInNextAndPreviousMonths: true,
         firstDay: 1,
         bound: false,
         minDate: new Date(),
+        disableDayFn: disableDayFn
       });
+      const _origDraw = picker.draw.bind(picker);
+      picker.draw = function(){ _origDraw(); updateWeekdayHeaders(); };
       picker.show();
-});
+      updateWeekdayHeaders();
+      window.picker = picker;
+  });
 
 // Open modal and set professor info
 function openModal(card) {
@@ -304,12 +356,23 @@ function openModal(card) {
     
     // Populate schedule
     const scheduleDiv = document.getElementById("modalSchedule");
-    if (schedule && schedule !== 'No schedule set') {
-        const scheduleLines = schedule.split('\n');
-        scheduleDiv.innerHTML = scheduleLines.map(line => `<p>${line}</p>`).join('');
-    } else {
-        scheduleDiv.innerHTML = '<p style="color: #888;">No schedule available</p>';
-    }
+  if (schedule && schedule !== 'No schedule set') {
+    const scheduleLines = schedule.split('\n');
+    scheduleDiv.innerHTML = scheduleLines.map(line => `<p>${line}</p>`).join('');
+    if(window.__updateAllowedWeekdays){ window.__updateAllowedWeekdays(schedule); }
+  } else {
+    scheduleDiv.innerHTML = '<p style="color: #888;">No schedule available</p>';
+    if(window.__updateAllowedWeekdays){ window.__updateAllowedWeekdays(''); }
+  }
+
+  // Disable submit if no schedule
+  const submitBtn = document.querySelector('#bookingForm .submit-btn');
+  if(submitBtn){
+    const hasSchedule = schedule && schedule !== 'No schedule set';
+    submitBtn.disabled = !hasSchedule;
+    submitBtn.classList.toggle('no-schedule', !hasSchedule);
+    submitBtn.title = !hasSchedule ? 'Cannot book: professor has no schedule set.' : '';
+  }
 }
 
 // Custom dropdown (isolated)
