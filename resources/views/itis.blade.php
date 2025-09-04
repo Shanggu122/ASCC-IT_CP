@@ -84,21 +84,23 @@
     flex-direction: column;
   }
 
+  /* Available day buttons: use green instead of grey */
   .pika-button{
-    background-color: #888888;
-    border-radius: 4px;
-    color: #ffffff;
-    padding: 10px;
-    height: 40px;
-    margin: 5px 0;
+    background-color:#01703c; /* previously #888 */
+    border-radius:4px;
+    color:#ffffff;
+    padding:10px;
+    height:40px;
+    margin:5px 0;
+    transition:background .18s, transform .18s;
   }
 
   .pika-button:hover,
   .pika-row.pick-whole-week:hover .pika-button {
-    color: #fff;
-    background: #01703c;
-    box-shadow: none;
-    border-radius: 3px;
+    color:#fff;
+    background:#0d2b20; /* darker on hover */
+    box-shadow:none;
+    border-radius:4px;
   }
 
   .is-selected .pika-button, .has-event .pika-button{
@@ -461,10 +463,31 @@ document.addEventListener('DOMContentLoaded', function() {
     if (otherCheckbox && otherText) {
         otherCheckbox.addEventListener('change', function() {
             otherText.style.display = this.checked ? 'inline-block' : 'none';
-            if (!this.checked) otherText.value = '';
+            if (this.checked) {
+                otherText.setAttribute('required','required');
+            } else {
+                otherText.removeAttribute('required');
+                otherText.value = '';
+            }
         });
     }
 });
+
+// Enforce Others text presence before submit (defensive front-end)
+const bookingForm = document.getElementById('bookingForm');
+if(bookingForm){
+  bookingForm.addEventListener('submit', function(e){
+    const otherCb = document.getElementById('otherTypeCheckbox');
+    const otherTxt = document.getElementById('otherTypeText');
+    if(otherCb && otherCb.checked){
+      if(!otherTxt.value.trim()){
+        e.preventDefault();
+        otherTxt.focus();
+        showNotification('Please specify the consultation type in the Others field.', true);
+      }
+    }
+  });
+}
 
 window.professors = @json($professors);
 
