@@ -182,7 +182,11 @@
 
   <div class="main-content">
     <div class="header">
-      <h1>Consultation Logs</h1>
+      <h1 style="display:flex;align-items:center;gap:14px;">Consultation Logs
+        <button id="print-logs-btn" type="button" class="print-logs-btn" title="Print Consultation Log">
+          <i class='bx bx-printer'></i><span class="print-label">Print</span>
+        </button>
+      </h1>
     </div>
 
     <div class="search-container">
@@ -222,8 +226,8 @@
         </div>
     
         <!-- Dynamic Data Rows -->
-        @forelse($bookings as $b)
-        <div class="table-row">
+  @forelse($bookings as $b)
+  <div class="table-row">
           <div class="table-cell" data-label="No.">{{ $loop->iteration }}</div>
           <div class="table-cell" data-label="Student">{{ $b->student }}</div> <!-- Student name -->
           <div class="table-cell" data-label="Subject">{{ $b->subject }}</div>
@@ -348,6 +352,33 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Hidden printable container -->
+    <div id="printLogsContainer" style="display:none;">
+      <div class="print-header">
+        <h2>Professor Consultation Log</h2>
+  <div id="printProfessor" class="print-professor" 
+    data-prof-name="{{ optional(auth()->guard('professor')->user())->Name ?? (auth()->user()->Name ?? auth()->user()->name ?? '') }}"
+    data-prof-id="{{ optional(auth()->guard('professor')->user())->Prof_ID ?? (auth()->user()->Prof_ID ?? auth()->user()->id ?? '') }}">
+  </div>
+  <div id="printMeta" class="print-meta"></div>
+      </div>
+      <table class="print-table" id="printLogsTable">
+        <thead>
+          <tr>
+            <th>No.</th>
+            <th>Student</th>
+            <th>Subject</th>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Mode</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="printFooter" class="print-footer-note"></div>
     </div>
   </div>
   <script>
@@ -867,11 +898,17 @@ function closeProfessorModal() {
       const date = new Date(dateString);
       const now = new Date();
       const diffInSeconds = Math.floor((now - date) / 1000);
-      
       if (diffInSeconds < 60) return 'Just now';
-      if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-      if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-      return `${Math.floor(diffInSeconds / 86400)}d ago`;
+      if (diffInSeconds < 3600) {
+        const m = Math.floor(diffInSeconds / 60);
+        return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
+      }
+      if (diffInSeconds < 86400) {
+        const h = Math.floor(diffInSeconds / 3600);
+        return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
+      }
+      const d = Math.floor(diffInSeconds / 86400);
+      return `${d} ${d === 1 ? 'day' : 'days'} ago`;
     }
 
     // Initialize mobile notifications on page load
@@ -879,6 +916,8 @@ function closeProfessorModal() {
       updateMobileNotificationBadge();
       // Update badge every 30 seconds
       setInterval(updateMobileNotificationBadge, 30000);
+  const printBtn = document.getElementById('print-logs-btn');
+   if (printBtn) printBtn.addEventListener('click', generateAndDownloadPdf);
     });
   </script>
   <script src="{{ asset('js/ccit.js') }}"></script>
@@ -891,6 +930,68 @@ function closeProfessorModal() {
     function closeProfessorModal() {
       document.getElementById('professorModal').style.display = 'none';
     }
+
+    // PDF DOWNLOAD FEATURE
+    function generateAndDownloadPdf(){
+      try {
+        const rows = Array.from(document.querySelectorAll('.table-row')).filter(r => !r.classList.contains('table-header'));
+        const data = [];
+        rows.forEach(r => {
+          if (r.style.display === 'none') return; // respect active filters
+          const cells = r.querySelectorAll('.table-cell');
+          if(cells.length < 7) return;
+          data.push({
+            no: cells[0]?.innerText.trim() || '',
+            student: cells[1]?.innerText.trim() || '',
+            subject: cells[2]?.innerText.trim() || '',
+            date: cells[3]?.innerText.trim() || '',
+            type: cells[4]?.innerText.trim() || '',
+            mode: cells[5]?.innerText.trim() || '',
+            status: cells[6]?.innerText.trim() || ''
+          });
+        });
+        if (data.length === 0){ alert('No consultations to print.'); return; }
+        // sort by date then student
+        data.sort((a,b)=> parseDate(a.date) - parseDate(b.date) || a.student.localeCompare(b.student));
+        // Prepare payload for server
+        const payload = data.map(d => ({
+          student: d.student,
+          subject: d.subject,
+          date: d.date,
+          type: d.type,
+          mode: d.mode,
+          status: d.status
+        }));
+        fetch("{{ route('conlog-professor.pdf') }}", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+          },
+          body: JSON.stringify({ logs: payload })
+        }).then(res => {
+          if(!res.ok) throw new Error('Failed to generate PDF');
+          return res.blob();
+        }).then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'consultation_logs.pdf';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(()=>window.URL.revokeObjectURL(url), 1500);
+        }).catch(e => {
+          console.error(e); alert('PDF generation failed.');
+        });
+      } catch(err){
+        console.error('Export error', err); alert('Failed to prepare data.');
+      }
+    }
+    function parseDate(str){ const d = new Date(str); return isNaN(d)? Infinity : d; }
+    function extractCreatedAt(){ return ''; }
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+  function getPrintStyles(){ return `body{font-family:Poppins,Arial,sans-serif;margin:24px;}h2{margin:0 0 4px;color:#12372a;font-size:26px;} .print-professor{font-size:12px;color:#234b3b;margin-bottom:2px;font-weight:500;} .print-meta{font-size:12px;color:#555;margin-bottom:12px;}table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #222;padding:6px 8px;text-align:left;}th{background:#12372a;color:#fff;font-weight:600;} .status-badge{padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px;color:#fff;display:inline-block;} .status-badge.status-pending{background:#ffa600;} .status-badge.status-approved{background:#27ae60;} .status-badge.status-completed{background:#093b2f;} .status-badge.status-rescheduled{background:#c50000;} .print-footer-note{margin-top:22px;font-size:11px;color:#444;text-align:right;}@media print{body{margin:0;padding:0;} }`; }
   </script>
 </body>
 </html>
