@@ -13,16 +13,33 @@
      #calendar {
       visibility: hidden;
     }
+    /* Unified arrow styling */
     .pika-prev, .pika-next {
-      background-color: #12372a;
+      background-color: #0d2b20; /* dark fill */
       border-radius: 50%;
-      color: #12372a;
-      border: 2px solid #12372a;
+      color: #ffffff;
+      border: 2px solid #071a13; /* darker rim */
       font-size: 18px;
       padding: 10px;
-      width: 35px !important;
-      opacity: 100%;
+      width: 38px !important;
+      height: 38px;
+      display:flex; align-items:center; justify-content:center;
+      opacity:1;
+      text-indent:-9999px;
+      position:relative;
+      overflow:hidden;
+      background-image:none !important;
+      box-shadow:none;
     }
+    .pika-prev:after, .pika-next:after {
+      content:'';
+      position:absolute;
+      top:46%; left:50%;
+      transform:translate(-50%, -50%);
+      font-size:24px; line-height:1; font-weight:700; color:#ffffff; text-indent:0; z-index:2;
+    }
+    .pika-prev:after { content:'\2039'; }
+    .pika-next:after { content:'\203A'; }
     .pika-table th:has([title="Saturday"]),
     .pika-table th:has([title="Tuesday"]),
     .pika-table th:has([title="Wednesday"]),

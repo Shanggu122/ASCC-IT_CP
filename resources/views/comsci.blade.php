@@ -145,10 +145,10 @@
   <div class="profile-card"
        onclick="openModal(this)"
        data-name="{{ $prof->Name }}"
-       data-img="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}"
+       data-img="{{ $prof->profile_photo_url }}"
        data-prof-id="{{ $prof->Prof_ID }}"
        data-schedule="{{ $prof->Schedule ?: 'No schedule set' }}">
-          <img src="{{ $prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
+          <img src="{{ $prof->profile_photo_url }}" alt="Profile Picture">
           <div class="profile-name">{{ $prof->Name }}</div>
         </div>
       @endforeach
