@@ -351,7 +351,18 @@
       text-transform: uppercase;
     }
 
-    .status-pending { background: #fff3cd; color: #856404 !important; }
+    /* Tooltip overrides: remove borders & extra spacing for Subject/Type/Mode/Status inside admin tooltip */
+    #consultationTooltip .detail-row,
+    #consultationTooltip .status-row {
+      display: block; /* stack nicely */
+      border: none !important;
+      padding: 0 !important;
+      margin: 0 0 4px 0 !important;
+    }
+    #consultationTooltip .detail-row:last-child { margin-bottom: 4px !important; }
+
+  /* Updated: make pending badge text white for consistency */
+  .status-pending { background: #f0a500; color: #ffffff !important; }
     .status-approved { background: #28a745; color: #ffffff !important; }
     .status-completed { background: #17a2b8; color: #ffffff !important; }
     .status-rescheduled { background: #dc3545; color: #ffffff !important; }
@@ -545,11 +556,17 @@
       const date = new Date(dateString);
       const now = new Date();
       const diffInSeconds = Math.floor((now - date) / 1000);
-      
       if (diffInSeconds < 60) return 'Just now';
-      if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
-      if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hrs ago`;
-      return `${Math.floor(diffInSeconds / 86400)} days ago`;
+      if (diffInSeconds < 3600) {
+        const m = Math.floor(diffInSeconds / 60);
+        return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
+      }
+      if (diffInSeconds < 86400) {
+        const h = Math.floor(diffInSeconds / 3600);
+        return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
+      }
+      const d = Math.floor(diffInSeconds / 86400);
+      return `${d} ${d === 1 ? 'day' : 'days'} ago`;
     }
 
     // Close mobile notifications when clicking outside
@@ -712,15 +729,35 @@
           const countText = consultations.length === 1 ? '1 Consultation' : `${consultations.length} Consultations`;
           html += `<div style="font-weight: bold; margin-bottom: 8px; color: #12372a; border-bottom: 1px solid #ddd; padding-bottom: 4px;">${countText}</div>`;
           
+          // Helper to convert 'YYYY-MM-DD HH:MM:SS' to 'YYYY-MM-DD hh:MM:SS AM/PM'
+          function formatTo12Hour(ts) {
+            if (!ts) return '';
+            const parts = ts.split(' ');
+            if (parts.length < 2) return ts;
+            const datePart = parts[0];
+            const timePart = parts[1];
+            const tPieces = timePart.split(':');
+            if (tPieces.length < 2) return ts;
+            let hour = parseInt(tPieces[0], 10);
+            const minute = tPieces[1];
+            const second = tPieces[2] || '00';
+            if (isNaN(hour)) return ts;
+            const suffix = hour >= 12 ? 'PM' : 'AM';
+            const hour12 = ((hour + 11) % 12) + 1; // 0 -> 12
+            const hourStr = hour12.toString().padStart(2, '0');
+            return `${datePart} ${hourStr}:${minute}:${second} ${suffix}`;
+          }
+
+          // Build each consultation entry with ONLY a bottom divider like professor dashboard (no additional top borders)
           consultations.forEach((entry, index) => {
             html += `
-              <div class="consultation-entry" style="${index > 0 ? 'border-top: 1px solid #eee; padding-top: 6px; margin-top: 6px;' : ''}">
+              <div class="consultation-entry">
                 <div class="student-name">${entry.student} have consultation with ${entry.professor}</div>
                 <div class="detail-row">Subject: ${entry.subject}</div>
                 <div class="detail-row">Type: ${entry.type}</div>
                 <div class="detail-row">Mode: ${entry.Mode}</div>
                 <div class="status-row" style="color:${getStatusColor(entry.Status)};">Status: ${entry.Status}</div>
-                <div class="booking-time">Booked: ${entry.Created_At}</div>
+                <div class="booking-time">Booked: ${formatTo12Hour(entry.Created_At)}</div>
               </div>
             `;
           });
@@ -732,31 +769,33 @@
           
           tooltip.innerHTML = html;
           tooltip.style.display = 'block';
-          
-          // Smart positioning to keep tooltip within viewport (only on new cell hover)
-          let left = e.clientX + 20;
-          let top = e.clientY - 20;
-          
-          // Get tooltip dimensions after it's displayed
+
+          // Anchor tooltip to the RIGHT of the hovered cell (consistent placement)
+          const cellRect = target.getBoundingClientRect();
           const tooltipRect = tooltip.getBoundingClientRect();
-          const viewportWidth = window.innerWidth;
           const viewportHeight = window.innerHeight;
-          
-          // Adjust horizontal position if tooltip would go off-screen
-          if (left + tooltipRect.width > viewportWidth - 10) {
-            left = e.clientX - tooltipRect.width - 20;
+          const scrollY = window.scrollY || document.documentElement.scrollTop;
+          const scrollX = window.scrollX || document.documentElement.scrollLeft;
+          const GAP = 12; // space between day cell and tooltip
+
+          // Base positions
+          let left = cellRect.right + GAP + scrollX;
+          let top = cellRect.top + scrollY; // align tops by default
+
+          // Vertical adjustments to keep fully in view
+          if (top + tooltipRect.height > scrollY + viewportHeight - 10) {
+            top = scrollY + viewportHeight - tooltipRect.height - 10;
           }
-          
-          // Adjust vertical position if tooltip would go off-screen
-          if (top + tooltipRect.height > viewportHeight - 10) {
-            top = Math.max(10, viewportHeight - tooltipRect.height - 10);
+          if (top < scrollY + 10) {
+            top = scrollY + 10;
           }
-          
-          // Ensure tooltip doesn't go above viewport
-          if (top < 10) {
-            top = 10;
-          }
-          
+
+          // Optional: if extremely close to right edge and would overflow, gently shift left but keep to the right side
+          const maxRight = scrollX + window.innerWidth - 10;
+            if (left + tooltipRect.width > maxRight) {
+              left = Math.min(left, maxRight - tooltipRect.width);
+            }
+
           tooltip.style.left = left + 'px';
           tooltip.style.top = top + 'px';
         }
@@ -1103,11 +1142,17 @@
       const date = new Date(dateString);
       const now = new Date();
       const diffInSeconds = Math.floor((now - date) / 1000);
-      
       if (diffInSeconds < 60) return 'Just now';
-      if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} min ago`;
-      if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hrs ago`;
-      return `${Math.floor(diffInSeconds / 86400)} days ago`;
+      if (diffInSeconds < 3600) {
+        const m = Math.floor(diffInSeconds / 60);
+        return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
+      }
+      if (diffInSeconds < 86400) {
+        const h = Math.floor(diffInSeconds / 3600);
+        return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
+      }
+      const d = Math.floor(diffInSeconds / 86400);
+      return `${d} ${d === 1 ? 'day' : 'days'} ago`;
     }
 
     // Modal functions for consultation details

@@ -500,19 +500,18 @@
     function formatNotificationTime(timestamp) {
       const date = new Date(timestamp);
       const now = new Date();
-      const diffInMinutes = Math.floor((now - date) / (1000 * 60));
-      
-      if (diffInMinutes < 1) {
-        return 'Just now';
-      } else if (diffInMinutes < 60) {
-        return `${diffInMinutes}m ago`;
-      } else if (diffInMinutes < 1440) {
-        const hours = Math.floor(diffInMinutes / 60);
-        return `${hours}h ago`;
-      } else {
-        const days = Math.floor(diffInMinutes / 1440);
-        return `${days}d ago`;
+      const diffInSeconds = Math.floor((now - date) / 1000);
+      if (diffInSeconds < 60) return 'Just now';
+      if (diffInSeconds < 3600) {
+        const m = Math.floor(diffInSeconds / 60);
+        return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
       }
+      if (diffInSeconds < 86400) {
+        const h = Math.floor(diffInSeconds / 3600);
+        return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
+      }
+      const d = Math.floor(diffInSeconds / 86400);
+      return `${d} ${d === 1 ? 'day' : 'days'} ago`;
     }
         
     

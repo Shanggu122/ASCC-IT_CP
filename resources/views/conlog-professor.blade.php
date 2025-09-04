@@ -898,11 +898,17 @@ function closeProfessorModal() {
       const date = new Date(dateString);
       const now = new Date();
       const diffInSeconds = Math.floor((now - date) / 1000);
-      
       if (diffInSeconds < 60) return 'Just now';
-      if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-      if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-      return `${Math.floor(diffInSeconds / 86400)}d ago`;
+      if (diffInSeconds < 3600) {
+        const m = Math.floor(diffInSeconds / 60);
+        return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
+      }
+      if (diffInSeconds < 86400) {
+        const h = Math.floor(diffInSeconds / 3600);
+        return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
+      }
+      const d = Math.floor(diffInSeconds / 86400);
+      return `${d} ${d === 1 ? 'day' : 'days'} ago`;
     }
 
     // Initialize mobile notifications on page load
