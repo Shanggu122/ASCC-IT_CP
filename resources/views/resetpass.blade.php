@@ -20,7 +20,8 @@
     <!-- Right Panel -->
     <div class="right-panel">
       <div class="fp-header">
-  <a href="{{ route('otp.verify.form') }}" class="back-btn">
+  @php $roleParam = request('role') ?? session('password_reset_role_param'); @endphp
+  <a href="{{ route('otp.verify.form', ['role'=>$roleParam]) }}" class="back-btn">
           <i class='bx bx-chevron-left'></i>
         </a>
         <span class="fp-title">New Password</span>
@@ -34,7 +35,12 @@
         <div class="input-group">
           <input type="password" name="new_password_confirmation" id="confirm-password" placeholder="Confirm New Password" required/>
           <i class='bx bx-hide toggle-password' data-target="confirm-password"></i>
-          @error('new_password')<div class="field-error">{{ $message }}</div>@enderror
+          @php
+            $firstError = $errors->first('new_password') ?: $errors->first('new_password_confirmation');
+          @endphp
+          @if($firstError)
+            <div class="field-error">{{ $firstError }}</div>
+          @endif
         </div>
         <button type="submit" class="login-btn">Reset Password</button>
       </form>
@@ -57,3 +63,15 @@
   </script>
 </body>
 </html>
+<script>
+// Prevent copying the new password and pasting into confirmation without altering placeholders
+(function() {
+  const newPwd = document.getElementById('new-password');
+  const confirmPwd = document.getElementById('confirm-password');
+  if(!newPwd || !confirmPwd) return;
+  ['copy','cut'].forEach(evt => newPwd.addEventListener(evt, e => e.preventDefault()));
+  ['paste','drop'].forEach(evt => confirmPwd.addEventListener(evt, e => { e.preventDefault(); confirmPwd.value=''; }));
+  newPwd.addEventListener('dragstart', e => e.preventDefault());
+  confirmPwd.addEventListener('contextmenu', e => e.preventDefault());
+})();
+</script>

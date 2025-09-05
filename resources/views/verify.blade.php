@@ -6,6 +6,7 @@
   <title>Verify OTP</title>
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/verify.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/toast.css') }}">
 </head>
 <body>
   <div class="container">
@@ -18,7 +19,8 @@
     <!-- Right Panel -->
     <div class="right-panel">
       <div class="fp-header">
-        <a href="{{ route('forgotpassword') }}" class="back-btn">
+  @php $roleParam = request('role') ?? session('password_reset_role_param'); @endphp
+  <a href="{{ route('forgotpassword', ['role'=>$roleParam]) }}" class="back-btn">
           <i class='bx bx-chevron-left'></i>
         </a>
         <span class="fp-title">Email Verification</span>
@@ -29,14 +31,14 @@
           <h3 class="fp-instruction">Enter Verification Code</h3>
           <input type="text" name="otp" placeholder="Enter 4-digit OTP" maxlength="4" required>
           @error('otp')<div class="field-error">{{ $message }}</div>@enderror
-          @if(session('status'))<div class="field-success">{{ session('status') }}</div>@endif
         </div>
         <button type="submit" class="login-btn" style="margin-top:10px;">Verify OTP</button>
         <div style="margin-top:14px;text-align:center;font-size:13px;">
-            Didn't get the code? <a href="{{ route('otp.resend') }}" style="color:#0d5c46;font-weight:600;">Resend OTP</a>
+            Didn't get the code? <a href="{{ route('otp.resend', ['role'=>$roleParam]) }}" style="color:#0d5c46;font-weight:600;">Resend OTP</a>
         </div>
       </form>
     </div>
   </div>
+  @include('partials.toast')
 </body>
 </html>

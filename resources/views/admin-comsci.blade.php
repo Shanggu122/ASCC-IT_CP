@@ -20,7 +20,7 @@
     </div>
 
     <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Search...">
+      <input type="text" id="searchInput" placeholder="Search..." autocomplete="off" spellcheck="false" maxlength="50" pattern="[A-Za-z0-9 .,@_-]{0,50}" aria-label="Search professors">
     </div>
 
     <div class="profile-cards-grid">
@@ -557,9 +557,20 @@
       }
     };
 
-    // Simple search filter for cards
+    // Simple search filter for cards with basic sanitization
+    function sanitize(input){
+      if(!input) return '';
+      let cleaned = input.replace(/\/\*.*?\*\//g,'');
+      cleaned = cleaned.replace(/--/g,' ');
+      cleaned = cleaned.replace(/[;`'"<>]/g,' ');
+      cleaned = cleaned.replace(/\s+/g,' ').trim();
+      return cleaned.slice(0,50);
+    }
     document.getElementById('searchInput').addEventListener('input', function() {
-      const filter = this.value.toLowerCase();
+      const raw = this.value;
+      const cleaned = sanitize(raw);
+      if(cleaned !== raw) this.value = cleaned;
+      const filter = cleaned.toLowerCase();
       document.querySelectorAll('.profile-card').forEach(function(card) {
         const name = card.getAttribute('data-name').toLowerCase();
         card.style.display = name.includes(filter) ? '' : 'none';

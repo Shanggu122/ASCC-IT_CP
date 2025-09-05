@@ -88,11 +88,8 @@ class MessageController extends Controller
     {
         $user = Auth::user();
         if (!$user || !isset($user->Stud_ID)) {
-            // Redirect to login or show an error
-            return redirect("/login")->with(
-                "error",
-                "You must be logged in as a student to view messages.",
-            );
+            // Redirect guests to landing page instead of /login
+            return redirect()->route('landing')->with('error', 'You must be logged in as a student to view messages.');
         }
 
         // Get the latest message per professor (across all bookings)

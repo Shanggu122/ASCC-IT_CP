@@ -28,7 +28,9 @@
     </div>
 
     <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Search..." style="flex:1;">
+      <input type="text" id="searchInput" placeholder="Search..." style="flex:1;"
+             autocomplete="off" spellcheck="false" maxlength="50"
+             pattern="[A-Za-z0-9 .,@_-]{0,50}" aria-label="Search consultations">
       <div class="filter-group-horizontal">
     <select id="typeFilter" class="filter-select">
             <option value="">All Types</option>
@@ -114,8 +116,22 @@ const fixedTypes = [
   'capstone consultation'
 ];
 
+// Basic sanitizer shared by search & chat below
+function sanitize(raw){
+  if(!raw) return '';
+  return raw
+    .replace(/\/*.*?\*\//g,'') // remove block comments
+    .replace(/--+/g,' ')          // remove repeated dashes (SQL comment openers)
+    .replace(/[;`'"<>]/g,' ')    // strip risky punctuation
+    .replace(/\s+/g,' ')         // collapse whitespace
+    .trim()
+    .slice(0,50);
+}
+
 function filterRows() {
-  let search = document.getElementById('searchInput').value.toLowerCase();
+  const inputEl = document.getElementById('searchInput');
+  let search = sanitize(inputEl.value).toLowerCase();
+  if(inputEl.value !== search) inputEl.value = search; // reflect sanitized
   let type = document.getElementById('typeFilter').value.toLowerCase();
   let rows = document.querySelectorAll('.table-row:not(.table-header)');
   rows.forEach(row => {
@@ -159,7 +175,7 @@ function filterRows() {
 
   document.addEventListener('DOMContentLoaded',function(){ buildTypeFilterDropdown(); });
 
-document.getElementById('searchInput').addEventListener('keyup', filterRows);
+document.getElementById('searchInput').addEventListener('input', filterRows);
 document.getElementById('typeFilter').addEventListener('change', filterRows);
 
 // Real-time updates for consultation log - DISABLED TO PREVENT DUPLICATE ROWS
@@ -237,11 +253,27 @@ const csrfToken = document
     .getAttribute("content");
 const chatForm = document.getElementById("chatForm");
 const input = document.getElementById("message");
+if(input){
+  input.setAttribute('maxlength','250');
+  input.setAttribute('autocomplete','off');
+  input.setAttribute('spellcheck','false');
+}
 const chatBody = document.getElementById("chatBody");
+
+// Send on Enter (like ITIS/COMSCI). Prevent accidental double submits.
+input.addEventListener('keydown', function(e){
+  if(e.key === 'Enter'){ 
+    e.preventDefault();
+  if(!sanitize(input.value)) return;
+    // Use requestSubmit if supported
+    if(typeof chatForm.requestSubmit === 'function') chatForm.requestSubmit();
+    else chatForm.dispatchEvent(new Event('submit', {cancelable:true}));
+  }
+});
 
 chatForm.addEventListener("submit", async function (e) {
     e.preventDefault();
-    const text = input.value.trim();
+  const text = sanitize(input.value);
     if (!text) return;
 
     const um = document.createElement("div");

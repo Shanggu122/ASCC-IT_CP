@@ -190,7 +190,9 @@
     </div>
 
     <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Search..." style="flex:1;">
+      <input type="text" id="searchInput" placeholder="Search..." style="flex:1;"
+             autocomplete="off" spellcheck="false" maxlength="50"
+             pattern="[A-Za-z0-9 .,@_-]{0,50}" aria-label="Search consultations">
       <div class="filter-group-horizontal">
         <select id="typeFilter" class="filter-select">
           <option value="">All Types</option>
@@ -294,7 +296,9 @@
         <div id="chatBox"></div>
       </div>
       <form id="chatForm">
-        <input type="text" id="message" placeholder="Type your message" required>
+        <input type="text" id="message" placeholder="Type your message" required
+               autocomplete="off" spellcheck="false" maxlength="250"
+               pattern="[A-Za-z0-9 .,@_!?-]{1,250}" aria-label="Chat message">
         <button type="submit">Send</button>
       </form>
     </div>
@@ -664,8 +668,22 @@ function closeProfessorModal() {
       'capstone consultation'
     ];
 
-    function filterRows() {
-        let search = document.getElementById('searchInput').value.toLowerCase();
+    // Basic front-end sanitizer to reduce junk / obvious attempt strings
+    function sanitize(input){
+      if(!input) return '';
+      let cleaned = input.replace(/\/\*.*?\*\//g,''); // remove /* */ comments
+      cleaned = cleaned.replace(/--/g,' '); // collapse double dashes
+      cleaned = cleaned.replace(/[;`'"<>]/g,' '); // strip risky punctuation
+      cleaned = cleaned.replace(/\s+/g,' ').trim(); // normalize whitespace
+      return cleaned.slice(0,250); // enforce hard limit
+    }
+
+  function filterRows() {
+    const si = document.getElementById('searchInput');
+    const raw = si.value;
+    const cleaned = sanitize(raw).slice(0,50); // search shorter cap
+    if(cleaned !== raw) si.value = cleaned; // reflect cleaned input
+    let search = cleaned.toLowerCase();
         let type = document.getElementById('typeFilter').value.toLowerCase();
         let rows = document.querySelectorAll('.table-row:not(.table-header)');
         rows.forEach(row => {
@@ -691,8 +709,37 @@ function closeProfessorModal() {
         });
     }
 
-    document.getElementById('searchInput').addEventListener('keyup', filterRows);
+    document.getElementById('searchInput').addEventListener('input', filterRows);
     document.getElementById('typeFilter').addEventListener('change', filterRows);
+
+    // Chat form hardening (local only – actual server still validates)
+    (function(){
+      const chatForm = document.getElementById('chatForm');
+      const chatInput = document.getElementById('message');
+      if(!chatForm || !chatInput) return;
+      chatInput.addEventListener('input', () => {
+        const raw = chatInput.value;
+        const cleaned = sanitize(raw);
+        if(cleaned !== raw) chatInput.value = cleaned;
+      });
+      chatForm.addEventListener('submit', (e) => {
+        const raw = chatInput.value;
+        const cleaned = sanitize(raw);
+        if(!cleaned){
+          e.preventDefault();
+          chatInput.value='';
+          chatInput.focus();
+          return;
+        }
+        if(cleaned !== raw) chatInput.value = cleaned;
+      });
+      chatInput.addEventListener('keydown', (e)=>{
+        if(e.key==='Enter' && !e.shiftKey){
+          e.preventDefault();
+          chatForm.requestSubmit();
+        }
+      });
+    })();
 
     // Real-time updates for professor consultation log - DISABLED TO PREVENT DUPLICATE ROWS
     /*
