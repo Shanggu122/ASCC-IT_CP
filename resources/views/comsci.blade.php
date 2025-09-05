@@ -146,7 +146,10 @@
     </div>
 
     <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Search...">
+  <input type="text" id="searchInput" placeholder="Search..." 
+     autocomplete="off" spellcheck="false" inputmode="text" 
+     maxlength="50" aria-label="Search professors by name" 
+     pattern="[A-Za-z0-9 .,@_-]{0,50}">
     </div>
 
     <div class="profile-cards-grid">
@@ -445,6 +448,38 @@ if(bookingForm){
 
 window.professors = @json($professors);
 
+// === Secure client-side search (defensive) ===
+// This search is purely client-side (DOM filtering). We still defensively
+// sanitize user input to remove characters commonly used in injection payloads
+// (quotes, semicolons, SQL comment markers, block comments, angle brackets).
+(function secureSearch(){
+  const input = document.getElementById('searchInput');
+  if(!input) return;
+  const MAX_LEN = 50;
+  function sanitize(raw){
+    if(!raw) return '';
+    return raw
+      .replace(/\/*.*?\*\//g,'')   // strip block comments
+      .replace(/--+/g,' ')            // collapse SQL line comment openers
+      .replace(/[;`'"<>]/g,' ')      // remove dangerous punctuation
+      .replace(/\s+/g,' ')           // collapse whitespace
+      .trim()
+      .slice(0,MAX_LEN);
+  }
+  function filter(){
+    const term = sanitize(input.value).toLowerCase();
+    if(input.value !== term) { // reflect sanitized version back to UI
+      input.value = term;
+    }
+    const cards = document.querySelectorAll('.profile-card');
+    cards.forEach(c=>{
+      const name = (c.dataset.name||c.textContent||'').toLowerCase();
+      c.style.display = term === '' || name.includes(term) ? '' : 'none';
+    });
+  }
+  input.addEventListener('input', filter);
+})();
+
 // === Chatbot ===
 function toggleChat() {
   document.getElementById("chatOverlay").classList.toggle("open");
@@ -455,11 +490,27 @@ const csrfToken = document
     .getAttribute("content");
 const chatForm = document.getElementById("chatForm");
 const input = document.getElementById("message");
+if(input){
+  input.setAttribute('maxlength','250');
+  input.setAttribute('autocomplete','off');
+  input.setAttribute('spellcheck','false');
+}
 const chatBody = document.getElementById("chatBody");
+
+function sanitize(raw){
+  if(!raw) return '';
+  return raw
+    .replace(/\/*.*?\*\//g,'')
+    .replace(/--+/g,' ')
+    .replace(/[;`'"<>]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim()
+    .slice(0,250);
+}
 
 chatForm.addEventListener("submit", async function (e) {
     e.preventDefault();
-    const text = input.value.trim();
+    const text = sanitize(input.value);
     if (!text) return;
 
     const um = document.createElement("div");

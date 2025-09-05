@@ -187,6 +187,17 @@ body {
     min-height: 32px;
 }
 
+/* Field level validation error (added for reset password page) */
+.field-error {
+    color: #dc3545;
+    font-size: 14px;
+    margin-top: 6px;
+    font-weight: 500;
+    width: 100%;
+    text-align: left;
+    padding-left: 4px;
+}
+
 /* Add this to push the form down if needed */
 .right-panel form {
     margin-top: 2.5rem; /* Reduced space above the form */
@@ -204,20 +215,30 @@ body {
 }
 
 .back-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px; /* Slightly larger for better centering */
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     background: #0b3d2e;
     color: #fff;
-    font-size: 1.5rem; /* Larger arrow */
+    font-size: 1.5rem;
     margin-right: 1rem;
     text-decoration: none;
-    transition: background 0.2s;
+    transition: background 0.2s, box-shadow 0.2s;
     flex-shrink: 0;
+    cursor: pointer;
+    position: relative;
+    z-index: 5;
+    user-select: none;
+    touch-action: manipulation;
+    line-height: 1;
 }
+
+.back-btn:hover { background: #105943; }
+.back-btn:active { background: #094130; }
+.back-btn:focus-visible { outline: 3px solid #36b58b; outline-offset: 2px; }
 
 .fp-title {
     font-size: 1.3rem;

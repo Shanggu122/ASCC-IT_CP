@@ -60,20 +60,20 @@ Route::get("/login", function () {
 })->name("login");
 
 Route::post("/login", [AuthController::class, "login"]);
+// Protected student routes (require authentication)
 Route::get("/dashboard", function () {
-    return view("dashboard"); // your dashboard view
-})->name("dashboard");
+    return view("dashboard"); // student dashboard
+})->name("dashboard")->middleware('auth');
 
-Route::get("/itis", action: [itisController::class, "show"])->name("itis");
-Route::get("/comsci", action: [comsciController::class, "show"])->name("comsci");
+// Legacy /itis & /comsci definitions removed here; final definitions below also protected.
 
-Route::get("/profile", function () {
-    return view("profile"); // 'profile' is the name of the view you want to load
-});
+// Remove duplicate unprotected /profile route; handled in auth group below.
 
-Route::get("/conlog", [ConsultationLogController::class, "index"])->name("consultation-log");
+Route::get("/conlog", [ConsultationLogController::class, "index"])
+    ->name("consultation-log")
+    ->middleware('auth');
 
-Route::get("/messages", [MessageController::class, "showMessages"])->name("messages");
+// Messages route handled inside auth group below; public definition removed.
 
 // routes/web.php
 
@@ -103,6 +103,9 @@ Route::middleware(["auth:professor"])->group(function () {
     Route::get("/profile-professor", [ProfessorProfileController::class, "show"])->name(
         "profile.professor",
     );
+    // Professor messages page (secured)
+    Route::get("/messages-professor", [MessageController::class, "showProfessorMessages"])
+        ->name("messages.professor");
     // Export professor consultation logs to PDF
     Route::post('/conlog-professor/pdf', [ProfessorConsultationPdfController::class, 'download'])
         ->name('conlog-professor.pdf');
@@ -150,9 +153,7 @@ Route::post("/change-password-professor", [AuthControllerProfessor::class, "chan
     "changePassword.professor",
 );
 
-Route::get("/messages-professor", [MessageController::class, "showProfessorMessages"])->name(
-    "messages.professor",
-);
+// (Removed duplicate unprotected /messages-professor route; now secured inside professor auth group)
 
 Route::get("/user/{id}", [UserController::class, "getUserData"]);
 Route::get("/user/{id}", [ProfessorController::class, "getUserData"]);
@@ -283,18 +284,18 @@ Route::get('/api/professor/notifications/unread-count', [NotificationController:
 
 Route::post("/professor/login-professor", [AuthControllerProfessor::class, "apiLogin"]);
 
-Route::post("/send-message", [MessageController::class, "sendMessage"]);
-Route::post("/send-messageprof", [MessageController::class, "sendMessageprof"]);
+// Unified messaging API routes secured for either authenticated student or professor
+Route::middleware('auth:web,professor')->group(function() {
+    Route::post('/send-message', [MessageController::class,'sendMessage']);
+    Route::post('/send-messageprof', [MessageController::class,'sendMessageprof']);
+    Route::get('/load-messages/{bookingId}', [MessageController::class,'loadMessages']);
+});
 
-Route::get("/load-messages/{bookingId}", [
-    App\Http\Controllers\MessageController::class,
-    "loadMessages",
-]);
+// Final student course list routes (protected)
+Route::get("/itis", [CardItis::class, "showItis"])->middleware('auth');
+Route::get("/comsci", [CardComsci::class, "showComsci"])->middleware('auth');
 
-Route::get("/itis", [CardItis::class, "showItis"]);
-Route::get("/comsci", [CardComsci::class, "showComsci"]);
-
-Route::post("/send-file", [MessageController::class, "sendFile"]);
+Route::post('/send-file', [MessageController::class,'sendFile'])->middleware('auth:web,professor');
 
 Route::post("/profile/upload-picture", [ProfileController::class, "uploadPicture"])->name(
     "profile.uploadPicture",

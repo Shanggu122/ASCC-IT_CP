@@ -22,6 +22,11 @@ function toggleChat() {
 const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 const chatForm = document.getElementById('chatForm');
 const input = document.getElementById('message');
+if(input){
+    input.setAttribute('maxlength','250');
+    input.setAttribute('autocomplete','off');
+    input.setAttribute('spellcheck','false');
+}
 const chatBody = document.getElementById('chatBody');
 const quickReplies = document.getElementById('quickReplies');
 const quickRepliesToggle = document.getElementById('quickRepliesToggle');
@@ -46,9 +51,20 @@ quickRepliesToggle?.addEventListener('click', () => {
     }
 });
 
+function sanitize(raw){
+    if(!raw) return '';
+    return raw
+        .replace(/\/*.*?\*\//g,'')
+        .replace(/--+/g,' ')
+        .replace(/[;`'"<>]/g,' ')
+        .replace(/\s+/g,' ')
+        .trim()
+        .slice(0,250);
+}
+
 chatForm.addEventListener('submit', async function (e) {
     e.preventDefault();
-    const text = input.value.trim();
+        const text = sanitize(input.value);
     if (!text) return;
 
     // hide quick replies on first real interaction

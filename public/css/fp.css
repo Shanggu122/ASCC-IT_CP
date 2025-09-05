@@ -218,19 +218,38 @@ body {
 }
 
 .back-btn {
-    display: flex;
+    display: inline-flex; /* ensure intrinsic size respected */
     align-items: center;
     justify-content: center;
-    width: 40px; /* Slightly larger for better centering */
-    height: 40px;
+    width: 44px; /* slightly larger hit target */
+    height: 44px;
     border-radius: 50%;
     background: #0b3d2e;
     color: #fff;
-    font-size: 1.5rem; /* Larger arrow */
+    font-size: 1.5rem; /* larger arrow */
     margin-right: 1rem;
     text-decoration: none;
-    transition: background 0.2s;
+    transition: background 0.2s, box-shadow 0.2s;
     flex-shrink: 0;
+    cursor: pointer;
+    position: relative; /* enable z-index */
+    z-index: 5; /* sit above overlapping title */
+    user-select: none;
+    touch-action: manipulation;
+    line-height: 1; /* keep icon vertically centered */
+}
+
+.back-btn:hover {
+    background: #105943;
+}
+
+.back-btn:active {
+    background: #094130;
+}
+
+.back-btn:focus-visible {
+    outline: 3px solid #36b58b;
+    outline-offset: 2px;
 }
 
 .fp-title {

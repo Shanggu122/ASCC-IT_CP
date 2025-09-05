@@ -11,8 +11,10 @@ class AuthControllerProfessor extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'Prof_ID'  => 'required|string',
+            'Prof_ID'  => 'required|string|max:9',
             'Password' => 'required|string',
+        ], [
+            'Prof_ID.max' => 'Professor ID must not exceed 9 characters.'
         ]);
 
         // Find the professor by Prof_ID

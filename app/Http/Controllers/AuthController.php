@@ -16,8 +16,10 @@ class AuthController extends Controller
     {
         // Validate the inputs
         $request->validate([
-            'Stud_ID' => 'required',
+            'Stud_ID' => 'required|string|max:9',
             'Password' => 'required',
+        ], [
+            'Stud_ID.max' => 'Student ID must not exceed 9 characters.'
         ]);
 
         // Find the user based on Student ID

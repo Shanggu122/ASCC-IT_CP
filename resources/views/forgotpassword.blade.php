@@ -18,13 +18,14 @@
     <!-- Right Panel -->
     <div class="right-panel">
       <div class="fp-header">
-        <a href="{{ route('login') }}" class="back-btn">
+  <a href="{{ request('role') === 'professor' ? route('login.professor') : (request('role') === 'admin' ? route('login.admin') : route('login')) }}" class="back-btn">
           <i class='bx bx-chevron-left'></i>
         </a>
         <span class="fp-title">Forgot Password</span>
       </div>
       <form action="{{ route('forgotpassword.send') }}" method="POST">
         @csrf
+        @if(request('role'))<input type="hidden" name="role" value="{{ request('role') }}">@endif
         <h3 class="fp-instruction">Enter your Adamson email address</h3>
         <div class="input-group">
           <input type="email" name="email" placeholder="example@adamson.edu.ph" required>

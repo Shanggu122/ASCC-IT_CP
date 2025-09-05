@@ -12,6 +12,12 @@ body {
     align-items: center;
     background-color: #f9f9f9;
 }
+/* Loading overlay */
+.auth-loading-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.82); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:9999; opacity:0; pointer-events:none; transition:opacity .25s ease; }
+.auth-loading-overlay.active { opacity:1; pointer-events:auto; }
+.auth-loading-spinner { width:58px; height:58px; border:5px solid rgba(255,255,255,0.18); border-top-color:#36b58b; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:18px; }
+.auth-loading-text { color:#e9f9f3; font-size:14px; letter-spacing:.08em; font-weight:600; }
+@keyframes spin { to { transform:rotate(360deg);} }
 
 .container {
     display: flex;
@@ -184,6 +190,15 @@ body {
     text-align: left; /* Align error text to the left */
 }
 
+/* Placeholder (empty) to preserve row height when no general error */
+.login-error-placeholder {
+    flex: 1;
+    min-height: 18px; /* near line-height of error text */
+}
+
+/* Red border highlight for invalid inputs */
+.input-error { border-color:#dc3545 !important; }
+
 .field-error {
     color: #dc3545;
     font-size: 14px;
@@ -210,6 +225,9 @@ body {
     white-space: nowrap; /* Prevent link from wrapping */
     margin-left: 10px; /* Add some space between error and link */
 }
+
+/* Keep link on right even if error wraps */
+.options-row a { margin-left: 16px; }
 
 /* Add this to push the form down if needed */
 .right-panel form {
