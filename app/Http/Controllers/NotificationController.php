@@ -81,17 +81,25 @@ class NotificationController extends Controller
         if (!$professorId) {
             return response()->json(['notifications' => []]);
         }
-
-        // Professor: show only one (latest) notification per booking, newest updates first
-        $notifications = Notification::where('user_id', $professorId)
-            ->select('*')
+        // Fetch all relevant notifications first (limit to recent range for performance if needed)
+        $all = Notification::where('user_id', $professorId)
             ->orderBy('updated_at', 'desc')
-            ->get()
-            ->unique('booking_id')
-            ->take(10)
-            ->values();
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-        return response()->json(['notifications' => $notifications]);
+        // Group by booking (null booking_id treated as unique via fallback key) then select the latest (by updated_at) per group
+        $latestPerBooking = $all->groupBy(function ($n) {
+            return $n->booking_id ? ('b_'.$n->booking_id) : ('solo_'.$n->id);
+        })->map(function ($items) {
+            return $items->sortByDesc('updated_at')->first();
+        });
+
+        // Final ordering: strictly newest first using updated_at (fallback created_at)
+        $ordered = $latestPerBooking->sortByDesc(function ($n) {
+            return $n->updated_at ?? $n->created_at;
+        })->values()->take(10);
+
+        return response()->json(['notifications' => $ordered]);
     }
 
     public function markProfessorAsRead(Request $request)
