@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
 use App\Models\Professor;
-use App\Mail\TodayConsultationReminder;
+use App\Mail\UpcomingConsultationReminder;
 
 class SendTestConsultationReminder extends Command
 {
@@ -73,8 +73,9 @@ class SendTestConsultationReminder extends Command
                 $failed++; continue;
             }
             $to = $overrideTo ?: $prof->Email;
-            if (preg_match('/@outlook\.com$/i', $to)) {
-                $this->warn('Skipping booking '.$booking->Booking_ID.' for blocked/removed domain ('.$to.').');
+            // Only allow gmail.com recipients now.
+            if (!preg_match('/@gmail\.com$/i', $to)) {
+                $this->warn('Skipping booking '.$booking->Booking_ID.' (non-Gmail: '.$to.').');
                 continue;
             }
             $typeName = $booking->Custom_Type ?: ($booking->consult_type ?: 'consultation');
@@ -86,7 +87,7 @@ class SendTestConsultationReminder extends Command
                 'type' => $typeName
             ]);
             try {
-                Mail::to($to)->send(new TodayConsultationReminder(
+                Mail::to($to)->send(new UpcomingConsultationReminder(
                     $booking->student_name,
                     $booking->subject_name,
                     $typeName,
