@@ -1012,7 +1012,6 @@ function displayProfessorNotifications(notifications) {
   const notificationsHtml = notifications.map(notification => {
     const timeAgo = getTimeAgo(notification.created_at);
     const unreadClass = notification.is_read ? '' : 'unread';
-    
     return `
       <div class="notification-item ${unreadClass}" onclick="markProfessorNotificationAsRead(${notification.id})">
         <div class="notification-type ${notification.type}">${notification.type.replace('_', ' ')}</div>
@@ -1072,6 +1071,7 @@ function markAllProfessorNotificationsAsRead() {
     console.error('Error marking all professor notifications as read:', error);
   });
 }
+
 
 function updateProfessorUnreadCount() {
   fetch('/api/professor/notifications/unread-count')

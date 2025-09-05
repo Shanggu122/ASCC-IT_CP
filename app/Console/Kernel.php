@@ -9,7 +9,12 @@ class Kernel extends ConsoleKernel
 {
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // 1-hour prior rolling reminder: checks every 5 minutes for sessions starting within the next hour
+        $schedule->command('consultations:remind-upcoming')
+            ->everyMinute()
+            ->timezone('Asia/Manila');
+        // Legacy 7 AM daily batch kept commented for reference
+        // $schedule->command('consultations:remind-today')->dailyAt('07:00')->timezone('Asia/Manila');
     }
 
     protected function commands(): void
