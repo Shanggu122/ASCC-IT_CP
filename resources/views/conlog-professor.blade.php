@@ -401,8 +401,41 @@
       document.getElementById('newDate').setAttribute('min', today);
       document.getElementById('newDate').value = '';
       
-      // Show modal
-      document.getElementById('rescheduleOverlay').style.display = 'flex';
+      // Fetch fully booked dates to disable before showing modal
+      fetch('/api/professor/fully-booked-dates')
+        .then(r=>r.json())
+        .then(payload => {
+          const input = document.getElementById('newDate');
+          input.removeAttribute('data-full');
+          // Store list for custom validation
+          if (payload.success) {
+            input.setAttribute('data-full', JSON.stringify(payload.dates));
+            // If browser supports setCustomValidity hooks
+            input.addEventListener('input', function() {
+              try {
+                const full = JSON.parse(this.getAttribute('data-full')||'[]');
+                // Convert picked value (YYYY-MM-DD) to format used in DB (D M d Y)
+                if (this.value) {
+                  const d = new Date(this.value);
+                  const map = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+                  const mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                  const fmt = `${map[d.getUTCDay()]} ${mons[d.getUTCMonth()]} ${('0'+d.getUTCDate()).slice(-2)} ${d.getUTCFullYear()}`;
+                  if (full.includes(fmt)) {
+                    this.setCustomValidity('This date is already fully booked (5 consultations). Choose another.');
+                  } else {
+                    this.setCustomValidity('');
+                  }
+                } else {
+                  this.setCustomValidity('');
+                }
+              } catch(e) {}
+            }, { once: true });
+          }
+          document.getElementById('rescheduleOverlay').style.display = 'flex';
+        })
+        .catch(()=>{
+          document.getElementById('rescheduleOverlay').style.display = 'flex';
+        });
     }
 
     function closeRescheduleModal() {
@@ -452,6 +485,22 @@
     function confirmReschedule() {
       const newDate = document.getElementById('newDate').value;
       const reason = document.getElementById('rescheduleReason').value.trim();
+
+          // Client-side capacity check using cached fully booked list
+          const input = document.getElementById('newDate');
+          try {
+            if (newDate && input.getAttribute('data-full')) {
+              const full = JSON.parse(input.getAttribute('data-full'));
+              const d = new Date(newDate);
+              const map = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+              const mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+              const fmt = `${map[d.getUTCDay()]} ${mons[d.getUTCMonth()]} ${('0'+d.getUTCDate()).slice(-2)} ${d.getUTCFullYear()}`;
+              if (full.includes(fmt)) {
+                showProfessorModal('That date is already fully booked (5 consultations). Please pick another date.');
+                return;
+              }
+            }
+          } catch(e) {}
       
       if (!newDate) {
         showProfessorModal('Please select a new date.');

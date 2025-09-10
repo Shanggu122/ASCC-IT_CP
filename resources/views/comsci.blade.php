@@ -98,6 +98,19 @@
     margin:5px 0;
     transition:background .18s, transform .18s;
   }
+  /* Availability states */
+  .slot-free .pika-button { background:#01703c !important; }
+  .slot-low .pika-button { background:#e6a100 !important; }
+  .slot-full .pika-button { background:#b30000 !important; cursor:not-allowed; }
+  .slot-low .pika-button:hover { background:#cc8f00 !important; }
+  .slot-full .pika-button:hover { background:#990000 !important; }
+  .slot-full .pika-button[disabled] { pointer-events:none; opacity:0.95; }
+  .availability-legend { display:flex; gap:14px; font-size:12px; margin:6px 0 4px; flex-wrap:wrap; }
+  .availability-legend span { display:flex; align-items:center; gap:6px; }
+  .availability-legend i { width:14px; height:14px; border-radius:3px; display:inline-block; }
+  .legend-free { background:#01703c; }
+  .legend-low { background:#e6a100; }
+  .legend-full { background:#b30000; }
 
   .pika-button:hover,
   .pika-row.pick-whole-week:hover .pika-button {
@@ -132,6 +145,22 @@
     display: block !important;
     visibility: visible !important;
   }
+
+  /* Notification: top-right corner above modal */
+  .notification {
+    position: fixed;
+    top: 18px;
+    right: 22px;
+    left: auto;
+    transform: none;
+    z-index: 12000;
+    max-width: 420px;
+    width: auto;
+  }
+  /* Calendar error highlight */
+  .calendar-wrapper-container.has-error { outline:2px solid #d93025; border-radius:8px; padding:4px 6px 10px; }
+  .calendar-wrapper-container.has-error label[for="calendar"] { color:#d93025; }
+
 
 
 
@@ -241,6 +270,11 @@
       <div class="flex-layout">
         <div class="calendar-wrapper-container">
           <label for="calendar">Select Date:</label>
+          <div class="availability-legend">
+            <span><i class="legend-free"></i> Available</span>
+            <span><i class="legend-low"></i> Almost Full</span>
+            <span><i class="legend-full"></i> Full</span>
+          </div>
           <input id="calendar" type="text" placeholder="Select Date" name="booking_date" required>
         </div>
 
@@ -315,8 +349,65 @@
         minDate: new Date(),
         disableDayFn: disableDayFn
       });
+      let __availabilityCache = {};
+      let __dailyCapacity = 5;
+      window.__applyAvailability = function(map){
+        const cells = document.querySelectorAll('.pika-table td');
+        cells.forEach(td=>td.classList.remove('slot-free','slot-low','slot-full'));
+        cells.forEach(td=>{
+          const btn = td.querySelector('.pika-button');
+          if(!btn || td.classList.contains('is-disabled')) return;
+          const year = btn.getAttribute('data-pika-year');
+          if(!year) return;
+          const month = parseInt(btn.getAttribute('data-pika-month'),10);
+          const day = parseInt(btn.getAttribute('data-pika-day'),10);
+          const d = new Date(year, month, day);
+          const key = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'2-digit', year:'numeric'}).replace(/,/g,'');
+          const info = map[key];
+          let remaining, booked;
+          if(info){ remaining = info.remaining; booked = info.booked; }
+          else { remaining = __dailyCapacity; booked = 0; }
+          btn.dataset.remaining = remaining;
+          btn.dataset.booked = booked;
+          btn.dataset.capacity = __dailyCapacity;
+          btn.title = remaining <= 0 ? `Fully booked (0/${__dailyCapacity})` : `${remaining} slot${remaining===1?'':'s'} left (${booked}/${__dailyCapacity} booked)`;
+          if(remaining <= 0){
+            td.classList.add('slot-full');
+            btn.setAttribute('disabled','disabled');
+            btn.setAttribute('aria-disabled','true');
+            btn.style.pointerEvents='none';
+          }
+          else if(remaining <= 2) td.classList.add('slot-low');
+          else td.classList.add('slot-free');
+        });
+      };
+      function refreshAvailabilityColors(){ window.__applyAvailability(__availabilityCache); }
       const _origDraw = picker.draw.bind(picker);
-      picker.draw = function(){ _origDraw(); updateWeekdayHeaders(); };
+      picker.draw = function(){ _origDraw(); updateWeekdayHeaders(); refreshAvailabilityColors(); };
+      function fetchAvailability(profId){
+        if(!profId) return;
+        const now = new Date();
+        const start = now.toISOString().slice(0,10);
+        const endDate = new Date(now.getFullYear(), now.getMonth()+2, 0);
+        const end = endDate.toISOString().slice(0,10);
+        fetch(`/api/professor/availability?prof_id=${profId}&start=${start}&end=${end}`)
+          .then(r=>r.json())
+          .then(data=>{ if(!data.success) return; if(typeof data.capacity==='number') __dailyCapacity=data.capacity; __availabilityCache={}; data.dates.forEach(rec=>{ __availabilityCache[rec.date]=rec; }); refreshAvailabilityColors(); })
+          .catch(()=>{});
+      }
+      window.__fetchAvailability = fetchAvailability;
+      document.addEventListener('click', function(e){
+        const btn = e.target.closest('.pika-button');
+        if(!btn) return;
+        if(btn.dataset && btn.dataset.remaining === '0'){
+          e.preventDefault();
+          e.stopPropagation();
+          if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+          const sel = document.querySelector('.pika-table td.is-selected');
+          if(sel && sel.classList.contains('slot-full')) sel.classList.remove('is-selected');
+          return false;
+        }
+      }, true);
       picker.show();
       updateWeekdayHeaders();
       window.picker = picker;
@@ -326,6 +417,15 @@
 function openModal(card) {
     document.getElementById("consultationModal").style.display = "flex";
     document.body.classList.add("modal-open");
+
+    // Reset previous calendar selection so a date is required freshly each time
+    (function resetCalendar(){
+      const input = document.getElementById('calendar');
+      if(input) input.value='';
+      document.querySelector('.calendar-wrapper-container')?.classList.remove('has-error');
+      try { if(window.picker){ window.picker.setDate(null); } } catch(e) {}
+      document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
+    })();
 
     const name = card.getAttribute("data-name");
     const img = card.getAttribute("data-img");
@@ -358,6 +458,7 @@ function openModal(card) {
     document.getElementById("modalProfilePic").src = img;
     document.getElementById("modalProfileName").textContent = name;
     document.getElementById("modalProfId").value = profId;
+  if(window.__fetchAvailability){ setTimeout(()=>window.__fetchAvailability(profId),150); }
     
     // Populate schedule
     const scheduleDiv = document.getElementById("modalSchedule");
@@ -430,18 +531,79 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Enforce Others text presence before submit
+// Client-side validation to keep modal open (prevent submit if invalid)
 const bookingForm = document.getElementById('bookingForm');
 if(bookingForm){
-  bookingForm.addEventListener('submit', function(e){
+  function validateBooking(){
+    const profId = document.getElementById('modalProfId').value.trim();
+    if(!profId) return 'Professor not selected.';
+    const subjectSel = document.getElementById('modalSubjectSelect');
+    if(!subjectSel || !subjectSel.value) return 'Please select a subject.';
+    const typesChecked = bookingForm.querySelectorAll('input[name="types[]"]:checked').length;
+    if(typesChecked === 0) return 'Please select at least one consultation type.';
+    const modeChecked = bookingForm.querySelectorAll('input[name="mode"]:checked').length;
+    if(modeChecked === 0) return 'Please select consultation mode (Online or Onsite).';
+    const dateInput = document.getElementById('calendar');
+  const hasSelectedCell = document.querySelector('.pika-table td.is-selected');
+  if(!dateInput.value.trim() || !hasSelectedCell){
+      document.querySelector('.calendar-wrapper-container')?.classList.add('has-error');
+      return 'Please select a booking date.';
+    } else {
+      document.querySelector('.calendar-wrapper-container')?.classList.remove('has-error');
+    }
+    if(window.__availabilityCache){
+      const key = dateInput.value.replace(/,/g,'');
+      const rec = window.__availabilityCache[key];
+      if(rec && rec.remaining <= 0) return 'Selected date is already fully booked.';
+    }
     const otherCb = document.getElementById('otherTypeCheckbox');
     const otherTxt = document.getElementById('otherTypeText');
-    if(otherCb && otherCb.checked){
-      if(!otherTxt.value.trim()){
-        e.preventDefault();
-        otherTxt.focus();
-        showNotification('Please specify the consultation type in the Others field.', true);
+    if(otherCb && otherCb.checked && !otherTxt.value.trim()) return 'Please specify the consultation type in the Others field.';
+    return null;
+  }
+
+  bookingForm.addEventListener('submit', async function(e){
+    e.preventDefault();
+    const err = validateBooking();
+    if(err){ showNotification(err, true); return; }
+    const submitBtn = bookingForm.querySelector('.submit-btn');
+    if(submitBtn){ submitBtn.disabled = true; submitBtn.dataset.originalText = submitBtn.textContent; submitBtn.textContent = 'Submitting...'; }
+    try {
+      const fd = new FormData(bookingForm);
+      const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+      const res = await fetch(bookingForm.action, { method:'POST', headers:{ 'X-CSRF-TOKEN': token, 'Accept':'application/json' }, body: fd });
+      const contentType = res.headers.get('content-type')||'';
+      if(res.status === 422){
+        let msg = 'Validation error.';
+        if(contentType.includes('application/json')){
+          const data = await res.json();
+          if(data.errors){
+            const first = Object.values(data.errors)[0];
+            if(first && first[0]) msg = first[0];
+          } else if(data.message){ msg = data.message; }
+        }
+        showNotification(msg, true);
+        return;
       }
+      if(!res.ok){ showNotification('Server error. Please try again.', true); return; }
+      if(contentType.includes('application/json')){
+        const data = await res.json();
+        if(data.success){
+          showNotification(data.message || 'Consultation booked successfully.', false);
+          closeModal();
+          bookingForm.reset();
+        } else {
+          showNotification(data.message || 'Unexpected response.', true);
+        }
+      } else {
+        showNotification('Consultation booked successfully.', false);
+        closeModal();
+        bookingForm.reset();
+      }
+    } catch(ex){
+      showNotification('Network error. Please try again.', true);
+    } finally {
+      if(submitBtn){ submitBtn.disabled = false; submitBtn.textContent = submitBtn.dataset.originalText || 'Submit'; }
     }
   });
 }
