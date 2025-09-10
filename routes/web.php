@@ -10,6 +10,7 @@ use App\Http\Controllers\ConsultationBookingController;
 use App\Http\Controllers\ConsultationLogController;
 use App\Http\Controllers\VideoCallController;
 use App\Http\Controllers\ProfVideoCallController;
+use App\Http\Controllers\CallPresenceController;
 use App\Http\Controllers\AuthControllerProfessor;
 use App\Http\Controllers\ConsultationLogControllerProfessor;
 use App\Http\Controllers\ConsultationBookingControllerProfessor;
@@ -31,6 +32,8 @@ use App\Models\Notification;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfessorConsultationPdfController;
+use Carbon\Carbon; // added for availability endpoint
+use Carbon\CarbonPeriod;
 
 Route::get("/", [LandingController::class, "index"])->name("landing");
 
@@ -122,8 +125,14 @@ Route::middleware(["auth:professor"])->group(function () {
     // Add other professor-only routes here
 });
 
-// dynamic "video-call" page — {user} will be the channel name
-Route::get("/video-call/{user}", [VideoCallController::class, "show"])->name("video.call");
+// dynamic "video-call" page — {user} will be the channel name (students only)
+Route::get("/video-call/{user}", [VideoCallController::class, "show"]) 
+    ->name("video.call")
+    ->middleware('auth');
+// Presence limiting endpoints (max 5 students per channel)
+Route::post('/call/{channel}/enter', [CallPresenceController::class, 'enter'])->name('call.enter');
+Route::post('/call/{channel}/heartbeat', [CallPresenceController::class, 'heartbeat'])->name('call.heartbeat');
+Route::post('/call/{channel}/leave', [CallPresenceController::class, 'leave'])->name('call.leave');
 
 Route::get("/prof-call/{channel}", [ProfVideoCallController::class, "show"]);
 
@@ -178,6 +187,88 @@ Route::post("/consultation-book-professor", [ConsultationBookingController::clas
     "consultation-book.professor",
 );
 
+// Return dates (next 30 days) that are fully booked (>=5 approved/rescheduled) for a professor
+Route::get('/api/professor/fully-booked-dates', function(\Illuminate\Http\Request $request) {
+    try {
+        $profId = auth()->guard('professor')->check() ? auth()->guard('professor')->user()->Prof_ID : $request->query('prof_id');
+        if (!$profId) {
+            return response()->json(['success'=>false,'message'=>'Professor not identified'],401);
+        }
+        $today = \Carbon\Carbon::now('Asia/Manila')->startOfDay();
+        $end = $today->copy()->addDays(30);
+        $capacityStatuses = ['approved','rescheduled'];
+        $rows = DB::table('t_consultation_bookings')
+            ->select('Booking_Date', DB::raw('COUNT(*) as cnt'))
+            ->where('Prof_ID',$profId)
+            ->whereBetween('Booking_Date', [$today->format('D M d Y'), $end->format('D M d Y')])
+            ->whereIn('Status',$capacityStatuses)
+            ->groupBy('Booking_Date')
+            ->havingRaw('COUNT(*) >= 5')
+            ->get();
+        $dates = $rows->pluck('Booking_Date');
+        return response()->json(['success'=>true,'dates'=>$dates]);
+    } catch (\Exception $e) {
+        return response()->json(['success'=>false,'message'=>'Server error','error'=>$e->getMessage()],500);
+    }
+});
+
+// Availability endpoint: returns booked & remaining slots per day (approved/rescheduled only) within a date range
+Route::get('/api/professor/availability', function(\Illuminate\Http\Request $request) {
+    try {
+        $profId = $request->query('prof_id');
+        if(!$profId){
+            // if authenticated professor w/out prof_id param fallback
+            $profId = auth()->guard('professor')->check() ? auth()->guard('professor')->user()->Prof_ID : null;
+        }
+        if(!$profId){
+            return response()->json(['success'=>false,'message'=>'prof_id required'],422);
+        }
+
+        $capacity = 5; // daily capacity per professor (could be moved to config later)
+        $startParam = $request->query('start');
+        $endParam = $request->query('end');
+        $tz = 'Asia/Manila';
+        try { $start = $startParam ? Carbon::parse($startParam, $tz)->startOfDay() : Carbon::now($tz)->startOfMonth(); } catch(\Exception $e){ $start = Carbon::now($tz)->startOfMonth(); }
+        try { $end = $endParam ? Carbon::parse($endParam, $tz)->endOfDay() : $start->copy()->addMonths(1)->endOfMonth(); } catch(\Exception $e){ $end = $start->copy()->addMonths(1)->endOfMonth(); }
+
+        // Hard cap on range (max 90 days) to avoid excessive payload
+        if($end->diffInDays($start) > 90){
+            $end = $start->copy()->addDays(90)->endOfDay();
+        }
+
+        $capacityStatuses = ['approved','rescheduled'];
+
+        // Build explicit list of date strings to avoid lexicographical issues with whereBetween on string dates
+        $dateStrings = [];
+        foreach (CarbonPeriod::create($start, $end) as $d) { $dateStrings[] = $d->format('D M d Y'); }
+
+        $rows = DB::table('t_consultation_bookings')
+            ->select('Booking_Date', DB::raw('COUNT(*) as cnt'))
+            ->where('Prof_ID',$profId)
+            ->whereIn('Status',$capacityStatuses)
+            ->whereIn('Booking_Date', $dateStrings)
+            ->groupBy('Booking_Date')
+            ->get()
+            ->pluck('cnt','Booking_Date');
+
+        $dates = [];
+        foreach (CarbonPeriod::create($start, $end) as $day) {
+            $key = $day->format('D M d Y');
+            $booked = $rows[$key] ?? 0;
+            $remaining = max($capacity - $booked, 0);
+            $dates[] = [ 'date'=>$key, 'booked'=>$booked, 'remaining'=>$remaining ];
+        }
+
+        return response()->json([
+            'success'=>true,
+            'capacity'=>$capacity,
+            'dates'=>$dates,
+        ]);
+    } catch(\Exception $e){
+        return response()->json(['success'=>false,'message'=>'Server error','error'=>$e->getMessage()],500);
+    }
+});
+
 // Signed email action routes (professor can act directly from email)
 Route::get('/email-action/consultations/{bookingId}/{profId}/accept', [\App\Http\Controllers\ConsultationEmailActionController::class,'accept'])
     ->name('consultation.email.accept')
@@ -225,13 +316,60 @@ Route::post("/api/consultations/update-status", function (Request $request) {
             ]);
         }
 
-        // Update the status
-        $updateData = ["Status" => $status];
-        if ($status === "rescheduled" && $newDate) {
-            $updateData["Booking_Date"] = $newDate;
+    // Update the status (with max 5 per day constraint for approve/reschedule).
+    // Capacity counts only bookings already approved or rescheduled (pending does not consume a slot until approved/rescheduled).
+    $capacityStatuses = ['approved','rescheduled'];
+    $updateData = ["Status" => $status];
+    if ($status === "rescheduled" && $newDate) {
+            // Normalize new date (accept with or without commas, several formats)
+            $rawInput = trim($newDate);
+            $clean = str_replace(',', '', $rawInput);
+            $carbon = null; $formats = ['D M d Y','D M d Y H:i','Y-m-d'];
+            foreach ($formats as $fmt) { try { $carbon = \Carbon\Carbon::createFromFormat($fmt, $clean, 'Asia/Manila'); break; } catch (\Exception $e) {} }
+            if (!$carbon) { try { $carbon = \Carbon\Carbon::parse($clean, 'Asia/Manila'); } catch (\Exception $e) { $carbon = null; } }
+            if (!$carbon) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid date format for reschedule.'
+                ], 422);
+            }
+            $normalizedDate = $carbon->setTimezone('Asia/Manila')->startOfDay()->format('D M d Y');
+
+            // Enforce capacity: at most 5 active bookings (pending/approved/rescheduled) per professor per date
+            $activeStatuses = $capacityStatuses; // only approved/rescheduled block capacity
+            $existingCount = DB::table('t_consultation_bookings')
+                ->where('Prof_ID', $booking->Prof_ID)
+                ->where('Booking_Date', $normalizedDate)
+                ->whereIn('Status', $activeStatuses)
+                ->where('Booking_ID','!=',$booking->Booking_ID)
+                ->count();
+            if ($existingCount >= 5) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot reschedule: selected date already has 5 approved/rescheduled bookings for this professor.'
+                ]); // 200 with success false so frontend does not show generic network error
+            }
+            $updateData["Booking_Date"] = $normalizedDate;
         }
         if ($status === "rescheduled" && $rescheduleReason) {
             $updateData["reschedule_reason"] = $rescheduleReason;
+        }
+
+        // Enforce capacity when approving a pending booking (if switching to approved)
+        if ($status === 'approved') {
+            $currentDate = $booking->Booking_Date; // existing date retained
+            $existingApproved = DB::table('t_consultation_bookings')
+                ->where('Prof_ID',$booking->Prof_ID)
+                ->where('Booking_Date',$currentDate)
+                ->whereIn('Status',$capacityStatuses)
+                ->where('Booking_ID','!=',$booking->Booking_ID)
+                ->count();
+            if ($existingApproved >= 5) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot approve: that date already has 5 approved/rescheduled bookings.'
+                ]); // 200 JSON business rule violation
+            }
         }
 
         $updated = DB::table("t_consultation_bookings")
