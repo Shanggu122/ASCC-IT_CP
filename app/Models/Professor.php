@@ -5,8 +5,7 @@ namespace App\Models;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use App\Models\Concerns\HasProfilePhoto;
-
-
+use Illuminate\Support\Facades\Schema;
 
 class Professor extends Authenticatable
 {
@@ -19,7 +18,7 @@ class Professor extends Authenticatable
     public $timestamps = false;
 
     protected $fillable = [
-        'Prof_ID', 'Password', 'Name', 'Email', 'Dept_ID', 'Schedule', 'profile_picture'
+        'Prof_ID', 'Password', 'Name', 'Email', 'Dept_ID', 'Schedule', 'profile_picture', 'remember_token', 'is_active'
     ];
 
     protected $hidden = [
@@ -46,5 +45,27 @@ class Professor extends Authenticatable
     public function subjects()
     {
         return $this->belongsToMany(Subject::class, 'professor_subject', 'Prof_ID', 'Subject_ID');
+    }
+
+    public function getRememberTokenName()
+    {
+        return 'remember_token';
+    }
+
+    public function getRememberToken()
+    {
+        $col = $this->getRememberTokenName();
+        if (!Schema::hasTable($this->table) || !Schema::hasColumn($this->table, $col)) {
+            return null;
+        }
+        return $this->{$col};
+    }
+
+    public function setRememberToken($value)
+    {
+        $col = $this->getRememberTokenName();
+        if (Schema::hasTable($this->table) && Schema::hasColumn($this->table, $col)) {
+            $this->{$col} = $value;
+        }
     }
 }

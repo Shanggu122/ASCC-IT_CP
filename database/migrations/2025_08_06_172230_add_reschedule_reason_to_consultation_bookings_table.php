@@ -11,9 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('t_consultation_bookings', function (Blueprint $table) {
-            $table->text('reschedule_reason')->nullable()->after('Status');
-        });
+        if (Schema::hasTable('t_consultation_bookings')) {
+            if (!Schema::hasColumn('t_consultation_bookings', 'reschedule_reason')) {
+                Schema::table('t_consultation_bookings', function (Blueprint $table) {
+                    $table->text('reschedule_reason')->nullable()->after('Status');
+                });
+            }
+        }
     }
 
     /**
@@ -21,8 +25,10 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('t_consultation_bookings', function (Blueprint $table) {
-            $table->dropColumn('reschedule_reason');
-        });
+        if (Schema::hasTable('t_consultation_bookings') && Schema::hasColumn('t_consultation_bookings', 'reschedule_reason')) {
+            Schema::table('t_consultation_bookings', function (Blueprint $table) {
+                $table->dropColumn('reschedule_reason');
+            });
+        }
     }
 };

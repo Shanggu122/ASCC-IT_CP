@@ -7,6 +7,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
+use App\Models\LoginAttempt;
+use Illuminate\Support\Facades\Schema;
 use App\Models\User; // or your custom Model if different
 
 
@@ -15,11 +19,12 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-        Log::info('Student login attempt: begin', [
-            'ip' => $request->ip(),
-            'user_agent' => substr((string)$request->userAgent(), 0, 120),
-        ]);
-        // Validate the inputs
+    $studIdInput = (string) $request->Stud_ID;
+    $key = 'login:student:'.Str::lower(trim($studIdInput)).':'.$request->ip();
+    $maxAttempts = (int) config('auth_security.rate_limit_max_attempts', 5);
+    $decay = (int) config('auth_security.rate_limit_decay', 60);
+
+        // Basic validation first
         $request->validate([
             'Stud_ID' => 'required|string|max:9',
             'Password' => 'required',
@@ -27,51 +32,90 @@ class AuthController extends Controller
             'Stud_ID.max' => 'Student ID must not exceed 9 characters.'
         ]);
 
-    // Normalize inputs (trim to avoid padded spaces)
-    $studId = trim((string) $request->Stud_ID);
-    // Find the user based on Student ID (trim DB value too to match padded records)
-    $user = User::whereRaw('RTRIM(Stud_ID) = ?', [$studId])->first();
-    Log::info('Student login attempt: lookup', [
-        'stud_id' => $studId,
-        'found' => (bool)$user,
-    ]);
-
-        if (!$user) {
-            // Student ID not found
-            return back()->withErrors(['login' => 'Student ID not found.']);
+        // Rate limiting (5 attempts per minute per Stud_ID + IP)
+        if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
+            $seconds = RateLimiter::availableIn($key);
+            $this->recordAttempt($studIdInput, $request, false, 'locked');
+            return back()->withErrors(['login' => 'Too many attempts. Try again in '. $seconds .'s.']);
         }
 
-    $incoming = trim((string) $request->Password);
-    $stored   = (string) $user->Password;
-    $storedT  = trim($stored);
+        Log::info('Student login attempt', [
+            'stud_id' => $studIdInput,
+            'ip' => $request->ip(),
+        ]);
 
-        // Support both hashed and plain-text stored passwords without throwing on non-bcrypt strings
-        $valid = false;
+        $studId = trim($studIdInput);
+        $user = User::whereRaw('RTRIM(Stud_ID) = ?', [$studId])->first();
+
+        if (!$user) {
+            // Specific: student ID doesn't exist
+            RateLimiter::hit($key, $decay); // decay seconds
+            Log::notice('Login failed - id not found', ['stud_id'=>$studId]);
+            $this->recordAttempt($studId, $request, false, 'not_found');
+            return back()->withErrors(['Stud_ID' => 'Student ID does not exist.'])->withInput($request->only('Stud_ID'));
+        }
+
+        // Optional inactive flag support (tolerate missing column)
+        if (isset($user->is_active) && (int)$user->is_active === 0) {
+            RateLimiter::hit($key, $decay);
+            Log::notice('Login failed - inactive', ['stud_id'=>$studId]);
+            $this->recordAttempt($studId, $request, false, 'inactive');
+            return back()->withErrors(['login' => 'Account is inactive.']);
+        }
+
+        $incoming = trim((string) $request->Password);
+        $storedT  = trim((string) $user->Password);
+        $valid = false; $mode = 'plain';
         try {
-            $mode = 'plain';
             if (str_starts_with($storedT, '$2y$') || str_starts_with($storedT, '$2b$') || str_starts_with($storedT, '$2a$')) {
                 $mode = 'bcrypt';
                 $valid = Hash::check($incoming, $storedT);
             } else {
                 $valid = hash_equals($storedT, $incoming);
             }
-            Log::info('Student login attempt: compared', [ 'mode' => $mode, 'result' => $valid ]);
         } catch (\Throwable $e) {
-            // If hash check fails due to algorithm mismatch, fall back to plain-text compare
-            Log::warning('Student login compare error; falling back to plain', [ 'err' => $e->getMessage() ]);
             $valid = hash_equals($storedT, $incoming);
         }
 
         if (!$valid) {
-            // Password incorrect
-            return back()->withErrors(['login' => 'Incorrect password.']);
+            RateLimiter::hit($key, $decay);
+            Log::notice('Login failed - bad password', ['stud_id'=>$studId,'mode'=>$mode]);
+            $this->recordAttempt($studId, $request, false, 'bad_password');
+            return back()->withErrors(['Password' => 'Incorrect password.'])->withInput($request->only('Stud_ID'));
         }
 
-        // Login success
-    Auth::login($user);
+        RateLimiter::clear($key);
+
+        // Remember me only if column exists to avoid SQL error on legacy schema
+        $remember = false;
+        if ($request->boolean('remember')) {
+            try {
+                if (\Schema::hasTable($user->getTable()) && \Schema::hasColumn($user->getTable(), $user->getRememberTokenName())) {
+                    $remember = true;
+                }
+            } catch (\Throwable $e) { /* ignore */ }
+        }
+        Auth::login($user, $remember);
         $request->session()->regenerate();
-    Log::info('Student login success', [ 'stud_id' => $studId ]);
+        Log::info('Student login success', ['stud_id'=>$studId,'remember'=>$remember]);
+        $this->recordAttempt($studId, $request, true, 'success');
         return redirect()->intended(route('dashboard'));
+    }
+
+    protected function recordAttempt(string $studId, Request $request, bool $success, string $reason): void
+    {
+        try {
+            if (!Schema::hasTable('login_attempts')) { return; }
+            LoginAttempt::create([
+                'stud_id' => $studId,
+                'ip' => $request->ip(),
+                'user_agent' => substr((string)$request->userAgent(), 0, 250),
+                'successful' => $success,
+                'reason' => $reason,
+            ]);
+        } catch (\Throwable $e) {
+            // Silent fail; avoid breaking login flow
+        }
     }
 
      public function logout(Request $request)

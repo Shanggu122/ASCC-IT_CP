@@ -128,14 +128,28 @@ body {
     position: relative;
 }
 
-.toggle-password {
-    position: absolute;
-    right: 16px;
-    top: 12px;
-    cursor: pointer;
-    font-size: 20px;
-    color: #777;
-}
+/* Unified toggle password button style */
+.toggle-password { position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:20px; color:#555; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:8px; background:#e3e3e3; border:1px solid #e3e3e3; transition:background .18s, color .18s, border-color .18s, box-shadow .18s; }
+.toggle-password:hover, .toggle-password:focus { background:#d9d9d9; color:#0b3d2e; border-color:#d5d5d5; box-shadow:0 0 0 2px rgba(11,61,46,0.15); }
+
+/* Floating stacked label pattern */
+.float-stack { position:relative; }
+.float-stack input { background:#e3e3e3; border:1px solid #e3e3e3; padding:22px 52px 8px 18px; font-size:15px; transition:border-color .18s, background .18s; }
+.float-stack.password-group input { padding-right:70px; }
+.float-stack label { position:absolute; top:14px; left:18px; font-size:15px; font-weight:600; color:#0b3d2e; letter-spacing:.3px; pointer-events:none; transform-origin:left top; transition: all .16s ease; }
+.float-stack input::placeholder { color:transparent; }
+.float-stack input:focus { background:#f8f8f8; border-color:#0b3d2e; }
+.float-stack input:focus ~ .toggle-password,
+.float-stack input:not(:placeholder-shown) ~ .toggle-password { background:#f8f8f8; border-color:#f8f8f8; }
+.float-stack input:focus + label,
+.float-stack input:not(:placeholder-shown) + label { top:6px; font-size:11px; font-weight:600; opacity:.95; }
+
+/* Remember + Forgot layout */
+.remember-inline { display:flex; align-items:center; gap:6px; font-size:13px; color:#0b3d2e; cursor:pointer; user-select:none; white-space:nowrap; }
+.remember-inline input[type=checkbox]{ width:16px; height:16px; accent-color:#0b3d2e; }
+.below-actions { max-width:350px; width:100%; margin:.9rem auto 0; text-align:center; }
+.below-actions .forgot-bottom { font-size:13px; color:#0b3d2e; text-decoration:none; display:inline-block; }
+.below-actions .forgot-bottom:hover { text-decoration:underline; }
 
 .options {
     text-align: right;
@@ -168,16 +182,7 @@ body {
     background-color: #105943;
 }
 
-.options-row {
-    max-width: 350px;
-    width: 100%;
-    margin-left: auto;
-    margin-right: auto;
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 1rem;
-    margin-top: 10px;
-}
+.options-row { max-width:350px; width:100%; margin-left:auto; margin-right:auto; display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; margin-top:10px; min-height:32px; }
 
 /* Unified forgot password link style */
 .forgot-link {

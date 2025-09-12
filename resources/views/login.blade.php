@@ -27,14 +27,16 @@
       <p class="brand-slogan">
         <em><b>C</b>atalyzing <b>C</b>hange <b>I</b>nnovating for <b>T</b>omorrow</em>
       </p>
-  <form action="{{ route('login.submit') }}" method="post" id="student-login-form">
+  <form action="{{ route('login.submit') }}" method="post" id="student-login-form" autocomplete="on">
         @csrf
-        <div class="input-group">
-          <input type="text" id="Stud_ID" name="Stud_ID" placeholder="Student ID" value="{{ old('Stud_ID') }}" required maxlength="9" pattern=".{1,9}" class="{{ $errors->has('Stud_ID') ? 'input-error' : '' }}" title="Maximum 9 characters">
+        <div class="input-group float-stack">
+          <input type="text" id="Stud_ID" name="Stud_ID" placeholder=" " value="{{ old('Stud_ID') }}" required maxlength="9" pattern="\d{1,9}" inputmode="numeric" autocomplete="username" class="{{ $errors->has('Stud_ID') ? 'input-error' : '' }}" title="Enter up to 9 numeric digits">
+          <label for="Stud_ID">Student ID</label>
         </div>
-        <div class="input-group password-group">
-          <input type="password" id="password" name="Password" placeholder="Enter your password" class="{{ $errors->has('Password') ? 'input-error' : '' }}" />
-          <i class='bx bx-hide toggle-password' id="toggle-password"></i>
+        <div class="input-group password-group float-stack">
+          <input type="password" id="password" name="Password" placeholder=" " class="{{ $errors->has('Password') ? 'input-error' : '' }}" autocomplete="current-password" />
+          <label for="password">Password</label>
+          <button type="button" class="toggle-password" id="toggle-password-btn" aria-label="Show password" aria-pressed="false"><i class='bx bx-hide'></i></button>
           @if(session('status'))<div class="field-success">{{ session('status') }}</div>@endif
         </div>
         <div class="options-row">
@@ -54,9 +56,12 @@
           @else
             <span class="login-error-placeholder"></span>
           @endif
-          <a href="{{ route('forgotpassword') }}">Forgot Password?</a>
+          <label class="remember-inline"><input type="checkbox" name="remember" value="1"> <span>Remember me</span></label>
         </div>
         <button type="submit" class="login-btn">Log In</button>
+        <div class="below-actions">
+          <a class="forgot-bottom" href="{{ route('forgotpassword') }}">Forgot Password?</a>
+        </div>
       </form>
     </div>
   </div>
@@ -83,6 +88,59 @@
       });
       // Optional: hide overlay if back/forward navigation caches page
       window.addEventListener('pageshow', e => { if(e.persisted) overlay.classList.remove('active'); });
+    })();
+
+    // Idle timeout warning (60s before server 5-minute timeout)
+    (function(){
+      const idleMinutes = {{ (int)config('auth_security.idle_timeout_minutes',5) }};
+      const warnSeconds = 60; // show warning 1 minute before logout
+      const warningAt = (idleMinutes*60 - warnSeconds) * 1000;
+      if (warningAt <= 0) return; // too small to matter
+      let warned = false;
+      function showWarning(){
+        if(warned) return; warned = true;
+        const div = document.createElement('div');
+        div.id='idle-warning';
+        div.style.cssText='position:fixed;bottom:1rem;right:1rem;background:#222;color:#fff;padding:1rem 1.25rem;border-radius:8px;z-index:2000;font-size:.9rem;box-shadow:0 4px 12px rgba(0,0,0,.3);';
+        div.innerHTML='You will be logged out in <span id="idle-count">'+warnSeconds+'</span>s due to inactivity.';
+        document.body.appendChild(div);
+        let remain = warnSeconds;
+        const intv=setInterval(()=>{ remain--; const span=document.getElementById('idle-count'); if(span) span.textContent=remain; if(remain<=0){ clearInterval(intv); div.remove(); } },1000);
+      }
+      let timer = setTimeout(showWarning, warningAt);
+      const reset = () => { if(warned) return; clearTimeout(timer); timer = setTimeout(showWarning, warningAt); };
+      ['mousemove','keydown','click','scroll','touchstart'].forEach(evt=>window.addEventListener(evt, reset));
+    })();
+
+    // Remember Student ID locally (not password) independent of server remember cookie
+    (function(){
+      const KEY = 'login_stud_id';
+      const idInput = document.getElementById('Stud_ID');
+      const rememberBox = document.querySelector('input[name="remember"]');
+      if(!idInput || !rememberBox) return;
+      // Prefill if stored and no old value
+      if(!idInput.value){
+        const stored = localStorage.getItem(KEY);
+        if(stored){ idInput.value = stored; rememberBox.checked = true; }
+      }
+      // On submit, decide to store or clear
+      const form = document.getElementById('student-login-form');
+      if(form){
+        form.addEventListener('submit', ()=>{
+          if(rememberBox.checked && idInput.value){
+            localStorage.setItem(KEY, idInput.value.trim());
+          } else {
+            localStorage.removeItem(KEY);
+          }
+        });
+      }
+      // Provide quick clear option via context menu (optional UX)
+      idInput.addEventListener('contextmenu', e=>{
+        if(localStorage.getItem(KEY)){
+          // hold Shift + right-click to clear
+          if(e.shiftKey){ localStorage.removeItem(KEY); }
+        }
+      });
     })();
   </script>
   @include('partials.toast')

@@ -27,14 +27,16 @@
       <p class="brand-slogan">
         <em><b>C</b>atalyzing <b>C</b>hange <b>I</b>nnovating for <b>T</b>omorrow</em>
       </p>
-  <form action="{{ url('login-professor') }}" method="post" id="prof-login-form">
+  <form action="{{ url('login-professor') }}" method="post" id="prof-login-form" autocomplete="on">
         @csrf
-        <div class="input-group">
-          <input type="text" id="Prof_ID" name="Prof_ID" placeholder="Professor ID" value="{{ old('Prof_ID') }}" required maxlength="9" pattern=".{1,9}" class="{{ $errors->has('Prof_ID') ? 'input-error' : '' }}" title="Maximum 9 characters">
+        <div class="input-group float-stack">
+          <input type="text" id="Prof_ID" name="Prof_ID" placeholder=" " value="{{ old('Prof_ID') }}" required maxlength="9" pattern=".{1,9}" autocomplete="username" class="{{ $errors->has('Prof_ID') ? 'input-error' : '' }}" title="Maximum 9 characters" />
+          <label for="Prof_ID">Professor ID</label>
         </div>
-        <div class="input-group password-group">
-          <input type="password" id="password" name="Password" placeholder="Enter your password" class="{{ $errors->has('Password') ? 'input-error' : '' }}" />
-          <i class='bx bx-hide toggle-password' id="toggle-password"></i>
+        <div class="input-group password-group float-stack">
+          <input type="password" id="prof-password" name="Password" placeholder=" " class="{{ $errors->has('Password') ? 'input-error' : '' }}" autocomplete="current-password" />
+          <label for="prof-password">Password</label>
+          <button type="button" class="toggle-password" id="toggle-password-btn" aria-label="Show password" aria-pressed="false"><i class='bx bx-hide'></i></button>
           @if(session('status'))<div class="field-success">{{ session('status') }}</div>@endif
         </div>
         <div class="options-row">
@@ -54,9 +56,12 @@
           @else
             <span class="login-error-placeholder"></span>
           @endif
-          <a href="{{ route('forgotpassword', ['role'=>'professor']) }}">Forgot Password?</a>
+          <label class="remember-inline"><input type="checkbox" name="remember" value="1"> <span>Remember me</span></label>
         </div>
         <button type="submit" class="login-btn">Log In</button>
+        <div class="below-actions">
+          <a class="forgot-bottom" href="{{ route('forgotpassword', ['role'=>'professor']) }}">Forgot Password?</a>
+        </div>
       </form>
     </div>
   </div>
@@ -67,6 +72,7 @@
   </div>
   <script src="{{ asset('js/login.js') }}"></script>
   <script>
+    // Loading overlay & submit throttle
     (function(){
       const form = document.getElementById('prof-login-form');
       const overlay = document.getElementById('authLoading');
@@ -80,6 +86,28 @@
         setTimeout(()=>form.submit(), MIN_LOADING_MS);
       });
       window.addEventListener('pageshow', e=>{ if(e.persisted) overlay.classList.remove('active'); });
+    })();
+
+    // Remember Professor ID locally (independent of server remember cookie)
+    (function(){
+      const KEY = 'login_prof_id';
+      const idInput = document.getElementById('Prof_ID');
+      const rememberBox = document.querySelector('#prof-login-form input[name="remember"]');
+      if(!idInput || !rememberBox) return;
+      if(!idInput.value){
+        const stored = localStorage.getItem(KEY);
+        if(stored){ idInput.value = stored; rememberBox.checked = true; }
+      }
+      const form = document.getElementById('prof-login-form');
+      if(form){
+        form.addEventListener('submit', ()=>{
+          if(rememberBox.checked && idInput.value){
+            localStorage.setItem(KEY, idInput.value.trim());
+          } else {
+            localStorage.removeItem(KEY);
+          }
+        });
+      }
     })();
   </script>
   @include('partials.toast')

@@ -4,6 +4,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use App\Models\Professor;
 
 class AuthControllerProfessor extends Controller
@@ -17,38 +22,55 @@ class AuthControllerProfessor extends Controller
             'Prof_ID.max' => 'Professor ID must not exceed 9 characters.'
         ]);
 
-    // Find the professor by Prof_ID (trim both sides to tolerate padded DB values)
-    $profId = trim((string)$request->Prof_ID);
-    $user = Professor::whereRaw('RTRIM(Prof_ID) = ?', [$profId])->first();
+        $profIdInput = (string)$request->Prof_ID;
+        $profKey = 'login:prof:'.Str::lower(trim($profIdInput)).':'.$request->ip();
+        $maxAttempts = (int) config('auth_security.rate_limit_max_attempts', 5);
+        $decay = (int) config('auth_security.rate_limit_decay', 60);
 
-        if (!$user) {
-            // Professor ID not found
-            return redirect()->back()->with('error', 'Professor ID not found.');
+        if (RateLimiter::tooManyAttempts($profKey, $maxAttempts)) {
+            $seconds = RateLimiter::availableIn($profKey);
+            return back()->withErrors(['login' => 'Too many attempts. Try again in '. $seconds .'s.']);
+        }
+
+        $profId = trim($profIdInput);
+        $user = Professor::whereRaw('RTRIM(Prof_ID) = ?', [$profId])->first();
+        if(!$user){
+            RateLimiter::hit($profKey, $decay);
+            Log::notice('Professor login failed - id not found', ['prof_id'=>$profId]);
+            return back()->withErrors(['Prof_ID' => 'Professor ID does not exist.'])->withInput($request->only('Prof_ID'));
         }
 
         $incoming = trim((string) $request->Password);
-        $stored   = (string) $user->Password;
-        $storedT  = trim($stored);
-        $valid = false;
+        $storedT  = trim((string) $user->Password);
+        $valid = false; $mode='plain';
         try {
             if (str_starts_with($storedT, '$2y$') || str_starts_with($storedT, '$2b$') || str_starts_with($storedT, '$2a$')) {
-                $valid = \Illuminate\Support\Facades\Hash::check($incoming, $storedT);
+                $mode='bcrypt';
+                $valid = Hash::check($incoming, $storedT);
             } else {
                 $valid = hash_equals($storedT, $incoming);
             }
         } catch (\Throwable $e) {
             $valid = hash_equals($storedT, $incoming);
         }
-        if (!$valid) {
-            // Password incorrect
-            return redirect()->back()->with('error', 'Incorrect password.');
+        if(!$valid){
+            RateLimiter::hit($profKey, $decay);
+            Log::notice('Professor login failed - bad password', ['prof_id'=>$profId,'mode'=>$mode]);
+            return back()->withErrors(['Password' => 'Incorrect password.'])->withInput($request->only('Prof_ID'));
         }
 
-        // Login success
-        Auth::guard('professor')->login($user);
-        $request->session()->regenerate();
+        RateLimiter::clear($profKey);
 
-        return redirect()->intended('dashboard-professor');
+        $remember = false;
+        if($request->boolean('remember')){
+            try {
+                if(Schema::hasTable($user->getTable()) && Schema::hasColumn($user->getTable(), 'remember_token')){ $remember=true; }
+            } catch(\Throwable $e) { /* ignore */ }
+        }
+        Auth::guard('professor')->login($user, $remember);
+        $request->session()->regenerate();
+        Log::info('Professor login success', ['prof_id'=>$profId,'remember'=>$remember]);
+        return redirect()->intended(route('dashboard.professor'));
     }
 
     public function logout(Request $request)
