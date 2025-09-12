@@ -26,7 +26,7 @@
     }
   </style>
 </head>
-<body>
+<body class="messages-page">
   @include('components.navbarprof')
 
   <div class="main-content">
@@ -34,7 +34,7 @@
   <div class="messages-wrapper">
     <!-- Inbox -->
     <div class="inbox">
-      <h2>Inbox</h2>
+      <h2>Students</h2>
       @foreach($students as $student)
         @php
           $pic = null;
