@@ -25,13 +25,30 @@
         }
     </style>
 </head>
-<body>
+<body class="messages-page">
     @include('components.navbar')
     <div class="main-content">
         <div class="messages-wrapper">
             <div class="inbox">
-                <h2>Inbox</h2>
+                <div class="inbox-header-line">
+                  <h2>Professors</h2>
+                </div>
+                <div class="search-wrapper">
+                  <input type="text" id="prof-search" placeholder="Search professor..." oninput="filterProfessors()" />
+                </div>
+        @php
+          $currentDept = null;
+          $deptLabels = [1=>'IT & IS','2'=>'Computer Science'];
+        @endphp
         @foreach($professors as $professor)
+          @php
+            $dept = $professor->dept_id ?? null;
+            if($dept !== $currentDept){
+              $currentDept = $dept;
+              $label = $deptLabels[$dept] ?? 'Other Department';
+              echo '<div class="dept-separator" data-dept="'.e($label).'">'.e($label).'</div>';
+            }
+          @endphp
           @php
             // Accept possible field name variations
             $pic = null;
@@ -49,12 +66,16 @@
               ? \Carbon\Carbon::parse($professor->last_message_time)->timezone('Asia/Manila')->diffForHumans(['short'=>true])
               : '';
           @endphp
-          <div class="inbox-item" onclick="loadChat('{{ $professor->name }}', {{ $professor->booking_id }})">
+          <div class="inbox-item" data-name="{{ strtolower($professor->name) }}" data-dept="{{ strtolower($deptLabels[$professor->dept_id] ?? 'other') }}" data-can-video="{{ isset($professor->can_video_call) && $professor->can_video_call ? '1':'0' }}" onclick="loadChat('{{ $professor->name }}', {{ $professor->booking_id ? $professor->booking_id : 'null' }})">
               <img class="inbox-avatar" src="{{ $picUrl }}" alt="{{ $professor->name }}">
               <div class="inbox-meta">
                   <div class="name">{{ $professor->name }}</div>
                   <div class="snippet-line">
-                      <span class="snippet" title="{{ $displayMessage }}">{!! isset($professor->last_sender) && $professor->last_sender==='student' ? '<strong>You:</strong> ' : '' !!}{{ \Illuminate\Support\Str::limit($lastMessage, 36) }}</span>
+                      @if($professor->booking_id)
+                        <span class="snippet" title="{{ $displayMessage }}">{!! isset($professor->last_sender) && $professor->last_sender==='student' ? '<strong>You:</strong> ' : '' !!}{{ \Illuminate\Support\Str::limit($lastMessage, 36) }}</span>
+                      @else
+                        <span class="snippet" title="No conversation yet">No conversation yet</span>
+                      @endif
                       @if($relTime)
                         <span class="rel-time">{{ $relTime }}</span>
                       @endif
@@ -67,7 +88,7 @@
                 <div class="chat-header">
                     <button class="back-btn" id="back-btn" style="display:none;"><i class='bx bx-arrow-back'></i></button>
                     <span id="chat-person">Select a Professor</span>
-                    <button class="video-btn" id="launch-call" onclick="startVideoCall()">Video Call</button>
+                    <button class="video-btn" id="launch-call" onclick="startVideoCall()" disabled title="Video call available only on an approved or rescheduled consultation today">Video Call</button>
                 </div>
                 <div class="chat-body" id="chat-body">
                     @if(count($professors) === 0)
@@ -111,7 +132,7 @@
           }
         });
 
-        function loadChat(person, chatBookingId) {
+  function loadChat(person, chatBookingId) {
           currentChatPerson = person;
           bookingId = chatBookingId;
           document.getElementById('chat-person').textContent = person;
@@ -126,7 +147,25 @@
             }
           });
 
+          // Set video call button state based on inbox item attribute
+          const selected = Array.from(document.querySelectorAll('.inbox-item')).find(i=>i.classList.contains('active'));
+          const canVideo = selected && selected.getAttribute('data-can-video') === '1';
+          const btn = document.getElementById('launch-call');
+          if(canVideo){
+            btn.disabled = false;
+            btn.title = 'Start video call';
+          } else {
+            btn.disabled = true;
+            btn.title = 'Video call available only on an approved or rescheduled consultation today';
+          }
+
           // Fetch messages for the selected chat
+          if(!bookingId){
+            const chatBody = document.getElementById('chat-body');
+            chatBody.innerHTML = '<div class="message">No conversation yet. You can start the conversation anytime.</div>';
+            return;
+          }
+
           fetch(`/load-messages/${bookingId}`)
             .then(response => response.json())
             .then(messages => {
@@ -222,6 +261,11 @@
         function startVideoCall() {
           if (!currentChatPerson) {
             alert('Please select a professor to start a video call.');
+            return;
+          }
+          const active = document.querySelector('.inbox-item.active');
+          if(!active || active.getAttribute('data-can-video') !== '1'){
+            alert('Video call only works if you have an approved or rescheduled consultation today.');
             return;
           }
           const channel = encodeURIComponent(currentChatPerson.replace(/\s+/g, ''));
@@ -321,7 +365,7 @@
             document.getElementById("file-input").click();
         });
 
-        // Responsive logic
+        // Responsive logic (mobile layout under or equal 700px)
         function isMobile() {
           return window.innerWidth <= 700;
         }
@@ -343,7 +387,7 @@
         }
 
         // Show chat panel on inbox item click (mobile)
-        document.querySelectorAll('.inbox-item').forEach(item => {
+  document.querySelectorAll('.inbox-item').forEach(item => {
           item.addEventListener('click', showChatPanel);
         });
 
@@ -377,6 +421,7 @@
             document.getElementById('back-btn').style.display = 'none';
             // Do NOT auto-load any chat on mobile
           }
+          // (removed sticky & dynamic scrollbar class logic)
         });
 
         // IMAGE OVERLAY LIGHTBOX (student side only)
@@ -443,6 +488,30 @@
           if (!overlay || overlay.classList.contains('hidden')) return;
           if (e.target === overlay) closeImageOverlay();
         });
+
+        // Search filtering
+        function filterProfessors(){
+          const term = document.getElementById('prof-search').value.trim().toLowerCase();
+          const items = document.querySelectorAll('.inbox-item');
+          items.forEach(it=>{
+            const name = it.getAttribute('data-name');
+            if(!term || name.includes(term)){
+              it.style.display='flex';
+            } else {
+              it.style.display='none';
+            }
+          });
+          // Hide dept headers if no visible items below them
+          document.querySelectorAll('.dept-separator').forEach(header=>{
+            let next = header.nextElementSibling;
+            let anyVisible = false;
+            while(next && !next.classList.contains('dept-separator')){
+              if(next.classList.contains('inbox-item') && next.style.display!=='none'){ anyVisible=true; break; }
+              next = next.nextElementSibling;
+            }
+            header.style.display = anyVisible ? 'block' : 'none';
+          });
+        }
     </script>
     <!-- Image Overlay (Student only) -->
     <div id="image-overlay" class="image-overlay hidden">

@@ -92,31 +92,76 @@ class MessageController extends Controller
             return redirect()->route('landing')->with('error', 'You must be logged in as a student to view messages.');
         }
 
-        // Get the latest message per professor (across all bookings)
-        $professors = DB::table("t_consultation_bookings as b")
-            ->join("professors as prof", "prof.Prof_ID", "=", "b.Prof_ID")
-            ->leftJoin("t_chat_messages as msg", "msg.Booking_ID", "=", "b.Booking_ID")
-            ->where("b.Stud_ID", $user->Stud_ID)
+        /*
+         * New requirement: Show ALL professors (IT&IS first then ComSci) even if the student has
+         * never booked / chatted with them. We still want to display the latest message snippet
+         * if a booking + messages exist between the student and that professor.
+         * Dept_ID mapping (per existing code): 1 = IT&IS, 2 = ComSci.
+         */
+
+        // Subquery: latest message data per (student, professor)
+        $latestPerBooking = DB::table('t_consultation_bookings as b')
+            ->leftJoin('t_chat_messages as m', 'm.Booking_ID', '=', 'b.Booking_ID')
+            ->where('b.Stud_ID', $user->Stud_ID)
             ->select([
-                "prof.Name as name",
-                "prof.Prof_ID as prof_id",
-                "prof.profile_picture as profile_picture",
-                DB::raw("MAX(msg.Created_At) as last_message_time"),
-                DB::raw(
-                    'SUBSTRING_INDEX(GROUP_CONCAT(msg.Message ORDER BY msg.Created_At DESC), ",", 1) as last_message',
-                ),
-                DB::raw(
-                    'SUBSTRING_INDEX(GROUP_CONCAT(msg.Sender ORDER BY msg.Created_At DESC), ",", 1) as last_sender',
-                ),
-                DB::raw(
-                    'SUBSTRING_INDEX(GROUP_CONCAT(b.Booking_ID ORDER BY msg.Created_At DESC), ",", 1) as booking_id',
-                ),
+                'b.Prof_ID',
+                DB::raw('MAX(m.Created_At) as last_message_time'),
+                DB::raw('SUBSTRING_INDEX(GROUP_CONCAT(m.Message ORDER BY m.Created_At DESC), ",", 1) as last_message'),
+                DB::raw('SUBSTRING_INDEX(GROUP_CONCAT(m.Sender ORDER BY m.Created_At DESC), ",", 1) as last_sender'),
+                DB::raw('SUBSTRING_INDEX(GROUP_CONCAT(b.Booking_ID ORDER BY m.Created_At DESC), ",", 1) as booking_id'),
             ])
-            ->groupBy("prof.Name", "prof.Prof_ID", "prof.profile_picture")
-            ->orderBy("last_message_time", "desc")
+            ->groupBy('b.Prof_ID');
+
+        $professors = DB::table('professors as prof')
+            ->leftJoinSub($latestPerBooking, 'chat', function ($join) {
+                $join->on('chat.Prof_ID', '=', 'prof.Prof_ID');
+            })
+                        // Join today's booking (approved / accepted / rescheduled) for eligibility
+                        ->leftJoin('t_consultation_bookings as todays', function($join) use ($user) {
+                                // Booking_Date is unfortunately stored as a VARIOUSLY FORMATTED STRING.
+                                // We've observed at least these formats:
+                                //  1) 'Fri, Sep 12 2025' (with comma)
+                                //  2) 'Fri Sep 12 2025'  (no comma)
+                                //  3) '2025-09-12'      (ISO)
+                                // To be robust we compare against all explicit variants plus a LIKE fallback for today's year-month-day.
+                                $today = now('Asia/Manila');
+                                $isoDate = $today->toDateString();            // 2025-09-12
+                                $withComma = $today->format('D, M j Y');      // Fri, Sep 12 2025
+                                $noComma  = $today->format('D M j Y');        // Fri Sep 12 2025
+                                $alternate = $today->format('Y-m-d');         // 2025-09-12 (duplicate of iso, kept for clarity)
+                                $yearMonthDay = $today->format('Y-m-d');
+
+                                $join->on('todays.Prof_ID','=','prof.Prof_ID')
+                                         ->where('todays.Stud_ID','=',$user->Stud_ID)
+                                         ->where(function($q) use ($isoDate,$withComma,$noComma,$alternate,$yearMonthDay) {
+                                                 $q->whereDate('todays.Booking_Date', $isoDate)
+                                                     ->orWhere('todays.Booking_Date', $withComma)
+                                                     ->orWhere('todays.Booking_Date', $noComma)
+                                                     ->orWhere('todays.Booking_Date', $alternate)
+                                                     // Fallback: if stored string still contains YYYY-MM-DD plus time or other text
+                                                     ->orWhere('todays.Booking_Date','like', $yearMonthDay.'%');
+                                         })
+                                         ->whereIn(DB::raw('LOWER(todays.Status)'), ['approved','accepted','rescheduled']);
+                        })
+            ->select([
+                'prof.Name as name',
+                'prof.Prof_ID as prof_id',
+                'prof.profile_picture as profile_picture',
+                'prof.Dept_ID as dept_id',
+                DB::raw('chat.last_message_time'),
+                DB::raw('chat.last_message'),
+                DB::raw('chat.last_sender'),
+                DB::raw('chat.booking_id'),
+                DB::raw('CASE WHEN todays.Booking_ID IS NULL THEN 0 ELSE 1 END as can_video_call'),
+            ])
+            // Order: Dept 1 (IT&IS) first, then Dept 2 (ComSci), then others; inside each dept order by name
+            ->orderByRaw('CASE WHEN prof.Dept_ID = 1 THEN 0 WHEN prof.Dept_ID = 2 THEN 1 ELSE 2 END')
+            ->orderBy('prof.Name')
             ->get();
 
-        return view("messages", compact("professors"));
+        return view('messages', [
+            'professors' => $professors,
+        ]);
     }
 
     public function showProfessorMessages()
