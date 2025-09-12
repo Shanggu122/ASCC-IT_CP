@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use App\Models\User; // or your custom Model if different
 
 
@@ -14,6 +15,10 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
+        Log::info('Student login attempt: begin', [
+            'ip' => $request->ip(),
+            'user_agent' => substr((string)$request->userAgent(), 0, 120),
+        ]);
         // Validate the inputs
         $request->validate([
             'Stud_ID' => 'required|string|max:9',
@@ -22,22 +27,51 @@ class AuthController extends Controller
             'Stud_ID.max' => 'Student ID must not exceed 9 characters.'
         ]);
 
-        // Find the user based on Student ID
-        $user = User::where('Stud_ID', $request->Stud_ID)->first();
+    // Normalize inputs (trim to avoid padded spaces)
+    $studId = trim((string) $request->Stud_ID);
+    // Find the user based on Student ID (trim DB value too to match padded records)
+    $user = User::whereRaw('RTRIM(Stud_ID) = ?', [$studId])->first();
+    Log::info('Student login attempt: lookup', [
+        'stud_id' => $studId,
+        'found' => (bool)$user,
+    ]);
 
         if (!$user) {
             // Student ID not found
             return back()->withErrors(['login' => 'Student ID not found.']);
         }
 
-        if ($request->Password == $user->Password) {
-            // Login success
-            Auth::login($user);
-            return redirect()->intended('dashboard'); // Change 'dashboard' to your intended page
-        } else {
+    $incoming = trim((string) $request->Password);
+    $stored   = (string) $user->Password;
+    $storedT  = trim($stored);
+
+        // Support both hashed and plain-text stored passwords without throwing on non-bcrypt strings
+        $valid = false;
+        try {
+            $mode = 'plain';
+            if (str_starts_with($storedT, '$2y$') || str_starts_with($storedT, '$2b$') || str_starts_with($storedT, '$2a$')) {
+                $mode = 'bcrypt';
+                $valid = Hash::check($incoming, $storedT);
+            } else {
+                $valid = hash_equals($storedT, $incoming);
+            }
+            Log::info('Student login attempt: compared', [ 'mode' => $mode, 'result' => $valid ]);
+        } catch (\Throwable $e) {
+            // If hash check fails due to algorithm mismatch, fall back to plain-text compare
+            Log::warning('Student login compare error; falling back to plain', [ 'err' => $e->getMessage() ]);
+            $valid = hash_equals($storedT, $incoming);
+        }
+
+        if (!$valid) {
             // Password incorrect
             return back()->withErrors(['login' => 'Incorrect password.']);
         }
+
+        // Login success
+    Auth::login($user);
+        $request->session()->regenerate();
+    Log::info('Student login success', [ 'stud_id' => $studId ]);
+        return redirect()->intended(route('dashboard'));
     }
 
      public function logout(Request $request)

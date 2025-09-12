@@ -59,7 +59,8 @@ Route::get("/login", function () {
     return view("login"); // or whatever your login blade file is
 })->name("login");
 
-Route::post("/login", [AuthController::class, "login"]);
+// Single student login POST route
+Route::post("/login", [AuthController::class, "login"])->name('login.submit');
 // Protected student routes (require authentication)
 Route::get("/dashboard", function () {
     return view("dashboard"); // student dashboard
@@ -86,8 +87,6 @@ Route::middleware(["auth"])->group(function () {
 });
 
 Route::get("/logout", [AuthController::class, "logout"])->name("logout");
-
-Route::post("/login", [AuthController::class, "login"])->name("login");
 
 use App\Services\DialogflowService;
 
@@ -135,11 +134,11 @@ Route::get("/login-professor", function () {
 Route::post("/login-professor", [AuthControllerProfessor::class, "login"]);
 Route::get("/dashboard-professor", function () {
     return view("dashboard-professor");
-})->name("dashboard.professor");
+})->name("dashboard.professor")->middleware('auth:professor');
 
-Route::get("/conlog-professor", [ConsultationLogControllerProfessor::class, "index"])->name(
-    "conlog-professor",
-);
+Route::get("/conlog-professor", [ConsultationLogControllerProfessor::class, "index"])
+    ->name("conlog-professor")
+    ->middleware('auth:professor');
 
 Route::post("/consultation-book-professor", [
     ConsultationBookingControllerProfessor::class,

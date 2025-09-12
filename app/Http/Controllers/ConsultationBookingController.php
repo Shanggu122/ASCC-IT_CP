@@ -72,6 +72,19 @@ class ConsultationBookingController extends Controller
             $customType = $data['other_type_text'];
         }
 
+        
+        // Capacity check: limit 5 already approved/rescheduled bookings per professor per date.
+        // Pending bookings do NOT count yet; capacity enforced again when approving.
+        $capacityStatuses = ['approved','rescheduled'];
+        $existingFilled = DB::table('t_consultation_bookings')
+            ->where('Prof_ID', $data['prof_id'])
+            ->where('Booking_Date', $date)
+            ->whereIn('Status', $capacityStatuses)
+            ->count();
+        if ($existingFilled >= 5) {
+            return redirect()->back()->withErrors(['booking_date' => 'Selected date already has 5 approved/rescheduled bookings for this professor. Please choose another date.'])->withInput();
+        }
+
         // Insert into t_consultation_bookings
         $bookingId = DB::table('t_consultation_bookings')->insertGetId([
             'Stud_ID' => Auth::user()->Stud_ID ?? null,

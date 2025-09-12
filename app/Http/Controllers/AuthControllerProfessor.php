@@ -17,15 +17,29 @@ class AuthControllerProfessor extends Controller
             'Prof_ID.max' => 'Professor ID must not exceed 9 characters.'
         ]);
 
-        // Find the professor by Prof_ID
-        $user = Professor::where('Prof_ID', $request->Prof_ID)->first();
+    // Find the professor by Prof_ID (trim both sides to tolerate padded DB values)
+    $profId = trim((string)$request->Prof_ID);
+    $user = Professor::whereRaw('RTRIM(Prof_ID) = ?', [$profId])->first();
 
         if (!$user) {
             // Professor ID not found
             return redirect()->back()->with('error', 'Professor ID not found.');
         }
 
-        if ($request->Password !== $user->Password) {
+        $incoming = trim((string) $request->Password);
+        $stored   = (string) $user->Password;
+        $storedT  = trim($stored);
+        $valid = false;
+        try {
+            if (str_starts_with($storedT, '$2y$') || str_starts_with($storedT, '$2b$') || str_starts_with($storedT, '$2a$')) {
+                $valid = \Illuminate\Support\Facades\Hash::check($incoming, $storedT);
+            } else {
+                $valid = hash_equals($storedT, $incoming);
+            }
+        } catch (\Throwable $e) {
+            $valid = hash_equals($storedT, $incoming);
+        }
+        if (!$valid) {
             // Password incorrect
             return redirect()->back()->with('error', 'Incorrect password.');
         }
@@ -38,8 +52,8 @@ class AuthControllerProfessor extends Controller
     }
 
     public function logout(Request $request)
-{
-        Auth::logout();
+    {
+        Auth::guard('professor')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect('/login-professor');
