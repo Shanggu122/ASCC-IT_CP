@@ -27,7 +27,7 @@
       <p class="brand-slogan">
         <em><b>C</b>atalyzing <b>C</b>hange <b>I</b>nnovating for <b>T</b>omorrow</em>
       </p>
-  <form action="{{ url('login') }}" method="post" id="student-login-form">
+  <form action="{{ route('login.submit') }}" method="post" id="student-login-form">
         @csrf
         <div class="input-group">
           <input type="text" id="Stud_ID" name="Stud_ID" placeholder="Student ID" value="{{ old('Stud_ID') }}" required maxlength="9" pattern=".{1,9}" class="{{ $errors->has('Stud_ID') ? 'input-error' : '' }}" title="Maximum 9 characters">

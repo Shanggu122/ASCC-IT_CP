@@ -122,6 +122,10 @@ class MessageController extends Controller
     public function showProfessorMessages()
     {
         $user = Auth::guard("professor")->user();
+        if (!$user) {
+            // Ensure we never access null properties; redirect to proper login
+            return redirect()->route('login.professor')->with('error', 'Please log in as a professor to view messages.');
+        }
 
         // Get the latest message per student (across all bookings)
         $students = DB::table("t_consultation_bookings as b")
