@@ -37,11 +37,13 @@
     </div>
   </div>
   
+  <!-- Chat button now focuses the search bar instead -->
   <button class="chat-button" onclick="toggleChat()">
     <i class='bx bxs-message-rounded-dots'></i>
     Click to chat with me!
   </button>
   
+  <!-- Chat overlay kept here but unused -->
   <div class="chat-overlay" id="chatOverlay">
     <div class="chat-header">
       <span>AI Chat Assistant</span>
@@ -59,6 +61,32 @@
   
   <script src="{{ asset('js/comsci.js') }}"></script>
   <script>
+    // --- Helper: simple unit test logger ---
+    function assert(desc, condition) {
+      if (condition) {
+        console.log("✅ PASS:", desc);
+      } else {
+        console.error("❌ FAIL:", desc);
+      }
+    }
+
+    // Replaced toggleChat: now focuses search bar
+    function toggleChat() {
+      const searchInput = document.getElementById('searchInput');
+      if (searchInput) {
+        searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+        searchInput.focus();
+        console.log("Chat button now redirects to search bar!");
+
+        // --- UNIT TESTING: Check if search bar is focused ---
+        setTimeout(() => {
+          assert("Search bar should be focused after clicking chat button", document.activeElement === searchInput);
+        }, 200);
+      } else {
+        console.error("Search bar not found!");
+      }
+    }
+
     function filterColleagues() {
       const searchInput = document.getElementById('searchInput');
       const filter = searchInput.value.toLowerCase();
@@ -74,18 +102,8 @@
       });
     }
 
-    // Add Enter key functionality for chat form
+    // Keep enter key functionality for search input
     document.addEventListener('DOMContentLoaded', function() {
-      const messageInput = document.getElementById('message');
-      if (messageInput) {
-        // Remove any existing event listeners first
-        messageInput.removeEventListener('keydown', handleEnterKey);
-        
-        // Add our Enter key handler
-        messageInput.addEventListener('keydown', handleEnterKey);
-      }
-      
-      // Add Enter key functionality for search input as well
       const searchInput = document.getElementById('searchInput');
       if (searchInput) {
         searchInput.addEventListener('keydown', function(event) {
@@ -96,17 +114,6 @@
         });
       }
     });
-    
-    // Define the Enter key handler function
-    function handleEnterKey(event) {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        const chatForm = document.getElementById('chatForm');
-        if (chatForm) {
-          chatForm.requestSubmit();
-        }
-      }
-    }
   </script>
 </body>
-</html> 
+</html>
