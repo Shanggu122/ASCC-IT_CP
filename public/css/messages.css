@@ -23,10 +23,11 @@ body {
     display: flex;
     height: 100%;
     overflow: hidden;
+    width: 100%; /* ensure spans full horizontal space */
 }
 
 /* Responsive adjustments */
-@media (max-width: 900px) {
+@media (max-width: 700px) {
     body { overflow: auto; }
     .messages-wrapper { flex-direction: column; }
     .inbox { width: 100%; border-right: none; border-bottom: 1px solid #ccc; max-height: 40vh; }
@@ -49,12 +50,51 @@ body {
 
 /* Inbox */
 .inbox {
-    width: 300px;
+    width: 340px; /* slightly widened per new request */
     background: #e5f0ed; /* Match profile page */
     border-right: 1px solid #ccc;
     overflow-y: auto;
-    padding: 1rem;
+    padding: 0 1rem 1.6rem; /* TOP GAP REMOVED (flush to top) */
 }
+/* Scrollbar hidden unless hover */
+.inbox { scrollbar-width: none; }
+.inbox::-webkit-scrollbar { width: 8px; background: transparent; }
+.inbox::-webkit-scrollbar-thumb { background: transparent; }
+.inbox:hover { scrollbar-width: thin; }
+.inbox:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.28); border-radius:4px; }
+
+.inbox-header-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.search-wrapper { margin-bottom: 10px; }
+.search-wrapper input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #b9d6cc;
+    border-radius: 20px;
+    outline: none;
+    font-size: 14px;
+    background: #fff;
+}
+.search-wrapper input:focus {
+    box-shadow: 0 0 0 2px rgba(6,95,70,0.15);
+}
+
+.dept-separator {
+    font-size: 14px; /* increased from 12px */
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    color: #043927;
+    opacity: 0.85; /* slightly more visible */
+    margin: 14px 0 4px;
+    padding-left: 4px;
+}
+.dept-separator:first-of-type { margin-top: 2px; }
 
 .inbox h2 {
     margin-top: 0;
@@ -78,8 +118,8 @@ body {
 
 /* old .inbox-top removed (structure changed) */
 .inbox-avatar {
-    width: 72px;
-    height: 72px;
+    width: 56px; /* uniform size */
+    height: 56px; /* uniform size */
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
@@ -93,19 +133,16 @@ body {
 }
 
 .name {
-    font-weight: bold;
-    font-size: 22px;
+    font-weight: 600;
+    font-size: 16px; /* uniform size */
+    line-height: 1.2;
 }
 
-/* Desktop (wide) scale down inbox avatar & name */
-@media (min-width: 1100px) {
-    .inbox-avatar {
-        width: 56px;
-        height: 56px;
-    }
-    .name {
-        font-size: 18px;
-    }
+/* Removed avatar size change on large screens to keep it consistent */
+
+@media (max-width: 900px){
+    .inbox{ width:100%; }
+    .search-wrapper{ top:0; }
 }
 
 /* snippet inside inbox */
@@ -138,15 +175,15 @@ body {
 
 /* Chat panel */
 .chat-panel {
-    flex: 1;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
-    background: #e5f0ed;
+    background: #fff; /* white content area */
     min-width: 0;
-    height: calc(100vh - 2rem); /* Adjust for new margin */
-    border-radius: 10px;
-    margin: 1rem; /* Equal space on all sides */
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    height: 100vh; /* take full height; parent already sized */
+    border-radius: 0;
+    margin: 0;
+    box-shadow: none;
     overflow: hidden;
 }
 
@@ -374,7 +411,7 @@ body {
     background: #c0392b;
 }
 
-/* MOBILE MESSENGER STYLE */
+/* MOBILE MESSENGER STYLE (original breakpoint) */
 @media (max-width: 700px) {
     .main-content {
         height: 100vh;
@@ -394,8 +431,10 @@ body {
         padding-bottom: 0.5rem;
         z-index: 1;
         padding-top: 70px; /* Adjust to navbar height */
-        height: auto;
-        min-height: unset;
+    height: calc(100vh - 70px); /* fill remaining space under navbar */
+    min-height: calc(100vh - 70px);
+    max-height: none; /* remove earlier 40vh limit so full list shows */
+    overflow-y: auto;
     }
     .chat-panel {
         position: fixed;
@@ -457,6 +496,49 @@ body {
         border-top: 1px solid #ccc;
     }
 }
+
+/* Mid-width (tablet) adjustments: widen chat vs inbox */
+@media (min-width: 701px) and (max-width: 950px) {
+    .messages-wrapper { flex-direction: row; }
+    /* Narrow inbox a bit more so chat gets extra space */
+    .inbox { width:300px; flex:0 0 300px; }
+    .messages-wrapper { width:100%; }
+    .chat-panel { margin:0; height:100vh; flex:1 1 auto; width:100%; }
+    body.messages-page { padding-right:0; }
+}
+@media (min-width: 951px) and (max-width: 1100px) {
+    .messages-wrapper { flex-direction: row; }
+    .inbox { width:350px; flex:0 0 350px; }
+    .chat-panel { margin:0; height:100vh; flex:1 1 auto; width:auto; }
+}
+
+/* Desktop >=1101px: give slight padding around but keep full usage */
+@media (min-width: 1101px) {
+    .inbox { width:390px; flex:0 0 390px; }
+    .chat-panel { margin:0; height:100vh; flex:1 1 auto; width:auto; }
+}
+
+/* Mid tablet widths: reduce font sizes to avoid overlap with hamburger/nav */
+@media (min-width: 701px) and (max-width: 950px) {
+    .inbox .name { font-size:14px; }
+    .inbox-item { padding:6px 8px; }
+    .chat-header { padding:0.65rem 0.9rem; position:static; } /* remove sticky in this range */
+    .chat-header #chat-person { font-size:0.95rem; }
+    .chat-body .message { font-size:13px; }
+    .video-btn { padding:6px 10px; font-size:12px; }
+    .inbox { padding-top:65px; } /* restore offset so heading not blocked by navbar in this width range */
+    /* Preserve explicit calc width from earlier block for wider chat */
+    .messages-wrapper { width:100%; }
+    .inbox { z-index:3; position:relative; }
+    .chat-panel { z-index:1; position:relative; }
+}
+/* Ensure adequate offset for larger widths so 'Professors' not hidden by navbar */
+@media (min-width: 951px) {
+    .inbox { padding-top:0; } /* removed desktop offset */
+}
+/* If inbox is hidden (e.g., via JS adding .hidden), let chat take full width */
+.inbox.hidden { display:none !important; }
+.inbox.hidden + .chat-panel { width:100% !important; flex:1 1 100% !important; }
 
 @keyframes slideIn {
     from {
