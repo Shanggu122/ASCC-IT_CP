@@ -14,7 +14,13 @@ class AdminAnalyticsViewTest extends TestCase
         $response = $this->get('/admin/analytics');
 
         $response->assertStatus(200);
-        $response->assertSee('Expected Content');
-        $response->assertSee('Another Expected Element');
+        // Check for key elements in the Blade view
+        $response->assertSee('Consultation Analytics');
+        $response->assertSee('Top Consultation Topics');
+        $response->assertSee('Consultation Activity');
+        $response->assertSee('Peak Consultation Days');
+        $response->assertSee('topicsChart');
+        $response->assertSee('activityChart');
+        $response->assertSee('peakDaysChart');
     }
 }
