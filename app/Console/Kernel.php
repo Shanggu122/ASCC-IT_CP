@@ -13,6 +13,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('consultations:remind-upcoming')
             ->everyMinute()
             ->timezone('Asia/Manila');
+    // Daily prune of old login attempts
+    $schedule->command('login-attempts:prune')->daily()->timezone('Asia/Manila');
         // Legacy 7 AM daily batch kept commented for reference
         // $schedule->command('consultations:remind-today')->dailyAt('07:00')->timezone('Asia/Manila');
     }

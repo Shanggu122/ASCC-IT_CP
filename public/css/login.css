@@ -13,6 +13,12 @@ body {
     background-color: #f9f9f9;
 }
 
+/* College Title Styling */
+.college-title, .college-title * {
+    color: #fff !important;
+    font-weight: normal !important;
+}
+
 /* Full-screen loading overlay */
 .auth-loading-overlay {
     position: fixed;
@@ -48,9 +54,12 @@ body {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
+/* Use landing page gradient for left panel */
+/* Light gradient background for left panel */
+/* Dark green gradient background for left panel */
 .left-panel {
     flex: 1;
-    background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.8), rgba(13, 96, 70, 0.8));
+    background: linear-gradient(135deg, #12372a 0%, #20543d 50%, #2d6e4e 100%);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -61,14 +70,16 @@ body {
 }
 
 .left-logo {
-    width: 260px; /* Increase the logo size */
-    max-width: 100%; /* Responsive: don't overflow panel */
-    margin-bottom: 3.5rem;
+    width: 340px;
+    max-width: 100%;
+    margin-bottom: 2.2rem;
+    margin-top: -1.5rem;
 }
 
 .left-panel h2 {
     font-size: 1.2rem;
-    color: #003d29;
+    color: #fff;
+    font-weight: 900;
 }
 
 .right-panel {
@@ -147,12 +158,83 @@ body {
 
 .toggle-password {
     position: absolute;
-    right: 16px;
-    top: 12px;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
     cursor: pointer;
     font-size: 20px;
-    color: #777;
+    color: #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #e3e3e3; /* blend with input background */
+    border: 1px solid #e3e3e3;
+    transition: background .18s, color .18s, border-color .18s, box-shadow .18s;
+    z-index: 2; /* original layering */
 }
+
+.toggle-password:hover, .toggle-password:focus {
+    background: #d9d9d9; /* subtle darken */
+    color:#0b3d2e;
+    border-color: #d5d5d5;
+    box-shadow:0 0 0 2px rgba(11,61,46,0.15);
+}
+
+/* Floating label fields */
+/* External labels (standard positioning) */
+/* Remove old external label style when using float-stack */
+.field-label { display:none; }
+
+/* Stacked floating labels (grey container) */
+.float-stack { position:relative; }
+.float-stack input {
+    background:#e3e3e3; /* light grey like screenshot */
+    border:1px solid #e3e3e3;
+    padding:22px 52px 8px 18px; /* top space for label, right for eye */
+    font-size:15px;
+    transition:border-color .18s, background .18s;
+}
+.float-stack.password-group input { padding-right:70px; }
+/* removed elevated z-index overrides */
+.float-stack label {
+    position:absolute;
+    top:14px; /* vertically centered with empty input text */
+    left:18px;
+    font-size:15px;
+    font-weight:600;
+    color:#0b3d2e;
+    letter-spacing:.3px;
+    pointer-events:none;
+    transform-origin:left top;
+    transition: all .16s ease;
+}
+.float-stack input::placeholder { color:transparent; }
+.float-stack input:focus { background:#f8f8f8; border-color:#0b3d2e; }
+.float-stack input:focus ~ .toggle-password,
+.float-stack input:not(:placeholder-shown) ~ .toggle-password {
+    background:#f8f8f8;
+    border-color:#f8f8f8;
+}
+.float-stack input:focus + label,
+.float-stack input:not(:placeholder-shown) + label {
+    top:6px;
+    font-size:11px;
+    font-weight:600;
+    opacity:.95;
+}
+
+/* Remember me alignment */
+/* Remember me inline in options row */
+.remember-inline { display:flex; align-items:center; gap:6px; font-size:13px; color:#0b3d2e; cursor:pointer; user-select:none; white-space:nowrap; }
+.remember-inline input[type=checkbox]{ width:16px; height:16px; accent-color:#0b3d2e; }
+
+/* Forgot password moved below */
+.below-actions { max-width:350px; width:100%; margin:0.9rem auto 0; text-align:center; }
+.below-actions .forgot-bottom { font-size:13px; color:#0b3d2e; text-decoration:none; display:inline-block; }
+.below-actions .forgot-bottom:hover { text-decoration:underline; }
 
 .options {
     text-align: right;

@@ -20,7 +20,10 @@
     <!-- Left Panel -->
     <div class="left-panel">
       <img src="{{ asset('images/CCIT_logo2.png') }}" alt="Adamson Logo" class="left-logo"/>
-      <h2>Adamson University College of<br><strong>Computing and Information Technology</strong></h2>
+      <h2 class="college-title">
+        <div class="adamson-uni">Adamson University</div>
+        <div class="college-bottom">College of Computing and Information Technology</div>
+      </h2>
     </div>
 
     <!-- Right Panel -->
@@ -32,16 +35,18 @@
       <p class="brand-slogan">
         <em><b>C</b>atalyzing <b>C</b>hange <b>I</b>nnovating for <b>T</b>omorrow</em>
       </p>
-  <form method="POST" action="{{ route('login.admin.submit') }}" id="admin-login-form">
+  <form method="POST" action="{{ route('login.admin.submit') }}" id="admin-login-form" autocomplete="on">
         @csrf
-        <div class="input-group">
-          <input type="text" name="Admin_ID" placeholder="Admin ID" value="{{ old('Admin_ID') }}" required class="{{ $errors->has('Admin_ID') ? 'input-error' : '' }}">
+        <div class="input-group float-stack">
+          <input type="text" id="Admin_ID" name="Admin_ID" placeholder=" " value="{{ old('Admin_ID') }}" required class="{{ $errors->has('Admin_ID') ? 'input-error' : '' }}" autocomplete="username" />
+          <label for="Admin_ID">Admin ID</label>
         </div>
-        <div class="input-group password-group">
-          <input type="password" name="Password" placeholder="Enter your password" required class="{{ $errors->has('Password') ? 'input-error' : '' }}">
-          <i class='bx bx-hide toggle-password' id="toggle-password"></i>
+        <div class="input-group password-group float-stack">
+          <input type="password" id="admin-password" name="Password" placeholder=" " required class="{{ $errors->has('Password') ? 'input-error' : '' }}" autocomplete="current-password" />
+          <label for="admin-password">Password</label>
+          <button type="button" class="toggle-password" id="toggle-password-btn" aria-label="Show password" aria-pressed="false"><i class='bx bx-hide'></i></button>
         </div>
-        <div class="options-row" style="justify-content: space-between;">
+        <div class="options-row">
           @php
             $messages = [];
             if($errors->has('login')) $messages[] = $errors->first('login');
@@ -57,9 +62,12 @@
           @else
             <span class="login-error-placeholder"></span>
           @endif
-          <a href="{{ route('forgotpassword', ['role'=>'admin']) }}" class="forgot-link" style="white-space:nowrap;">Forgot Password?</a>
+          <label class="remember-inline"><input type="checkbox" name="remember" value="1"> <span>Remember me</span></label>
         </div>
         <button type="submit" class="login-btn">Log In</button>
+        <div class="below-actions">
+          <a class="forgot-bottom" href="{{ route('forgotpassword', ['role'=>'admin']) }}">Forgot Password?</a>
+        </div>
       </form>
     </div>
   </div>
@@ -69,19 +77,20 @@
     <div class="auth-loading-text">Signing you in...</div>
   </div>
   <script>
-    // Simple password toggle
-    document.getElementById("toggle-password").addEventListener("click", function () {
-      const passwordInput = document.querySelector('input[name="Password"]');
-      if (passwordInput.type === "password") {
-        passwordInput.type = "text";
-        this.classList.remove('bx-hide');
-        this.classList.add('bx-show');
-      } else {
-        passwordInput.type = "password";
-        this.classList.remove('bx-show');
-        this.classList.add('bx-hide');
-      }
-    });
+    // Password toggle unify with student style
+    (function(){
+      const btn = document.getElementById('toggle-password-btn');
+      const pwd = document.getElementById('admin-password');
+      if(!btn || !pwd) return;
+      btn.addEventListener('click', ()=>{
+        const showing = pwd.type === 'text';
+        pwd.type = showing ? 'password' : 'text';
+        const icon = btn.querySelector('i');
+        if(icon){ icon.classList.toggle('bx-hide', showing); icon.classList.toggle('bx-show', !showing); }
+        btn.setAttribute('aria-pressed', String(!showing));
+        btn.setAttribute('aria-label', showing? 'Show password':'Hide password');
+      });
+    })();
     // Loading overlay
     (function(){
       const form = document.getElementById('admin-login-form');
@@ -96,6 +105,24 @@
         setTimeout(()=>form.submit(), MIN_LOADING_MS);
       });
       window.addEventListener('pageshow', e=>{ if(e.persisted) overlay.classList.remove('active'); });
+    })();
+    // Remember Admin ID (local only)
+    (function(){
+      const KEY = 'login_admin_id';
+      const idInput = document.getElementById('Admin_ID');
+      const rememberBox = document.querySelector('#admin-login-form input[name="remember"]');
+      if(!idInput || !rememberBox) return;
+      if(!idInput.value){
+        const stored = localStorage.getItem(KEY);
+        if(stored){ idInput.value = stored; rememberBox.checked = true; }
+      }
+      const form = document.getElementById('admin-login-form');
+      if(form){
+        form.addEventListener('submit', ()=>{
+          if(rememberBox.checked && idInput.value){ localStorage.setItem(KEY, idInput.value.trim()); }
+          else { localStorage.removeItem(KEY); }
+        });
+      }
     })();
   </script>
 </body>

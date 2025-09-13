@@ -14,8 +14,11 @@ body {
 }
 /* Loading overlay */
 .auth-loading-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.82); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:9999; opacity:0; pointer-events:none; transition:opacity .25s ease; }
-.auth-loading-overlay.active { opacity:1; pointer-events:auto; }
-.auth-loading-spinner { width:58px; height:58px; border:5px solid rgba(255,255,255,0.18); border-top-color:#36b58b; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:18px; }
+/* College Title Styling */
+.college-title, .college-title * {
+    color: #fff !important;
+    font-weight: normal !important;
+}
 .auth-loading-text { color:#e9f9f3; font-size:14px; letter-spacing:.08em; font-weight:600; }
 @keyframes spin { to { transform:rotate(360deg);} }
 
@@ -27,9 +30,11 @@ body {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
+/* Light gradient background for left panel */
+/* Dark green gradient background for left panel */
 .left-panel {
     flex: 1;
-    background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.8), rgba(13, 96, 70, 0.8));
+    background: linear-gradient(135deg, #12372a 0%, #20543d 50%, #2d6e4e 100%);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -40,9 +45,10 @@ body {
 }
 
 .left-logo {
-    width: 260px; /* Increase the logo size */
-    max-width: 100%; /* Responsive: don't overflow panel */
-    margin-bottom: 3.5rem;
+    width: 340px;
+    max-width: 100%;
+    margin-bottom: 2.2rem;
+    margin-top: -1.5rem;
 }
 
 .left-panel h2 {
@@ -124,14 +130,28 @@ body {
     position: relative;
 }
 
-.toggle-password {
-    position: absolute;
-    right: 16px;
-    top: 12px;
-    cursor: pointer;
-    font-size: 20px;
-    color: #777;
-}
+/* Unified toggle button style (button element in updated markup) */
+.toggle-password { position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:20px; color:#555; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:8px; background:#e3e3e3; border:1px solid #e3e3e3; transition:background .18s, color .18s, border-color .18s, box-shadow .18s; }
+.toggle-password:hover, .toggle-password:focus { background:#d9d9d9; color:#0b3d2e; border-color:#d5d5d5; box-shadow:0 0 0 2px rgba(11,61,46,0.15); }
+
+/* Floating stacked label pattern */
+.float-stack { position:relative; }
+.float-stack input { background:#e3e3e3; border:1px solid #e3e3e3; padding:22px 52px 8px 18px; font-size:15px; transition:border-color .18s, background .18s; }
+.float-stack.password-group input { padding-right:70px; }
+.float-stack label { position:absolute; top:14px; left:18px; font-size:15px; font-weight:600; color:#0b3d2e; letter-spacing:.3px; pointer-events:none; transform-origin:left top; transition: all .16s ease; }
+.float-stack input::placeholder { color:transparent; }
+.float-stack input:focus { background:#f8f8f8; border-color:#0b3d2e; }
+.float-stack input:focus ~ .toggle-password,
+.float-stack input:not(:placeholder-shown) ~ .toggle-password { background:#f8f8f8; border-color:#f8f8f8; }
+.float-stack input:focus + label,
+.float-stack input:not(:placeholder-shown) + label { top:6px; font-size:11px; font-weight:600; opacity:.95; }
+
+/* Remember + Forgot layout */
+.remember-inline { display:flex; align-items:center; gap:6px; font-size:13px; color:#0b3d2e; cursor:pointer; user-select:none; white-space:nowrap; }
+.remember-inline input[type=checkbox]{ width:16px; height:16px; accent-color:#0b3d2e; }
+.below-actions { max-width:350px; width:100%; margin:.9rem auto 0; text-align:center; }
+.below-actions .forgot-bottom { font-size:13px; color:#0b3d2e; text-decoration:none; display:inline-block; }
+.below-actions .forgot-bottom:hover { text-decoration:underline; }
 
 .options {
     text-align: right;

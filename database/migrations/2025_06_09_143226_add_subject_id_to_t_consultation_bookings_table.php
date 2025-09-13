@@ -11,8 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if(!Schema::hasTable('t_consultation_bookings')) return; // guard for test sqlite
         Schema::table('t_consultation_bookings', function (Blueprint $table) {
-            $table->integer('Subject_ID')->after('Consult_type_ID');
+            if(!Schema::hasColumn('t_consultation_bookings','Subject_ID')) {
+                $table->integer('Subject_ID')->after('Consult_type_ID');
+            }
         });
     }
 
@@ -21,8 +24,11 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if(!Schema::hasTable('t_consultation_bookings')) return;
         Schema::table('t_consultation_bookings', function (Blueprint $table) {
-            $table->dropColumn('Subject_ID');
+            if(Schema::hasColumn('t_consultation_bookings','Subject_ID')) {
+                $table->dropColumn('Subject_ID');
+            }
         });
     }
 };

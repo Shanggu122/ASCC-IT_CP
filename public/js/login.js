@@ -1,16 +1,31 @@
-document
-    .getElementById("toggle-password")
-    .addEventListener("click", function () {
-        const passwordInput = document.getElementById("password");
-        const icon = this;
-        if (passwordInput.type === "password") {
-            passwordInput.type = "text";
-            icon.classList.replace("bx-hide", "bx-show");
-        } else {
-            passwordInput.type = "password";
-            icon.classList.replace("bx-show", "bx-hide");
+// Password visibility toggle (supports old/new IDs)
+// Generic password visibility toggle supporting multiple login pages.
+// Logic: find the nearest password input within the same .password-group (so pages
+// can have ids like password / prof-password / admin-password). Update icon
+// classes and ARIA attributes for accessibility.
+(function(){
+    const btn = document.getElementById('toggle-password-btn') || document.getElementById('toggle-password');
+    if(!btn) return;
+    btn.addEventListener('click', function(){
+        // Prefer closest password input in the same group
+        let pwd = btn.closest('.password-group')?.querySelector('input[type="password"], input[data-type="password"], input') || null;
+        // If it was already toggled to text previously, the selector above may not match type=password, so fallback by id heuristics
+        if(!pwd){
+            const candidateIds = ['password','prof-password','admin-password'];
+            for(const id of candidateIds){ const el = document.getElementById(id); if(el){ pwd = el; break; } }
         }
+        if(!pwd) return;
+        const showing = pwd.type === 'text';
+        pwd.type = showing ? 'password' : 'text';
+        const icon = btn.querySelector('i');
+        if(icon){
+            icon.classList.remove('bx-hide','bx-show');
+            icon.classList.add(showing ? 'bx-hide' : 'bx-show');
+        }
+        btn.setAttribute('aria-pressed', String(!showing));
+        btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
     });
+})();
 
 function toggleChat() {
     const chat = document.getElementById("chatOverlay");

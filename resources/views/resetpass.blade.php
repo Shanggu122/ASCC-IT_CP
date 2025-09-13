@@ -14,7 +14,10 @@
     <div class="left-panel">
       <!-- Update image path using asset() -->
       <img src="{{ asset('images/CCIT_logo2.png') }}" alt="Adamson Logo" class="left-logo"/>
-      <h2>Adamson University College of<br><strong>Computing and Information Technology</strong></h2>
+      <h2 class="college-title">
+        <div class="adamson-uni">Adamson University</div>
+        <div class="college-bottom">College of Computing and Information Technology</div>
+      </h2>
     </div>
 
     <!-- Right Panel -->
