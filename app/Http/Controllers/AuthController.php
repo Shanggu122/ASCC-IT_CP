@@ -52,7 +52,7 @@ class AuthController extends Controller
             RateLimiter::hit($key, $decay); // decay seconds
             Log::notice('Login failed - id not found', ['stud_id'=>$studId]);
             $this->recordAttempt($studId, $request, false, 'not_found');
-            return back()->withErrors(['login' => 'Student ID does not exist.'])->withInput($request->only('Stud_ID'));
+            return back()->withErrors(['Stud_ID' => 'Student ID does not exist.'])->withInput($request->only('Stud_ID'));
         }
 
         // Optional inactive flag support (tolerate missing column)
@@ -81,7 +81,7 @@ class AuthController extends Controller
             RateLimiter::hit($key, $decay);
             Log::notice('Login failed - bad password', ['stud_id'=>$studId,'mode'=>$mode]);
             $this->recordAttempt($studId, $request, false, 'bad_password');
-            return back()->withErrors(['login' => 'Incorrect password.'])->withInput($request->only('Stud_ID'));
+            return back()->withErrors(['Password' => 'Incorrect password.'])->withInput($request->only('Stud_ID'));
         }
 
         RateLimiter::clear($key);

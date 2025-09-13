@@ -13,7 +13,6 @@ class LoginTest extends TestCase
 	protected function setUp(): void
 	{
 		parent::setUp();
-		// Create only the minimal table needed for authentication instead of running full legacy migrations
 		if (!Schema::hasTable('t_student')) {
 			Schema::create('t_student', function (Blueprint $table) {
 				$table->string('Stud_ID', 9)->primary();
@@ -39,7 +38,6 @@ class LoginTest extends TestCase
 			'profile_picture' => null,
 		], $overrides);
 
-		// Direct insert due to legacy primary key setup
 		return User::create($data);
 	}
 
