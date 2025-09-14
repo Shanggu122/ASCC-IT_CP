@@ -43,7 +43,7 @@
             <li><a href="{{ url('/profile') }}">Profile</a></li>
             <li><a href="{{ url('/conlog') }}">Consultation Log</a></li>
             <li><a href="{{ url('/messages') }}">Messages</a></li>
-            <li><a href="{{ url('/logout') }}">Sign Out</a></li>
+            <li><x-logout-link guard="web" label="Sign Out" /></li>
         </ul>
     </div>
     <!-- Grey overlay shown when mobile sidebar is open (all student pages) -->

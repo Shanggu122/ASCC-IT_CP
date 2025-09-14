@@ -75,7 +75,13 @@ class AuthControllerProfessor extends Controller
 
     public function logout(Request $request)
     {
-        Auth::guard('professor')->logout();
+        if (Auth::guard('professor')->check()) {
+            Auth::guard('professor')->logout();
+        }
+        // Also logout default guard if somehow set to avoid mixed sessions
+        if (Auth::check()) {
+            Auth::logout();
+        }
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect('/login-professor');

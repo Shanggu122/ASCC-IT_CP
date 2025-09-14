@@ -36,6 +36,18 @@ class Kernel extends HttpKernel
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
             \App\Http\Middleware\IdleTimeout::class,
         ],
+        // Dedicated group for professor-facing web routes so we can target cache & session behavior cleanly
+        'professor' => [
+            \App\Http\Middleware\EncryptCookies::class,
+            \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Illuminate\Session\Middleware\StartSession::class,
+            \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+            \App\Http\Middleware\VerifyCsrfToken::class,
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\IdleTimeout::class,
+            // Force no-cache for professor secure pages
+            \App\Http\Middleware\PreventBackHistory::class,
+        ],
 
         'api' => [
             // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
@@ -64,5 +76,8 @@ class Kernel extends HttpKernel
         // Additional aliases for clarity (optional)
         'auth.professor' => \App\Http\Middleware\Authenticate::class,
         'auth.admin' => \App\Http\Middleware\Authenticate::class,
+        'prevent-back-history' => \App\Http\Middleware\PreventBackHistory::class,
+        'professor.auth' => \App\Http\Middleware\EnsureProfessorAuthenticated::class,
+        'ensure.professor' => \App\Http\Middleware\EnsureProfessorAuthenticated::class,
     ];
 }
