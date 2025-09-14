@@ -10,7 +10,7 @@ use App\Http\Controllers\ConsultationBookingController;
 use App\Http\Controllers\ConsultationLogController;
 use App\Http\Controllers\VideoCallController;
 use App\Http\Controllers\ProfVideoCallController;
-use App\Http\Controllers\CallPresenceController;
+// use App\Http\Controllers\CallPresenceController; // Temporarily disabled (controller file missing)
 use App\Http\Controllers\AuthControllerProfessor;
 use App\Http\Controllers\ConsultationLogControllerProfessor;
 use App\Http\Controllers\ConsultationBookingControllerProfessor;
@@ -67,7 +67,7 @@ Route::post("/login", [AuthController::class, "login"])->name('login.submit');
 // Protected student routes (require authentication)
 Route::get("/dashboard", function () {
     return view("dashboard"); // student dashboard
-})->name("dashboard")->middleware('auth');
+})->name("dashboard")->middleware(['auth', \App\Http\Middleware\PreventBackHistory::class]);
 
 // Legacy /itis & /comsci definitions removed here; final definitions below also protected.
 
@@ -75,13 +75,13 @@ Route::get("/dashboard", function () {
 
 Route::get("/conlog", [ConsultationLogController::class, "index"])
     ->name("consultation-log")
-    ->middleware('auth');
+    ->middleware(['auth', \App\Http\Middleware\PreventBackHistory::class]);
 
 // Messages route handled inside auth group below; public definition removed.
 
 // routes/web.php
 
-Route::middleware(["auth"])->group(function () {
+Route::middleware(["auth","prevent-back-history"])->group(function () {
     Route::get("/profile", [ProfileController::class, "show"])->name("profile.show");
     Route::post("/change-password", [AuthController::class, "changePassword"])->name(
         "changePassword",
@@ -101,7 +101,8 @@ Route::post("/consultation-book", [ConsultationBookingController::class, "store"
 
 Route::get("/get-bookings", [ConsultationLogController::class, "getBookings"]);
 
-Route::middleware(["auth:professor"])->group(function () {
+// Professor protected pages (uses custom professor group for stack + auth:professor for guard)
+Route::middleware(['professor', \App\Http\Middleware\EnsureProfessorAuthenticated::class])->group(function () {
     Route::get("/profile-professor", [ProfessorProfileController::class, "show"])->name(
         "profile.professor",
     );
@@ -129,9 +130,8 @@ Route::get("/video-call/{user}", [VideoCallController::class, "show"])
     ->name("video.call")
     ->middleware('auth');
 // Presence limiting endpoints (max 5 students per channel)
-Route::post('/call/{channel}/enter', [CallPresenceController::class, 'enter'])->name('call.enter');
-Route::post('/call/{channel}/heartbeat', [CallPresenceController::class, 'heartbeat'])->name('call.heartbeat');
-Route::post('/call/{channel}/leave', [CallPresenceController::class, 'leave'])->name('call.leave');
+// Route placeholders disabled until CallPresenceController is added
+// (CallPresenceController routes temporarily removed until controller implementation is added)
 
 Route::get("/prof-call/{channel}", [ProfVideoCallController::class, "show"]);
 
@@ -143,20 +143,19 @@ Route::get("/login-professor", function () {
 Route::post("/login-professor", [AuthControllerProfessor::class, "login"]);
 Route::get("/dashboard-professor", function () {
     return view("dashboard-professor");
-})->name("dashboard.professor")->middleware('auth:professor');
+})->middleware([\App\Http\Middleware\EnsureProfessorAuthenticated::class, \App\Http\Middleware\PreventBackHistory::class])
+    ->name("dashboard.professor");
 
 Route::get("/conlog-professor", [ConsultationLogControllerProfessor::class, "index"])
     ->name("conlog-professor")
-    ->middleware('auth:professor');
+    ->middleware([\App\Http\Middleware\EnsureProfessorAuthenticated::class, \App\Http\Middleware\PreventBackHistory::class]);
 
 Route::post("/consultation-book-professor", [
     ConsultationBookingControllerProfessor::class,
     "store",
 ])->name("consultation-book.professor");
 
-Route::get("/logout-professor", [AuthControllerProfessor::class, "logout"])->name(
-    "logout-professor",
-);
+Route::get('/logout-professor', [AuthControllerProfessor::class,'logout'])->name('logout-professor');
 Route::post("/change-password-professor", [AuthControllerProfessor::class, "changePassword"])->name(
     "changePassword.professor",
 );
@@ -455,34 +454,30 @@ Route::delete("/admin-itis/delete-professor/{prof}", [
     "deleteProfessor",
 ])
     ->name("admin.itis.professor.delete")
-    ->middleware("auth:admin");
+    ->middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class]);
 
 // Admin login routes
 Route::get("/login/admin", [AdminAuthController::class, "showLoginForm"])->name("login.admin");
 Route::post("/login/admin", [AdminAuthController::class, "login"])->name("login.admin.submit");
-Route::post("/logout/admin", [AdminAuthController::class, "logout"])->name("logout.admin");
+Route::post("/admin/logout", [AdminAuthController::class, "logout"]) 
+    ->name("logout.admin");
 
 // Example admin dashboard route (create this view/controller as needed)
-Route::get("/admin/dashboard", function () {
-    return view("admin-dashboard");
-})
-    ->name("admin.dashboard")
-    ->middleware("auth:admin");
 
 // Admin analytics page & data
 Route::get('/admin-analytics', [AdminAnalyticsController::class,'index'])
     ->name('admin.analytics')
-    ->middleware('auth:admin');
+    ->middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class]);
 Route::get('/api/admin/analytics', [AdminAnalyticsController::class,'data'])
     ->name('admin.analytics.data')
-    ->middleware('auth:admin');
+    ->middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class]);
 
 Route::get("/admin-comsci", [ConsultationBookingController::class, "showFormAdmin"])
     ->name("admin.comsci")
-    ->middleware("auth:admin");
+    ->middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class]);
 Route::get("/admin-itis", [ConsultationBookingController::class, "showItisAdmin"])
     ->name("admin.itis")
-    ->middleware("auth:admin");
+    ->middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class]);
 
 Route::post("/admin-comsci/add-professor", [ConsultationBookingController::class, "addProfessor"])
     ->name("admin.comsci.professor.add")
@@ -646,4 +641,4 @@ Route::get("/admin/dashboard", function () {
     return view("admin-dashboard");
 })
     ->name("admin.dashboard")
-    ->middleware("auth:admin");
+    ->middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class, \App\Http\Middleware\PreventBackHistory::class]);
