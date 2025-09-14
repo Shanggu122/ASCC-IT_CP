@@ -35,7 +35,7 @@
           <li><a href="{{ url('/profile-professor') }}">Profile</a></li>
           <li><a href="{{ url('/conlog-professor') }}">Consultation Log</a></li>
           <li><a href="{{ url('/messages-professor') }}">Messages</a></li>
-          <li><a href="{{ url('/logout-professor') }}">Sign Out</a></li>
+          <li><x-logout-link guard="professor" label="Sign Out" /></li>
         </ul>
       </div>
 

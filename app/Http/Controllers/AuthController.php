@@ -120,10 +120,16 @@ class AuthController extends Controller
 
      public function logout(Request $request)
     {
-        Auth::logout(); // Log out the user
-        $request->session()->invalidate(); // Invalidate the session
-        $request->session()->regenerateToken(); // Regenerate CSRF token to prevent session fixation
-        return redirect('/login'); // Redirect to the login page
+        // If somehow a professor hits this route, log them out correctly
+        if (Auth::guard('professor')->check()) {
+            Auth::guard('professor')->logout();
+        }
+        if (Auth::check()) {
+            Auth::logout();
+        }
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        return redirect('/login');
     }
  public function changePassword(Request $request)
 {
