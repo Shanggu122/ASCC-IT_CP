@@ -245,12 +245,12 @@ body {
 }
 
 .received {
-    background-color: #e0e0e0;
+    background-color: #e0e0e0; /* unified darker grey */
     align-self: flex-start;
 }
 
 .sent {
-    background-color: #c8fdd7;
+    background-color: #c7e5dd; /* unified green shade */
     align-self: flex-end;
 }
 
@@ -563,7 +563,7 @@ body {
 }
 .message.received {
     text-align: left;
-    background-color: #f1f1f1;
+    background-color: #e0e0e0; /* darkened to match professor view */
     margin-right: auto;
     display: block;
     max-width: 70%;

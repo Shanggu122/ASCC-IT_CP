@@ -19,10 +19,12 @@ class AuthController extends Controller
 
     public function login(Request $request)
     {
-    $studIdInput = (string) $request->Stud_ID;
-    $key = 'login:student:'.Str::lower(trim($studIdInput)).':'.$request->ip();
-    $maxAttempts = (int) config('auth_security.rate_limit_max_attempts', 5);
-    $decay = (int) config('auth_security.rate_limit_decay', 60);
+        $studIdInput = (string) $request->Stud_ID;
+        $normalizedId = Str::lower(trim($studIdInput));
+        $attemptKey = 'login:student:'.$normalizedId.':'.$request->ip();
+        $lockKey    = 'loginlock:student:'.$normalizedId.':'.$request->ip();
+        $maxAttempts = (int) config('auth_security.rate_limit_max_attempts', 5);
+        $decay = (int) config('auth_security.rate_limit_decay', 60);
 
         // Basic validation first
         $request->validate([
@@ -32,11 +34,13 @@ class AuthController extends Controller
             'Stud_ID.max' => 'Student ID must not exceed 9 characters.'
         ]);
 
-        // Rate limiting (5 attempts per minute per Stud_ID + IP)
-        if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
-            $seconds = RateLimiter::availableIn($key);
-            $this->recordAttempt($studIdInput, $request, false, 'locked');
-            return back()->withErrors(['login' => 'Too many attempts. Try again in '. $seconds .'s.']);
+        // If currently locked, enforce full remaining time
+    if (RateLimiter::tooManyAttempts($lockKey, 1)) {
+            $remain = RateLimiter::availableIn($lockKey);
+            return back()
+                ->withErrors(['login' => 'Too many attempts. Try again in '. $remain .'s.'])
+                ->with('lock_until_student', time() + $remain)
+                ->withInput($request->only('Stud_ID'));
         }
 
         Log::info('Student login attempt', [
@@ -49,7 +53,16 @@ class AuthController extends Controller
 
         if (!$user) {
             // Specific: student ID doesn't exist
-            RateLimiter::hit($key, $decay); // decay seconds
+            RateLimiter::hit($attemptKey, $decay);
+            // Check if threshold reached
+            if (RateLimiter::attempts($attemptKey) >= $maxAttempts) {
+                RateLimiter::clear($attemptKey);
+                RateLimiter::hit($lockKey, $decay); // start lock (single token with decay TTL)
+                $this->recordAttempt($studId, $request, false, 'locked_id_not_found');
+                return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
+                    ->with('lock_until_student', time()+$decay)
+                    ->withInput($request->only('Stud_ID'));
+            }
             Log::notice('Login failed - id not found', ['stud_id'=>$studId]);
             $this->recordAttempt($studId, $request, false, 'not_found');
             return back()->withErrors(['login' => 'Student ID does not exist.'])->withInput($request->only('Stud_ID'));
@@ -57,7 +70,14 @@ class AuthController extends Controller
 
         // Optional inactive flag support (tolerate missing column)
         if (isset($user->is_active) && (int)$user->is_active === 0) {
-            RateLimiter::hit($key, $decay);
+            RateLimiter::hit($attemptKey, $decay);
+            if (RateLimiter::attempts($attemptKey) >= $maxAttempts) {
+                RateLimiter::clear($attemptKey);
+                RateLimiter::hit($lockKey, $decay);
+                $this->recordAttempt($studId, $request, false, 'locked_inactive');
+                return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
+                    ->with('lock_until_student', time()+$decay);
+            }
             Log::notice('Login failed - inactive', ['stud_id'=>$studId]);
             $this->recordAttempt($studId, $request, false, 'inactive');
             return back()->withErrors(['login' => 'Account is inactive.']);
@@ -78,13 +98,23 @@ class AuthController extends Controller
         }
 
         if (!$valid) {
-            RateLimiter::hit($key, $decay);
+            RateLimiter::hit($attemptKey, $decay);
+            if (RateLimiter::attempts($attemptKey) >= $maxAttempts) {
+                RateLimiter::clear($attemptKey);
+                RateLimiter::hit($lockKey, $decay);
+                Log::notice('Student locked after bad password threshold', ['stud_id'=>$studId]);
+                $this->recordAttempt($studId, $request, false, 'locked_bad_password');
+                return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
+                    ->with('lock_until_student', time()+$decay)
+                    ->withInput($request->only('Stud_ID'));
+            }
             Log::notice('Login failed - bad password', ['stud_id'=>$studId,'mode'=>$mode]);
             $this->recordAttempt($studId, $request, false, 'bad_password');
             return back()->withErrors(['login' => 'Incorrect password.'])->withInput($request->only('Stud_ID'));
         }
-
-        RateLimiter::clear($key);
+        // Success: clear attempts + any lock just in case
+        RateLimiter::clear($attemptKey);
+        RateLimiter::clear($lockKey);
 
         // Remember me only if column exists to avoid SQL error on legacy schema
         $remember = false;

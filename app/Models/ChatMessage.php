@@ -13,11 +13,14 @@ class ChatMessage extends Model
 
     protected $fillable = [
         'Booking_ID',
+        'Stud_ID',
+        'Prof_ID',
         'Sender',
         'Recipient',
         'Message',
         'Created_At',
         'status',
+        'is_read',
         'file_path',
         'file_type',
         'original_name',
@@ -31,5 +34,17 @@ class ChatMessage extends Model
         $this->Recipient = $request->input('recipient', null);
         $this->status = 'Delivered';
         $this->Created_At = now('Asia/Manila');
+    }
+
+    protected $casts = [
+        'is_read' => 'boolean',
+    ];
+
+    /**
+     * Scope messages between a student and professor regardless of booking.
+     */
+    public function scopeBetweenParticipants($query, $studId, $profId)
+    {
+        return $query->where('Stud_ID', $studId)->where('Prof_ID', $profId);
     }
 }

@@ -33,16 +33,16 @@
   <form action="{{ route('login.submit') }}" method="post" id="student-login-form" autocomplete="on">
         @csrf
         <div class="input-group float-stack">
-          <input type="text" id="Stud_ID" name="Stud_ID" placeholder=" " value="{{ old('Stud_ID') }}" required maxlength="9" pattern="\d{1,9}" inputmode="numeric" autocomplete="username" class="{{ $errors->has('Stud_ID') ? 'input-error' : '' }}" title="Enter up to 9 numeric digits">
+          <input type="text" id="Stud_ID" name="Stud_ID" placeholder=" " value="{{ old('Stud_ID') }}" required maxlength="9" inputmode="numeric" autocomplete="username" class="numeric-only {{ $errors->has('Stud_ID') ? 'input-error' : '' }}">
           <label for="Stud_ID">Student ID</label>
         </div>
         <div class="input-group password-group float-stack">
-          <input type="password" id="password" name="Password" placeholder=" " class="{{ $errors->has('Password') ? 'input-error' : '' }}" autocomplete="current-password" />
+          <input type="password" id="password" name="Password" placeholder=" " required class="{{ $errors->has('Password') ? 'input-error' : '' }}" autocomplete="current-password" />
           <label for="password">Password</label>
           <button type="button" class="toggle-password" id="toggle-password-btn" aria-label="Show password" aria-pressed="false"><i class='bx bx-hide'></i></button>
           @if(session('status'))<div class="field-success">{{ session('status') }}</div>@endif
         </div>
-        <div class="options-row">
+  <div class="options-row" data-lock-student="{{ session('lock_until_student') ?? '' }}">
           @php
             $messages = [];
             if($errors->has('login')) $messages[] = $errors->first('login');
@@ -61,7 +61,7 @@
           @endif
           <label class="remember-inline"><input type="checkbox" name="remember" value="1"> <span>Remember me</span></label>
         </div>
-        <button type="submit" class="login-btn">Log In</button>
+  <button type="submit" class="login-btn" id="student-login-btn">Log In</button>
         <div class="below-actions">
           <a class="forgot-bottom" href="{{ route('forgotpassword') }}">Forgot Password?</a>
         </div>
@@ -76,11 +76,21 @@
 
   <script src="{{ asset('js/login.js') }}"></script>
   <script>
+    // Ensure floating labels lift for prefilled/autofill values (student)
+    (function(){
+      const form = document.getElementById('student-login-form');
+      if(!form) return;
+      const inputs = form.querySelectorAll('.float-stack input');
+      const apply = el=>{ if(el.value) el.classList.add('filled'); else el.classList.remove('filled'); };
+      inputs.forEach(i=>{ apply(i); ['input','change'].forEach(ev=>i.addEventListener(ev,()=>apply(i))); });
+      setTimeout(()=>inputs.forEach(apply), 120);
+      document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) inputs.forEach(apply); });
+    })();
     (function(){
       const form = document.getElementById('student-login-form');
       const overlay = document.getElementById('authLoading');
       if(!form || !overlay) return;
-  const MIN_LOADING_MS = 1000; // 1 second minimum display
+  const MIN_LOADING_MS = 2000; // 2 seconds minimum display (standardized)
       form.addEventListener('submit', function(e){
         if(form.dataset.submitting==='1') return; // prevent double
         // Browser native validation runs before this; if we reach here inputs are valid
@@ -144,6 +154,40 @@
           if(e.shiftKey){ localStorage.removeItem(KEY); }
         }
       });
+    })();
+
+    // Live lock countdown (student)
+    (function(){
+      const wrap = document.querySelector('.options-row[data-lock-student]');
+      if(!wrap) return;
+      const lockUntil = parseInt(wrap.getAttribute('data-lock-student'),10);
+      if(!lockUntil) return;
+      const btn = document.getElementById('student-login-btn');
+      const errBox = wrap.querySelector('.login-error');
+      const placeholder = wrap.querySelector('.login-error-placeholder');
+      function ensureBox(){
+        if(errBox) return errBox;
+        if(placeholder){
+          const div=document.createElement('div');
+          div.className='login-error';
+          placeholder.replaceWith(div); return div;
+        }
+        return null;
+      }
+      const box = ensureBox();
+      if(btn) btn.disabled = true;
+      function tick(){
+        const remain = lockUntil - Math.floor(Date.now()/1000);
+        if(remain > 0){
+          if(box){ box.textContent = 'Too many attempts. Try again in '+remain+'s.'; }
+        } else {
+          if(box){ box.textContent=''; box.classList.remove('login-error'); }
+          if(btn) btn.disabled = false;
+          clearInterval(intv);
+        }
+      }
+      tick();
+      const intv = setInterval(tick, 1000);
     })();
   </script>
   @include('partials.toast')

@@ -18,6 +18,15 @@ body {
     background-color: #f9f9f9;
 }
 
+/* OTP sending overlay (light neutral fullscreen) */
+.otp-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.35); /* transparent grey */ backdrop-filter: blur(3px); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:1200; opacity:0; pointer-events:none; transition:opacity .25s ease; }
+.otp-overlay.active { opacity:1; pointer-events:auto; }
+/* Remove dark modal box, use simple vertical stack */
+.otp-modal { background:transparent; padding:0; box-shadow:none; border-radius:0; display:flex; flex-direction:column; align-items:center; gap:18px; }
+.otp-spinner { width:54px; height:54px; border:5px solid rgba(255,255,255,.25); border-top-color:#ffffff; border-radius:50%; animation:otpSpin 1s linear infinite; }
+@keyframes otpSpin { to { transform:rotate(360deg); } }
+.otp-text { color:#ffffff; font-weight:600; letter-spacing:.4px; font-size:15px; font-family:'Segoe UI',sans-serif; text-shadow:0 1px 2px rgba(0,0,0,.4); }
+
 .container {
     display: flex;
     width: 90%;
@@ -166,6 +175,10 @@ body {
     background-color: #105943;
 }
 
+/* Disabled / loading state */
+/* Disabled state (keep simpler now that overlay used) */
+.login-btn[disabled] { background-color:#5d7a73 !important; cursor:not-allowed; opacity:.8; }
+
 .options-row {
     max-width: 350px; /* Match input and button width */
     width: 100%;
@@ -198,6 +211,8 @@ body {
     width: 100%;
     text-align: left;
     padding-left: 4px;
+    min-height:18px;
+    transition:opacity .32s ease;
 }
 .field-success {
     color: #0b6e4f;
@@ -208,6 +223,9 @@ body {
     text-align: left;
     padding-left: 4px;
 }
+
+/* Fade class for auto-dismiss script */
+.fade-out-field-error, .fade-out-login-error { opacity:0; }
 
 /* Add this to push the form down if needed */
 .right-panel form {

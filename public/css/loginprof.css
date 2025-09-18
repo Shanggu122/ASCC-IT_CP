@@ -10,10 +10,13 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #f9f9f9;
+    /* Match student login light subtle gradient */
+    background: linear-gradient(180deg, #f6f8f7 0%, #f3f5f4 60%, #f2f4f3 100%);
 }
 /* Loading overlay */
 .auth-loading-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.82); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:9999; opacity:0; pointer-events:none; transition:opacity .25s ease; }
+.auth-loading-overlay.active { opacity:1; pointer-events:auto; }
+.auth-loading-spinner { width:58px; height:58px; border:5px solid rgba(255,255,255,0.18); border-top-color:#36b58b; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:18px; }
 /* College Title Styling */
 .college-title, .college-title * {
     color: #fff !important;
@@ -131,8 +134,8 @@ body {
 }
 
 /* Unified toggle button style (button element in updated markup) */
-.toggle-password { position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:20px; color:#555; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:8px; background:#e3e3e3; border:1px solid #e3e3e3; transition:background .18s, color .18s, border-color .18s, box-shadow .18s; }
-.toggle-password:hover, .toggle-password:focus { background:#d9d9d9; color:#0b3d2e; border-color:#d5d5d5; box-shadow:0 0 0 2px rgba(11,61,46,0.15); }
+.toggle-password { position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:20px; color:#555; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:8px; background:transparent; border:none; transition:color .18s; }
+.toggle-password:hover, .toggle-password:focus { background:transparent; color:#0b3d2e; border:none; box-shadow:none; }
 
 /* Floating stacked label pattern */
 .float-stack { position:relative; }
@@ -142,9 +145,21 @@ body {
 .float-stack input::placeholder { color:transparent; }
 .float-stack input:focus { background:#f8f8f8; border-color:#0b3d2e; }
 .float-stack input:focus ~ .toggle-password,
-.float-stack input:not(:placeholder-shown) ~ .toggle-password { background:#f8f8f8; border-color:#f8f8f8; }
+.float-stack input:not(:placeholder-shown) ~ .toggle-password { background:transparent; border:none; }
 .float-stack input:focus + label,
-.float-stack input:not(:placeholder-shown) + label { top:6px; font-size:11px; font-weight:600; opacity:.95; }
+.float-stack input:not(:placeholder-shown) + label,
+/* When JS adds .filled class (for prefilled/autofill) */
+.float-stack input.filled + label,
+/* WebKit autofill (Chrome, Edge, etc.) */
+.float-stack input:-webkit-autofill + label {
+    top:6px; font-size:11px; font-weight:600; opacity:.95;
+}
+/* Ensure autofill background doesn't fight our design */
+.float-stack input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 30px #e3e3e3 inset !important;
+    -webkit-text-fill-color: #0b3d2e !important;
+    caret-color:#0b3d2e;
+}
 
 /* Remember + Forgot layout */
 .remember-inline { display:flex; align-items:center; gap:6px; font-size:13px; color:#0b3d2e; cursor:pointer; user-select:none; white-space:nowrap; }
@@ -208,6 +223,8 @@ body {
     align-items: center;
     flex: 1; /* Take up available space */
     text-align: left; /* Align error text to the left */
+    min-height: 18px;
+    transition: opacity .32s ease;
 }
 
 /* Placeholder (empty) to preserve row height when no general error */
@@ -215,6 +232,8 @@ body {
     flex: 1;
     min-height: 18px; /* near line-height of error text */
 }
+
+.fade-out-login-error { opacity:0; }
 
 /* Red border highlight for invalid inputs */
 .input-error { border-color:#dc3545 !important; }

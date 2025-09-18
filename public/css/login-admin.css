@@ -10,8 +10,11 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #f9f9f9;
+    /* Match student login light subtle gradient */
+    background: linear-gradient(180deg, #f6f8f7 0%, #f3f5f4 60%, #f2f4f3 100%);
 }
+/* College Title Styling (align with student & professor) */
+.college-title, .college-title * { color:#fff !important; font-weight:normal !important; }
 /* Loading overlay */
 .auth-loading-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.82); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:9999; opacity:0; pointer-events:none; transition:opacity .25s ease; }
 .auth-loading-overlay.active { opacity:1; pointer-events:auto; }
@@ -128,8 +131,8 @@ body {
 }
 
 /* Unified toggle password button style */
-.toggle-password { position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:20px; color:#555; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:8px; background:#e3e3e3; border:1px solid #e3e3e3; transition:background .18s, color .18s, border-color .18s, box-shadow .18s; }
-.toggle-password:hover, .toggle-password:focus { background:#d9d9d9; color:#0b3d2e; border-color:#d5d5d5; box-shadow:0 0 0 2px rgba(11,61,46,0.15); }
+.toggle-password { position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; font-size:20px; color:#555; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:8px; background:transparent; border:none; transition:color .18s; }
+.toggle-password:hover, .toggle-password:focus { background:transparent; color:#0b3d2e; border:none; box-shadow:none; }
 
 /* Floating stacked label pattern */
 .float-stack { position:relative; }
@@ -139,9 +142,12 @@ body {
 .float-stack input::placeholder { color:transparent; }
 .float-stack input:focus { background:#f8f8f8; border-color:#0b3d2e; }
 .float-stack input:focus ~ .toggle-password,
-.float-stack input:not(:placeholder-shown) ~ .toggle-password { background:#f8f8f8; border-color:#f8f8f8; }
+.float-stack input:not(:placeholder-shown) ~ .toggle-password { background:transparent; border:none; }
 .float-stack input:focus + label,
-.float-stack input:not(:placeholder-shown) + label { top:6px; font-size:11px; font-weight:600; opacity:.95; }
+.float-stack input:not(:placeholder-shown) + label,
+.float-stack input.filled + label,
+.float-stack input:-webkit-autofill + label { top:6px; font-size:11px; font-weight:600; opacity:.95; }
+.float-stack input:-webkit-autofill { -webkit-box-shadow:0 0 0 30px #e3e3e3 inset !important; -webkit-text-fill-color:#0b3d2e !important; caret-color:#0b3d2e; }
 
 /* Remember + Forgot layout */
 .remember-inline { display:flex; align-items:center; gap:6px; font-size:13px; color:#0b3d2e; cursor:pointer; user-select:none; white-space:nowrap; }
@@ -205,11 +211,14 @@ body {
     margin: 0;
     display: flex;
     align-items: center;
-    min-height: 32px;
+    min-height: 18px; /* align with other login pages */
+    transition: opacity .32s ease;
 }
 
 /* Placeholder to reserve space when no errors */
-.login-error-placeholder { flex:1; min-height:32px; }
+.login-error-placeholder { flex:1; min-height:18px; }
+
+.fade-out-login-error { opacity:0; }
 
 /* Red border on input error */
 .input-error { border-color:#dc3545 !important; }

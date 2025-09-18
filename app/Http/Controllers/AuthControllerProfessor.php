@@ -22,20 +22,32 @@ class AuthControllerProfessor extends Controller
             'Prof_ID.max' => 'Professor ID must not exceed 9 characters.'
         ]);
 
-        $profIdInput = (string)$request->Prof_ID;
-        $profKey = 'login:prof:'.Str::lower(trim($profIdInput)).':'.$request->ip();
-        $maxAttempts = (int) config('auth_security.rate_limit_max_attempts', 5);
-        $decay = (int) config('auth_security.rate_limit_decay', 60);
+            $profIdInput = (string)$request->Prof_ID;
+            $normalized = Str::lower(trim($profIdInput));
+            $attemptKey = 'login:prof:'.$normalized.':'.$request->ip();
+            $lockKey    = 'loginlock:prof:'.$normalized.':'.$request->ip();
+            $maxAttempts = (int) config('auth_security.rate_limit_max_attempts', 5);
+            $decay = (int) config('auth_security.rate_limit_decay', 60);
 
-        if (RateLimiter::tooManyAttempts($profKey, $maxAttempts)) {
-            $seconds = RateLimiter::availableIn($profKey);
-            return back()->withErrors(['login' => 'Too many attempts. Try again in '. $seconds .'s.']);
-        }
+            // Existing lock
+            if (RateLimiter::tooManyAttempts($lockKey, 1)) {
+                $remain = RateLimiter::availableIn($lockKey);
+                return back()->withErrors(['login' => 'Too many attempts. Try again in '.$remain.'s.'])
+                    ->with('lock_until_prof', time()+$remain)
+                    ->withInput($request->only('Prof_ID'));
+            }
 
         $profId = trim($profIdInput);
         $user = Professor::whereRaw('RTRIM(Prof_ID) = ?', [$profId])->first();
         if(!$user){
-            RateLimiter::hit($profKey, $decay);
+                RateLimiter::hit($attemptKey, $decay);
+                if (RateLimiter::attempts($attemptKey) >= $maxAttempts) {
+                    RateLimiter::clear($attemptKey);
+                    RateLimiter::hit($lockKey, $decay);
+                    return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
+                        ->with('lock_until_prof', time()+$decay)
+                        ->withInput($request->only('Prof_ID'));
+                }
             Log::notice('Professor login failed - id not found', ['prof_id'=>$profId]);
             return back()->withErrors(['Prof_ID' => 'Professor ID does not exist.'])->withInput($request->only('Prof_ID'));
         }
@@ -54,12 +66,21 @@ class AuthControllerProfessor extends Controller
             $valid = hash_equals($storedT, $incoming);
         }
         if(!$valid){
-            RateLimiter::hit($profKey, $decay);
+                RateLimiter::hit($attemptKey, $decay);
+                if (RateLimiter::attempts($attemptKey) >= $maxAttempts) {
+                    RateLimiter::clear($attemptKey);
+                    RateLimiter::hit($lockKey, $decay);
+                    Log::notice('Professor locked after bad password threshold', ['prof_id'=>$profId]);
+                    return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
+                        ->with('lock_until_prof', time()+$decay)
+                        ->withInput($request->only('Prof_ID'));
+                }
             Log::notice('Professor login failed - bad password', ['prof_id'=>$profId,'mode'=>$mode]);
             return back()->withErrors(['Password' => 'Incorrect password.'])->withInput($request->only('Prof_ID'));
         }
 
-        RateLimiter::clear($profKey);
+            RateLimiter::clear($attemptKey);
+            RateLimiter::clear($lockKey);
 
         $remember = false;
         if($request->boolean('remember')){

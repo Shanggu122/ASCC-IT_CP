@@ -30,19 +30,24 @@ class AdminAuthController extends Controller
         ], [ 'Admin_ID.max' => 'Admin ID must not exceed 9 characters.' ]);
 
         $adminIdInput = (string)$request->Admin_ID;
-        $key = 'login:admin:'.Str::lower(trim($adminIdInput)).':'.$request->ip();
+            $adminIdInput = (string)$request->Admin_ID;
+            $normalized = Str::lower(trim($adminIdInput));
+            $attemptKey = 'login:admin:'.$normalized.':'.$request->ip();
+            $lockKey    = 'loginlock:admin:'.$normalized.':'.$request->ip();
         $maxAttempts = (int) config('auth_security.rate_limit_max_attempts', 5);
         $decay = (int) config('auth_security.rate_limit_decay', 60);
 
-        if (RateLimiter::tooManyAttempts($key, $maxAttempts)) {
-            $seconds = RateLimiter::availableIn($key);
-            return back()->withErrors(['login' => 'Too many attempts. Try again in '. $seconds .'s.']);
+            if (RateLimiter::tooManyAttempts($lockKey, 1)) {
+                $remain = RateLimiter::availableIn($lockKey);
+                return back()->withErrors(['login' => 'Too many attempts. Try again in '.$remain.'s.'])
+                    ->with('lock_until_admin', time()+$remain)
+                    ->withInput($request->only('Admin_ID'));
         }
 
         $adminId = trim($adminIdInput);
         $admin = Admin::whereRaw('RTRIM(Admin_ID) = ?', [$adminId])->first();
         if(!$admin){
-            RateLimiter::hit($key, $decay);
+                RateLimiter::hit($attemptKey, $decay);
             Log::notice('Admin login failed - id not found', ['admin_id'=>$adminId]);
             return back()->withErrors(['Admin_ID' => 'Admin ID does not exist.'])->withInput($request->only('Admin_ID'));
         }
@@ -55,12 +60,20 @@ class AdminAuthController extends Controller
             else { $valid = hash_equals($storedT, $incoming); }
         } catch(\Throwable $e){ $valid = hash_equals($storedT, $incoming); }
         if(!$valid){
-            RateLimiter::hit($key, $decay);
+                RateLimiter::hit($attemptKey, $decay);
+                if (RateLimiter::attempts($attemptKey) >= $maxAttempts) {
+                    RateLimiter::clear($attemptKey);
+                    RateLimiter::hit($lockKey, $decay);
+                    return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
+                        ->with('lock_until_admin', time()+$decay)
+                        ->withInput($request->only('Admin_ID'));
+                }
             Log::notice('Admin login failed - bad password', ['admin_id'=>$adminId,'mode'=>$mode]);
             return back()->withErrors(['Password' => 'Incorrect password.'])->withInput($request->only('Admin_ID'));
         }
 
-        RateLimiter::clear($key);
+            RateLimiter::clear($attemptKey);
+            RateLimiter::clear($lockKey);
 
         $remember=false;
         if($request->boolean('remember')){
