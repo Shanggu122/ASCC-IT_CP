@@ -38,7 +38,7 @@
   <form method="POST" action="{{ route('login.admin.submit') }}" id="admin-login-form" autocomplete="on">
         @csrf
         <div class="input-group float-stack">
-          <input type="text" id="Admin_ID" name="Admin_ID" placeholder=" " value="{{ old('Admin_ID') }}" required class="{{ $errors->has('Admin_ID') ? 'input-error' : '' }}" autocomplete="username" />
+          <input type="text" id="Admin_ID" name="Admin_ID" placeholder=" " value="{{ old('Admin_ID') }}" required maxlength="9" inputmode="numeric" class="numeric-only {{ $errors->has('Admin_ID') ? 'input-error' : '' }}" autocomplete="username" />
           <label for="Admin_ID">Admin ID</label>
         </div>
         <div class="input-group password-group float-stack">
@@ -46,7 +46,7 @@
           <label for="admin-password">Password</label>
           <button type="button" class="toggle-password" id="toggle-password-btn" aria-label="Show password" aria-pressed="false"><i class='bx bx-hide'></i></button>
         </div>
-        <div class="options-row">
+  <div class="options-row" data-lock-admin="{{ session('lock_until_admin') ?? '' }}">
           @php
             $messages = [];
             if($errors->has('login')) $messages[] = $errors->first('login');
@@ -64,10 +64,7 @@
           @endif
           <label class="remember-inline"><input type="checkbox" name="remember" value="1"> <span>Remember me</span></label>
         </div>
-        <button type="submit" class="login-btn">Log In</button>
-        <div class="below-actions">
-          <a class="forgot-bottom" href="{{ route('forgotpassword', ['role'=>'admin']) }}">Forgot Password?</a>
-        </div>
+  <button type="submit" class="login-btn" id="admin-login-btn">Log In</button>
       </form>
     </div>
   </div>
@@ -76,27 +73,25 @@
     <div class="auth-loading-spinner"></div>
     <div class="auth-loading-text">Signing you in...</div>
   </div>
+  <script src="{{ asset('js/login.js') }}"></script>
   <script>
-    // Password toggle unify with student style
+    // Autofill / prefilled support to float labels (admin)
     (function(){
-      const btn = document.getElementById('toggle-password-btn');
-      const pwd = document.getElementById('admin-password');
-      if(!btn || !pwd) return;
-      btn.addEventListener('click', ()=>{
-        const showing = pwd.type === 'text';
-        pwd.type = showing ? 'password' : 'text';
-        const icon = btn.querySelector('i');
-        if(icon){ icon.classList.toggle('bx-hide', showing); icon.classList.toggle('bx-show', !showing); }
-        btn.setAttribute('aria-pressed', String(!showing));
-        btn.setAttribute('aria-label', showing? 'Show password':'Hide password');
-      });
+      const form = document.getElementById('admin-login-form');
+      if(!form) return;
+      const inputs = form.querySelectorAll('.float-stack input');
+      const apply = el=>{ if(el.value) el.classList.add('filled'); else el.classList.remove('filled'); };
+      inputs.forEach(i=>{ apply(i); ['input','change'].forEach(ev=>i.addEventListener(ev,()=>apply(i))); });
+      setTimeout(()=>inputs.forEach(apply), 120);
+      document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) inputs.forEach(apply); });
     })();
+    // Password toggle handled globally in login.js
     // Loading overlay
     (function(){
       const form = document.getElementById('admin-login-form');
       const overlay = document.getElementById('authLoading');
       if(!form || !overlay) return;
-      const MIN_LOADING_MS = 1000;
+  const MIN_LOADING_MS = 2000; // standardized 2s delay
       form.addEventListener('submit', function(e){
         if(form.dataset.submitting==='1') return;
         e.preventDefault();
@@ -123,6 +118,30 @@
           else { localStorage.removeItem(KEY); }
         });
       }
+    })();
+    // Live lock countdown (admin)
+    (function(){
+      const wrap = document.querySelector('.options-row[data-lock-admin]');
+      if(!wrap) return;
+      const lockUntil = parseInt(wrap.getAttribute('data-lock-admin'),10);
+      if(!lockUntil) return;
+      const btn = document.getElementById('admin-login-btn');
+      const errBox = wrap.querySelector('.login-error');
+      const placeholder = wrap.querySelector('.login-error-placeholder');
+      function ensureBox(){
+        if(errBox) return errBox;
+        if(placeholder){ const div=document.createElement('div'); div.className='login-error'; placeholder.replaceWith(div); return div; }
+        return null;
+      }
+      const box = ensureBox();
+      if(btn) btn.disabled = true;
+      function tick(){
+        const remain = lockUntil - Math.floor(Date.now()/1000);
+        if(remain>0){ if(box) box.textContent='Too many attempts. Try again in '+remain+'s.'; }
+        else { if(box) box.textContent=''; if(btn) btn.disabled=false; clearInterval(intv); }
+      }
+      tick();
+      const intv = setInterval(tick,1000);
     })();
   </script>
 </body>

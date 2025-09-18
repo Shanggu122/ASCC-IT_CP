@@ -9,7 +9,7 @@ class PasswordOtp extends Model
 {
     use HasFactory;
 
-    protected $fillable = ["email", "user_type", "otp", "expires_at", "used_at"];
+    protected $fillable = ["email", "user_type", "otp", "attempt_count", "expires_at", "used_at"];
 
     // Use casts (preferred in recent Laravel versions)
     protected $casts = [

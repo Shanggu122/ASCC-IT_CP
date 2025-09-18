@@ -78,3 +78,4 @@
   confirmPwd.addEventListener('contextmenu', e => e.preventDefault());
 })();
 </script>
+<script src="{{ asset('js/errors-auto-dismiss.js') }}"></script>

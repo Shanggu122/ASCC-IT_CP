@@ -81,7 +81,7 @@ Route::get("/conlog", [ConsultationLogController::class, "index"])
 
 // routes/web.php
 
-Route::middleware(["auth","prevent-back-history"])->group(function () {
+Route::middleware(["auth", \App\Http\Middleware\PreventBackHistory::class])->group(function () {
     Route::get("/profile", [ProfileController::class, "show"])->name("profile.show");
     Route::post("/change-password", [AuthController::class, "changePassword"])->name(
         "changePassword",
@@ -101,8 +101,8 @@ Route::post("/consultation-book", [ConsultationBookingController::class, "store"
 
 Route::get("/get-bookings", [ConsultationLogController::class, "getBookings"]);
 
-// Professor protected pages (uses custom professor group for stack + auth:professor for guard)
-Route::middleware(['professor', \App\Http\Middleware\EnsureProfessorAuthenticated::class])->group(function () {
+// Professor protected pages (ensure no back history caching after logout)
+Route::middleware([\App\Http\Middleware\EnsureProfessorAuthenticated::class, \App\Http\Middleware\PreventBackHistory::class])->group(function () {
     Route::get("/profile-professor", [ProfessorProfileController::class, "show"])->name(
         "profile.professor",
     );
@@ -425,6 +425,16 @@ Route::middleware('auth:web,professor')->group(function() {
     Route::post('/send-message', [MessageController::class,'sendMessage']);
     Route::post('/send-messageprof', [MessageController::class,'sendMessageprof']);
     Route::get('/load-messages/{bookingId}', [MessageController::class,'loadMessages']);
+    // Direct messaging (booking independent)
+    Route::get('/load-direct-messages/{studId}/{profId}', [MessageController::class,'loadDirectMessages'])
+        ->name('messages.direct.load');
+    // Chat utility endpoints
+    Route::get('/chat/unread/student', [MessageController::class,'unreadCountsStudent']);
+    Route::get('/chat/unread/professor', [MessageController::class,'unreadCountsProfessor']);
+    Route::post('/chat/presence/ping', [MessageController::class,'presencePing']);
+    Route::get('/chat/presence/online', [MessageController::class,'onlineLists']);
+    Route::post('/chat/typing', [MessageController::class,'typing']);
+    Route::post('/chat/read-pair', [MessageController::class,'markPairRead']);
 });
 
 // Final student course list routes (protected)
