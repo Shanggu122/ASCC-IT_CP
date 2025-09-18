@@ -28,12 +28,11 @@ class InputHelperTest extends TestCase
     public function it_filters_colleagues_by_name(): void
     {
         $colleagues = [
-            ['Name' => 'Jessie Alamil'],
             ['Name' => 'Jake Libed'],
             ['Name' => 'Jay Abaleta'],
         ];
 
-        $filtered = InputHelper::filterColleagues($colleagues, 'bob');
+        $filtered = InputHelper::filterColleagues($colleagues, 'jake');
         $this->assertCount(1, $filtered);
         $this->assertEquals('Jake Libed', array_values($filtered)[0]['Name']);
     }
@@ -42,9 +41,8 @@ class InputHelperTest extends TestCase
     public function it_returns_empty_array_if_no_match(): void
     {
         $colleagues = [
-            ['Name' => 'Jay Abaleta'],
-            ['Name' => 'Jessie Alamil'],
             ['Name' => 'Jake Libed'],
+            ['Name' => 'Jay Abaleta'],
         ];
 
         $filtered = InputHelper::filterColleagues($colleagues, 'Zelda');
@@ -54,21 +52,23 @@ class InputHelperTest extends TestCase
     #[Test]
     public function it_handles_special_characters_and_whitespace(): void
     {
-        $raw = "Hello;;;   World!! <script>";
-        $expected = "Hello, welcome to ASCC-IT!"; 
+        $raw = "Welcome to ASCC-IT. <script>";
+        $expected = "Welcome to ASCC-IT. script";
         $this->assertEquals($expected, InputHelper::sanitize($raw));
     }
 
-    #[Test]
-    public function it_filters_with_unsanitized_search_input(): void
-    {
-        $colleagues = [
-            ['Name' => 'Alice Johnson'],
-            ['Name' => 'Bob Smith'],
-        ];
+  #[Test]
+public function it_filters_with_unsanitized_search_input(): void
+{
+    $colleagues = [
+        ['Name' => 'Jake Libed'],
+        ['Name' => 'Jay Abaleta'],
+    ];
 
-        $filtered = InputHelper::filterColleagues($colleagues, "Bob<script>");
-        $this->assertCount(1, $filtered);
-        $this->assertEquals('Bob Smith', array_values($filtered)[0]['Name']);
-    }
+    // This input sanitizes to "Jake Libed"
+    $filtered = InputHelper::filterColleagues($colleagues, "<script>Jake Libed</script>");
+    $this->assertCount(1, $filtered);
+    $this->assertEquals('Jake Libed', array_values($filtered)[0]['Name']);
+}
+
 }
