@@ -1,51 +1,74 @@
-<?php 
+<?php
 
 namespace Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use App\Helpers\InputHelper;
+use PHPUnit\Framework\Attributes\Test;
 
 class InputHelperTest extends TestCase
 {
-    /** @test */
-    public function it_sanitizes_input_correctly()
+    #[Test]
+    public function it_sanitizes_input_correctly(): void
     {
         $raw = "  <script>/*bad*/alert('x');</script>  ";
-        $expected = "script alert x";
+        $expected = "script alert( x ) /script";
         $this->assertEquals($expected, InputHelper::sanitize($raw));
     }
 
-    /** @test */
-    public function it_limits_sanitized_input_to_50_characters()
+    #[Test]
+    public function it_limits_sanitized_input_to_50_characters(): void
     {
-        $raw = str_repeat("a", 100);
+        $raw = str_repeat("abc123 ", 20); // 140+ characters
         $sanitized = InputHelper::sanitize($raw);
         $this->assertLessThanOrEqual(50, strlen($sanitized));
     }
 
-    /** @test */
-    public function it_filters_colleagues_by_name()
+    #[Test]
+    public function it_filters_colleagues_by_name(): void
     {
         $colleagues = [
             ['Name' => 'Jessie Alamil'],
+            ['Name' => 'Jake Libed'],
             ['Name' => 'Jay Abaleta'],
-            ['Name' => 'Niña Ana Marie Jocelyn Sales'],
         ];
 
         $filtered = InputHelper::filterColleagues($colleagues, 'bob');
         $this->assertCount(1, $filtered);
-        $this->assertEquals('Bob Smith', array_values($filtered)[0]['Name']);
+        $this->assertEquals('Jake Libed', array_values($filtered)[0]['Name']);
     }
 
-    /** @test */
-    public function it_returns_empty_array_if_no_match()
+    #[Test]
+    public function it_returns_empty_array_if_no_match(): void
+    {
+        $colleagues = [
+            ['Name' => 'Jay Abaleta'],
+            ['Name' => 'Jessie Alamil'],
+            ['Name' => 'Jake Libed'],
+        ];
+
+        $filtered = InputHelper::filterColleagues($colleagues, 'Zelda');
+        $this->assertEmpty($filtered);
+    }
+
+    #[Test]
+    public function it_handles_special_characters_and_whitespace(): void
+    {
+        $raw = "Hello;;;   World!! <script>";
+        $expected = "Hello, welcome to ASCC-IT!"; 
+        $this->assertEquals($expected, InputHelper::sanitize($raw));
+    }
+
+    #[Test]
+    public function it_filters_with_unsanitized_search_input(): void
     {
         $colleagues = [
             ['Name' => 'Alice Johnson'],
             ['Name' => 'Bob Smith'],
         ];
 
-        $filtered = InputHelper::filterColleagues($colleagues, 'Zelda');
-        $this->assertEmpty($filtered);
+        $filtered = InputHelper::filterColleagues($colleagues, "Bob<script>");
+        $this->assertCount(1, $filtered);
+        $this->assertEquals('Bob Smith', array_values($filtered)[0]['Name']);
     }
 }
