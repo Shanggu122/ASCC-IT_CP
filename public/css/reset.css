@@ -44,7 +44,8 @@ body {
 
 .left-panel h2 {
     font-size: 1.2rem;
-    color: #003d29;
+    color: #ffffff;
+    font-weight: 400;
 }
 
 .right-panel {
@@ -195,7 +196,11 @@ body {
     width: 100%;
     text-align: left;
     padding-left: 4px;
+    min-height:18px;
+    transition:opacity .32s ease;
 }
+
+.fade-out-field-error, .fade-out-login-error { opacity:0; }
 
 /* Add this to push the form down if needed */
 .right-panel form {

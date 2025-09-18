@@ -22,14 +22,37 @@
         <h1>ASCC-IT</h1>
         <p><em>Catalyzing Change Innovating for Tomorrow</em></p>
       </div>
-      <form action="{{ route('verify-otp') }}" method="POST">
+  <form action="{{ route('verify-otp') }}" method="POST" id="fp-form-prof">
         @csrf
         <div class="input-group">
           <input type="email" name="email" placeholder="example@adamson.edu.ph" required>
         </div>
-        <button type="submit" class="login-btn">Send OTP</button>
+        <button type="submit" class="login-btn" id="fp-send-btn-prof">Send OTP</button>
       </form>
     </div>
   </div>
+  <div class="otp-overlay" id="otpOverlay" aria-hidden="true">
+    <div class="otp-modal">
+      <div class="otp-spinner"></div>
+      <div class="otp-text">Sending OTP...</div>
+    </div>
+  </div>
+  <script>
+    (function(){
+      const form = document.getElementById('fp-form-prof');
+      const btn = document.getElementById('fp-send-btn-prof');
+      const overlay = document.getElementById('otpOverlay');
+      if(!form || !btn || !overlay) return;
+      let submitting=false;
+      form.addEventListener('submit', e=>{
+        if(submitting){ e.preventDefault(); return; }
+        submitting=true;
+        btn.disabled=true;
+        overlay.classList.add('active');
+        overlay.setAttribute('aria-hidden','false');
+      });
+    })();
+  </script>
+  <script src="{{ asset('js/errors-auto-dismiss.js') }}"></script>
 </body>
 </html> 

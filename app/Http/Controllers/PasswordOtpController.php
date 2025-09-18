@@ -17,6 +17,24 @@ class PasswordOtpController extends Controller
         $email = $request->input("email");
     $incomingRole = $request->input('role'); // professor or null
 
+        // Session-based cooldown (fast short-circuit before hitting DB)
+        $cooldownSeconds = 20; // must match frontend COOLDOWN constant
+        $last = session('otp_last_resend_at');
+        if($last && (time() - (int)$last) < $cooldownSeconds){
+            $remain = $cooldownSeconds - (time() - (int)$last);
+            return back()->withErrors(['email' => 'Please wait '.$remain.'s before requesting another OTP.'])->withInput();
+        }
+
+        // Simple throttle: disallow another send within last 20 seconds for same email
+        $recent = PasswordOtp::where('email', $email)
+            ->whereNull('used_at')
+            ->where('created_at', '>=', now()->subSeconds(20))
+            ->latest()
+            ->first();
+        if($recent){
+            return back()->withErrors(['email' => 'Please wait a few seconds before requesting another OTP.'])->withInput();
+        }
+
         // Determine user type (student, professor, admin)
         $student = DB::table("t_student")->where("Email", $email)->first();
         $professor = null;
@@ -54,7 +72,8 @@ class PasswordOtpController extends Controller
             "email" => $email,
             "user_type" => $userType,
             "otp" => $otp,
-            "expires_at" => now()->addMinutes(10),
+            "attempt_count" => 0,
+            "expires_at" => now()->addMinutes(5), // 5 minute validity
         ]);
 
         Mail::to($email)->send(new OtpCodeMail($otp, $userType, $name));
@@ -63,6 +82,7 @@ class PasswordOtpController extends Controller
             "password_reset_email" => $email,
             "password_reset_user_type" => $userType,
             "password_reset_role_param" => $incomingRole, // preserve explicit role for back links
+            'otp_last_resend_at' => now()->getTimestamp(), // seed countdown for initial send (unix seconds)
         ]);
 
         return redirect()->route("otp.verify.form", ['role'=>$incomingRole])
@@ -84,6 +104,22 @@ class PasswordOtpController extends Controller
         if (!$email || !$userType) {
             return redirect()->route("forgotpassword", ['role'=>request('role')]);
         }
+        // Session short-circuit cooldown
+        $cooldownSeconds = 20; // align with frontend
+        $last = session('otp_last_resend_at');
+        if($last && (time() - (int)$last) < $cooldownSeconds){
+            $remain = $cooldownSeconds - (time() - (int)$last);
+            return back()->withErrors(['otp' => 'Please wait '.$remain.'s before requesting another OTP.']);
+        }
+        // Throttle: prevent resend within 20 seconds of last OTP generation
+        $recent = PasswordOtp::where('email', $email)
+            ->whereNull('used_at')
+            ->where('created_at', '>=', now()->subSeconds(20))
+            ->latest()
+            ->first();
+        if($recent){
+            return back()->withErrors(['otp' => 'Please wait a few seconds before requesting another OTP.']);
+        }
         // remove previous unused
         PasswordOtp::where("email", $email)->whereNull("used_at")->delete();
         $otp = (string) random_int(1000, 9999);
@@ -91,7 +127,8 @@ class PasswordOtpController extends Controller
             "email" => $email,
             "user_type" => $userType,
             "otp" => $otp,
-            "expires_at" => now()->addMinutes(10),
+            "attempt_count" => 0,
+            "expires_at" => now()->addMinutes(5),
         ]);
         // Determine name again (could also store in session if preferred)
         $name = null;
@@ -106,6 +143,8 @@ class PasswordOtpController extends Controller
             $name = $record->Name ?? "Admin";
         }
         Mail::to($email)->send(new OtpCodeMail($otp, $userType, $name));
+        // Flash the resend timestamp so UI can continue countdown after redirect
+    session(['otp_last_resend_at' => now()->getTimestamp()]);
         return redirect()
             ->route("otp.verify.form")
             ->with("status", "A new OTP was sent to your email.");
@@ -132,8 +171,18 @@ class PasswordOtpController extends Controller
         if (Carbon::parse($record->expires_at)->isPast()) {
             return back()->withErrors(["otp" => "OTP expired, please request a new one."]);
         }
+        // Enforce max 3 failed attempts; lock on 4th try requirement to resend
+        $MAX_ATTEMPTS = 3; // number of allowed wrong attempts
         if ($record->otp !== $request->otp) {
-            return back()->withErrors(["otp" => "Invalid OTP code."]);
+            $record->attempt_count = ($record->attempt_count ?? 0) + 1;
+            $record->save();
+            if ($record->attempt_count >= $MAX_ATTEMPTS) {
+                // Invalidate this OTP so user must request a new one
+                $record->update([ 'used_at' => now() ]);
+                return back()->withErrors(["otp" => "Maximum attempts reached. Please request a new OTP."]);
+            }
+            $remaining = $MAX_ATTEMPTS - $record->attempt_count;
+            return back()->withErrors(["otp" => "Invalid code. You have ${remaining} attempt" . ($remaining===1?'' : 's') . " remaining."]);
         }
 
         $record->update(["used_at" => now()]);

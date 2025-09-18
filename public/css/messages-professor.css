@@ -192,12 +192,12 @@ body {
 }
 
 .received {
-    background-color: #e0e0e0;
+    background-color: #e0e0e0; /* unified darker grey */
     align-self: flex-start;
 }
 
 .sent {
-    background-color: #c8fdd7;
+    background-color: #c7e5dd; /* unified green shade same as student */
     align-self: flex-end;
 }
 

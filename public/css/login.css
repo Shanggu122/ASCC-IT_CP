@@ -10,7 +10,8 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #f9f9f9;
+    /* Softer very light grey (not flat dull grey) with subtle vertical gradient */
+    background: linear-gradient(180deg, #e5e6e5 0%, #f3f5f4 60%, #f2f4f3 100%);
 }
 
 /* College Title Styling */
@@ -170,17 +171,19 @@ body {
     width: 34px;
     height: 34px;
     border-radius: 8px;
-    background: #e3e3e3; /* blend with input background */
-    border: 1px solid #e3e3e3;
-    transition: background .18s, color .18s, border-color .18s, box-shadow .18s;
+    /* Background & border removed per request (icon only) */
+    background: transparent;
+    border: none;
+    transition: color .18s;
     z-index: 2; /* original layering */
 }
 
 .toggle-password:hover, .toggle-password:focus {
-    background: #d9d9d9; /* subtle darken */
+    /* Keep only color feedback */
+    background: transparent;
     color:#0b3d2e;
-    border-color: #d5d5d5;
-    box-shadow:0 0 0 2px rgba(11,61,46,0.15);
+    border: none;
+    box-shadow: none;
 }
 
 /* Floating label fields */
@@ -215,15 +218,26 @@ body {
 .float-stack input:focus { background:#f8f8f8; border-color:#0b3d2e; }
 .float-stack input:focus ~ .toggle-password,
 .float-stack input:not(:placeholder-shown) ~ .toggle-password {
-    background:#f8f8f8;
-    border-color:#f8f8f8;
+    /* Prevent background from appearing when input is focused or filled */
+    background: transparent;
+    border: none;
 }
 .float-stack input:focus + label,
-.float-stack input:not(:placeholder-shown) + label {
+.float-stack input:not(:placeholder-shown) + label,
+/* JS-applied class for prefilled/autofill */
+.float-stack input.filled + label,
+/* WebKit autofill direct */
+.float-stack input:-webkit-autofill + label {
     top:6px;
     font-size:11px;
     font-weight:600;
     opacity:.95;
+}
+/* Normalize autofill background/text */
+.float-stack input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 30px #e3e3e3 inset !important;
+    -webkit-text-fill-color:#0b3d2e !important;
+    caret-color:#0b3d2e;
 }
 
 /* Remember me alignment */
@@ -291,6 +305,8 @@ body {
     align-items: center;
     flex: 1; /* Take up available space */
     text-align: left; /* Align error text to the left */
+    min-height: 18px; /* normalize line-height space */
+    transition: opacity .32s ease;
 }
 
 /* Placeholder (empty) to preserve row height when no general error */
@@ -298,6 +314,9 @@ body {
     flex: 1;
     min-height: 18px; /* near line-height of error text */
 }
+
+/* Fade-out class used by auto-dismiss JS; keeps height to avoid shifting Remember me */
+.fade-out-login-error { opacity: 0; }
 
 /* Red border highlight for invalid inputs */
 .input-error { border-color:#dc3545 !important; }
