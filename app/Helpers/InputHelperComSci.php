@@ -2,7 +2,7 @@
 
 namespace App\Helpers;
 
-class InputHelper
+class InputHelperComSci
 {
     /**
      * Sanitize raw input by stripping tags, removing dangerous characters,
