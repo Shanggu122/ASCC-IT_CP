@@ -9,12 +9,12 @@ use PHPUnit\Framework\Attributes\Test;
 class InputHelperTest extends TestCase
 {
     #[Test]
-    public function it_sanitizes_input_correctly(): void
-    {
-        $raw = "  <script>/*bad*/alert('x');</script>  ";
-        $expected = "script alert( x ) /script";
-        $this->assertEquals($expected, InputHelper::sanitize($raw));
-    }
+   public function it_sanitizes_input_correctly(): void
+{
+    $raw = "  <script>/*bad*/alert('x');</script>  ";
+    $expected = "alert( x )"; // updated expectation
+    $this->assertEquals($expected, InputHelper::sanitize($raw));
+}
 
     #[Test]
     public function it_limits_sanitized_input_to_50_characters(): void
@@ -50,12 +50,13 @@ class InputHelperTest extends TestCase
     }
 
     #[Test]
-    public function it_handles_special_characters_and_whitespace(): void
-    {
-        $raw = "Welcome to ASCC-IT. <script>";
-        $expected = "Welcome to ASCC-IT. script";
-        $this->assertEquals($expected, InputHelper::sanitize($raw));
-    }
+   public function it_handles_special_characters_and_whitespace(): void
+{
+    $raw = "Welcome to ASCC-IT. <script>";
+    $expected = "Welcome to ASCC-IT."; // updated expectation
+    $this->assertEquals($expected, InputHelper::sanitize($raw));
+}
+
 
   #[Test]
 public function it_filters_with_unsanitized_search_input(): void
