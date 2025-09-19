@@ -28,20 +28,20 @@ class InputHelperTest extends TestCase
     public function it_filters_colleagues_by_name(): void
     {
         $colleagues = [
-            ['Name' => 'Jake Libed'],
+            ['Name' => 'Paul Cruz'],
             ['Name' => 'Jay Abaleta'],
         ];
 
-        $filtered = InputHelper::filterColleagues($colleagues, 'jake');
+        $filtered = InputHelper::filterColleagues($colleagues, 'Paul');
         $this->assertCount(1, $filtered);
-        $this->assertEquals('Jake Libed', array_values($filtered)[0]['Name']);
+        $this->assertEquals('Paul Cruz', array_values($filtered)[0]['Name']);
     }
 
     #[Test]
     public function it_returns_empty_array_if_no_match(): void
     {
         $colleagues = [
-            ['Name' => 'Jake Libed'],
+            ['Name' => 'Paul Cruz'],
             ['Name' => 'Jay Abaleta'],
         ];
 
@@ -61,14 +61,14 @@ class InputHelperTest extends TestCase
 public function it_filters_with_unsanitized_search_input(): void
 {
     $colleagues = [
-        ['Name' => 'Jake Libed'],
+        ['Name' => 'Paul Cruz'],
         ['Name' => 'Jay Abaleta'],
     ];
 
-    // This input sanitizes to "Jake Libed"
-    $filtered = InputHelper::filterColleagues($colleagues, "<script>Jake Libed</script>");
+    // This input sanitizes to "Jake Libed
+    $filtered = InputHelper::filterColleagues($colleagues, "<script>Paul Cruz</script>");
     $this->assertCount(1, $filtered);
-    $this->assertEquals('Jake Libed', array_values($filtered)[0]['Name']);
+    $this->assertEquals('Paul Cruz', array_values($filtered)[0]['Name']);
 }
 
 }
