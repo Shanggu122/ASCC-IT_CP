@@ -2,12 +2,9 @@
 
 namespace App\Helpers;
 
-class InputHelperComSci
+class InputHelper
 {
-    /**
-     * Sanitize raw input by stripping tags, removing dangerous characters,
-     * collapsing whitespace, and limiting length.
-     */
+  
     public static function sanitize(string $raw, int $maxLength = 50): string
     {
         // Remove HTML tags
