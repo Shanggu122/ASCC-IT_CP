@@ -134,7 +134,18 @@ function filterRows() {
   if(inputEl.value !== search) inputEl.value = search; // reflect sanitized
   let type = document.getElementById('typeFilter').value.toLowerCase();
   let rows = document.querySelectorAll('.table-row:not(.table-header)');
+  let visibleCount = 0;
+  
+  // Remove any existing "no results" message
+  const existingNoResults = document.querySelector('.no-results-row');
+  if (existingNoResults) {
+    existingNoResults.remove();
+  }
+  
   rows.forEach(row => {
+    // Skip if this is already a "no results" row
+    if (row.classList.contains('no-results-row')) return;
+    
     let rowType = row.querySelector('[data-label="Type"]')?.textContent.toLowerCase() || '';
     let instructor = row.querySelector('.instructor-cell')?.textContent.toLowerCase() || '';
     let rowSubject = row.querySelector('[data-label="Subject"]')?.textContent.toLowerCase() || '';
@@ -149,8 +160,26 @@ function filterRows() {
 
     let matchesSearch = instructor.includes(search) || rowSubject.includes(search) || rowType.includes(search);
 
-    row.style.display = (matchesSearch && matchesType) ? '' : 'none';
+    if (matchesSearch && matchesType) {
+      row.style.display = '';
+      visibleCount++;
+    } else {
+      row.style.display = 'none';
+    }
   });
+  
+  // Show "No Consultations Found." message if no rows are visible and there's a search term
+  if (visibleCount === 0 && (search || type)) {
+    const table = document.querySelector('.table');
+    const header = document.querySelector('.table-header');
+    const noResultsRow = document.createElement('div');
+    noResultsRow.className = 'table-row no-results-row';
+    noResultsRow.innerHTML = `
+      <div class="table-cell" style="text-align: center; padding: 20px; color: #666; font-style: italic; grid-column: 1 / -1;">No Consultations Found.</div>
+    `;
+    // Insert right after the header row
+    header.insertAdjacentElement('afterend', noResultsRow);
+  }
 }
 
   // Custom dropdown for type filter (mobile)
