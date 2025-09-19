@@ -1,12 +1,13 @@
 <?php
 
-namespace Tests\Feature;
+namespace tests\Feature;
 
 use PHPUnit\Framework\TestCase;
 use App\Helpers\InputHelperITIS;
-use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\Attributes\test;
 
 class InputHelperITISTest extends TestCase
+
 {
     #[Test]
     public function it_sanitizes_script_and_special_characters(): void
