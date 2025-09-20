@@ -4,10 +4,125 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>Information Technology and Information Systems Department</title>
+  <title>Profile</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/profile.css') }}">
+  <style>
+    /* Confirmation Modal Styles */
+    .confirmation-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+    }
+
+    .confirmation-overlay.show {
+      display: flex;
+    }
+
+    .confirmation-modal {
+      background: #194d36;
+      border-radius: 32px;
+      padding: 2.5rem 2.2rem 2rem 2.2rem;
+      min-width: 340px;
+      max-width: 500px;
+      width: 100%;
+      text-align: center;
+      color: #fff;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .confirmation-modal-text {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 1.2rem;
+      line-height: 1.3;
+      font-family: "Poppins", sans-serif;
+    }
+
+    .confirmation-modal-sub {
+      font-size: 1.1rem;
+      font-weight: 400;
+      margin-bottom: 2.2rem;
+      color: #e5e5e5;
+      font-family: "Poppins", sans-serif;
+    }
+
+    .confirm-red {
+      color: #e74c3c;
+      font-weight: 700;
+    }
+
+    .confirm-green {
+      color: #27ae60;
+      font-weight: 700;
+    }
+
+    .confirmation-modal-btns {
+      display: flex;
+      gap: 2.5rem;
+      justify-content: center;
+    }
+
+    .modal-confirm,
+    .modal-cancel {
+      background: #fff;
+      border: none;
+      border-radius: 22px;
+      padding: 0.7rem 2.5rem;
+      font-size: 1.25rem;
+      font-family: "Poppins", sans-serif;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      margin-top: 0;
+    }
+
+    .modal-confirm.danger {
+      color: #e74c3c;
+    }
+
+    .modal-confirm.danger:hover {
+      background: #ffeaea;
+    }
+
+    .modal-confirm.success {
+      color: #27ae60;
+    }
+
+    .modal-confirm.success:hover {
+      background: #eafaf1;
+    }
+
+    .modal-cancel {
+      color: #194d36;
+      font-weight: 600;
+    }
+
+    .modal-cancel:hover {
+      background: #e5f0ed;
+    }
+
+    .italic {
+      font-style: italic;
+    }
+
+    /* Warning notification style */
+    .notification.warning {
+      background-color: #f39c12;
+      border-left: 4px solid #e67e22;
+    }
+  </style>
 </head>
 <body>
   @include('components.navbar')
@@ -90,8 +205,8 @@
         </small>
 
         <div class="panel-footer">
-          <button type="button" class="cancel-btn" onclick="closePanel('passwordPanel')">Cancel</button>
-          <button type="submit" class="save-btn">Save</button>  
+          <button type="button" class="cancel-btn" onclick="cancelWithConfirmation('passwordPanel')">Cancel</button>
+          <button type="submit" class="save-btn" onclick="confirmPasswordSave(event)">Save</button>  
         </div>
         </form>
     </div>
@@ -150,13 +265,50 @@
       <span id="notification-message"></span>
       <button onclick="hideNotification()" class="close-btn">&times;</button>
     </div>
+
+    <!-- Cancel Confirmation Modal -->
+    <div id="cancelConfirmationOverlay" class="confirmation-overlay">
+      <div class="confirmation-modal">
+        <div class="confirmation-modal-text">
+          Are you sure you want to <span class="confirm-red">cancel</span>?
+        </div>
+        <div class="confirmation-modal-sub">
+          <span class="italic">All unsaved changes will be lost.</span>
+        </div>
+        <div class="confirmation-modal-btns">
+          <button type="button" class="modal-confirm danger" onclick="confirmCancel()">Yes, Cancel</button>
+          <button type="button" class="modal-cancel" onclick="closeCancelModal()">No, Keep Editing</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save Confirmation Modal -->
+    <div id="saveConfirmationOverlay" class="confirmation-overlay">
+      <div class="confirmation-modal">
+        <div class="confirmation-modal-text">
+          Are you sure you want to <span class="confirm-green">save</span> the new password?
+        </div>
+        <div class="confirmation-modal-sub">
+          <span class="italic">Your password will be permanently changed.</span>
+        </div>
+        <div class="confirmation-modal-btns">
+          <button type="button" class="modal-confirm success" onclick="confirmSave()">Yes, Save</button>
+          <button type="button" class="modal-cancel" onclick="closeSaveModal()">No, Keep Editing</button>
+        </div>
+      </div>
+    </div>
 </div>
 
 <script src="{{ asset('js/profile.js') }}"></script>
 <script>
-function showNotification(message, isError = false) {
+function showNotification(message, isError = false, isWarning = false) {
   const notif = document.getElementById('notification');
-  notif.classList.toggle('error', isError);
+  notif.classList.remove('error', 'warning');
+  if (isError) {
+    notif.classList.add('error');
+  } else if (isWarning) {
+    notif.classList.add('warning');
+  }
   document.getElementById('notification-message').textContent = message;
   notif.style.display = 'flex';
   setTimeout(hideNotification, 4000);
@@ -177,6 +329,87 @@ function togglePanel(panelId) {
 function closePanel(panelId) {
   document.getElementById(panelId).classList.remove('open');
 }
+
+// Variables to store the current panel for modal actions
+let currentPanel = null;
+let currentForm = null;
+
+function cancelWithConfirmation(panelId) {
+  currentPanel = panelId;
+  document.getElementById('cancelConfirmationOverlay').classList.add('show');
+}
+
+function closeCancelModal() {
+  document.getElementById('cancelConfirmationOverlay').classList.remove('show');
+  currentPanel = null;
+}
+
+function confirmCancel() {
+  if (currentPanel) {
+    // Clear all text input fields in the panel
+    const panel = document.getElementById(currentPanel);
+    const textInputs = panel.querySelectorAll('input[type="text"], input[type="password"]');
+    textInputs.forEach(input => {
+      input.value = '';
+    });
+    
+    // Reset password visibility icons to default state (hidden)
+    const eyeIcons = panel.querySelectorAll('.eye-icon');
+    eyeIcons.forEach(icon => {
+      icon.classList.remove('bx-show');
+      icon.classList.add('bx-hide');
+      const inputId = icon.parentElement.querySelector('input').id;
+      document.getElementById(inputId).type = 'password';
+    });
+    
+    // Close the panel
+    closePanel(currentPanel);
+    
+    // Show notification after a short delay to ensure panel is closed
+    setTimeout(function() {
+      showNotification('No password changes made.', false, true);
+    }, 300);
+  }
+  
+  // Close the modal
+  closeCancelModal();
+}
+
+function confirmPasswordSave(event) {
+  event.preventDefault(); // Prevent default form submission
+  currentForm = event.target.closest('form');
+  document.getElementById('saveConfirmationOverlay').classList.add('show');
+}
+
+function closeSaveModal() {
+  document.getElementById('saveConfirmationOverlay').classList.remove('show');
+  currentForm = null;
+}
+
+function confirmSave() {
+  if (currentForm) {
+    currentForm.submit();
+  }
+  closeSaveModal();
+}
+
+// Close modals when clicking outside of them
+document.addEventListener('DOMContentLoaded', function() {
+  const cancelOverlay = document.getElementById('cancelConfirmationOverlay');
+  const saveOverlay = document.getElementById('saveConfirmationOverlay');
+  
+  cancelOverlay.addEventListener('click', function(e) {
+    if (e.target === cancelOverlay) {
+      closeCancelModal();
+    }
+  });
+  
+  saveOverlay.addEventListener('click', function(e) {
+    if (e.target === saveOverlay) {
+      closeSaveModal();
+    }
+  });
+});
 
 // Profile picture panel file input and preview
 const sidePanelInputFile = document.getElementById('sidePanelInputFile');
