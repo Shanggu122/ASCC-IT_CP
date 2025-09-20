@@ -51,7 +51,7 @@ class InputHelperTest extends TestCase
     }
 
     #[Test]
-    public function it_handles_special_characters_and_whitespace(): void
+    public function it_handles_numbers_and_whitespace(): void
     {
         $raw = "Welcome to ASCC-IT. <script>";
         $expected = "Welcome to ASCC-IT."; // ✅ updated expectation
