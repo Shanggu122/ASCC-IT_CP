@@ -225,6 +225,9 @@
         </div>
       @endforeach
     </div>
+    <div id="noResults" style="display:none; margin-top:12px; color:#b00020; font-weight:600; font-style: italic;">
+      No PROFESSOR FOUND
+    </div>
 
     <button class="chat-button" onclick="toggleChat()">
       <i class='bx bxs-message-rounded-dots'></i>
@@ -685,18 +688,23 @@ window.professors = @json($professors);
       .replace(/\/*.*?\*\//g,'')   // strip block comments
       .replace(/--+/g,' ')            // SQL line comment openers
       .replace(/[;`'"<>]/g,' ')      // dangerous punctuation
-      .replace(/\s+/g,' ')           // collapse whitespace
-      .trim()
       .slice(0,MAX_LEN);
   }
   function filter(){
-    const term = sanitize(input.value).toLowerCase();
-    if(input.value !== term){ input.value = term; }
+    const safe = sanitize(input.value);
+    const term = safe.toLowerCase();
+    const norm = term.replace(/\s+/g,' ').trim();
     const cards = document.querySelectorAll('.profile-card');
+    let visible = 0;
     cards.forEach(c=>{
       const name = (c.dataset.name||c.textContent||'').toLowerCase();
-      c.style.display = term === '' || name.includes(term) ? '' : 'none';
+      const nameNorm = name.replace(/\s+/g,' ').trim();
+      const show = norm === '' || nameNorm.includes(norm);
+      c.style.display = show ? '' : 'none';
+      if(show) visible++;
     });
+    const msg = document.getElementById('noResults');
+    if(msg){ msg.style.display = (norm !== '' && visible === 0) ? 'block' : 'none'; }
   }
   input.addEventListener('input', filter);
 })();
