@@ -10,16 +10,18 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use App\Models\Professor;
+use App\Models\LoginAttempt;
 
 class AuthControllerProfessor extends Controller
 {
     public function login(Request $request)
     {
         $request->validate([
-            'Prof_ID'  => 'required|string|max:9',
+            // digits-only up to 9 to avoid internal spaces and allow leading zeros
+            'Prof_ID'  => ['required','regex:/^\d{1,9}$/'],
             'Password' => 'required|string',
         ], [
-            'Prof_ID.max' => 'Professor ID must not exceed 9 characters.'
+            'Prof_ID.regex' => 'Professor ID must be numeric and up to 9 digits.',
         ]);
 
             $profIdInput = (string)$request->Prof_ID;
@@ -37,19 +39,38 @@ class AuthControllerProfessor extends Controller
                     ->withInput($request->only('Prof_ID'));
             }
 
+        // Normalize ID: treat as integer key to accept leading zeros in input
         $profId = trim($profIdInput);
-        $user = Professor::whereRaw('RTRIM(Prof_ID) = ?', [$profId])->first();
+        $profKey = (int) ltrim($profId, '0');
+        $user = Professor::where('Prof_ID', $profKey)->first();
         if(!$user){
                 RateLimiter::hit($attemptKey, $decay);
                 if (RateLimiter::attempts($attemptKey) >= $maxAttempts) {
                     RateLimiter::clear($attemptKey);
                     RateLimiter::hit($lockKey, $decay);
+                    $this->recordAttemptProf($profId, $request, false, 'locked_id_not_found');
                     return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
                         ->with('lock_until_prof', time()+$decay)
                         ->withInput($request->only('Prof_ID'));
                 }
             Log::notice('Professor login failed - id not found', ['prof_id'=>$profId]);
+            $this->recordAttemptProf($profId, $request, false, 'not_found');
             return back()->withErrors(['Prof_ID' => 'Professor ID does not exist.'])->withInput($request->only('Prof_ID'));
+        }
+
+        // Optional inactive flag support
+        if (isset($user->is_active) && (int)$user->is_active === 0) {
+            RateLimiter::hit($attemptKey, $decay);
+            if (RateLimiter::attempts($attemptKey) >= $maxAttempts) {
+                RateLimiter::clear($attemptKey);
+                RateLimiter::hit($lockKey, $decay);
+                $this->recordAttemptProf((string)$user->Prof_ID, $request, false, 'locked_inactive');
+                return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
+                    ->with('lock_until_prof', time()+$decay);
+            }
+            Log::notice('Professor login failed - inactive', ['prof_id'=>$user->Prof_ID]);
+            $this->recordAttemptProf((string)$user->Prof_ID, $request, false, 'inactive');
+            return back()->withErrors(['login' => 'Account is inactive.']);
         }
 
         $incoming = trim((string) $request->Password);
@@ -71,11 +92,13 @@ class AuthControllerProfessor extends Controller
                     RateLimiter::clear($attemptKey);
                     RateLimiter::hit($lockKey, $decay);
                     Log::notice('Professor locked after bad password threshold', ['prof_id'=>$profId]);
+                    $this->recordAttemptProf((string)$user->Prof_ID, $request, false, 'locked_bad_password');
                     return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
                         ->with('lock_until_prof', time()+$decay)
                         ->withInput($request->only('Prof_ID'));
                 }
             Log::notice('Professor login failed - bad password', ['prof_id'=>$profId,'mode'=>$mode]);
+            $this->recordAttemptProf((string)$user->Prof_ID, $request, false, 'bad_password');
             return back()->withErrors(['Password' => 'Incorrect password.'])->withInput($request->only('Prof_ID'));
         }
 
@@ -91,7 +114,24 @@ class AuthControllerProfessor extends Controller
         Auth::guard('professor')->login($user, $remember);
         $request->session()->regenerate();
         Log::info('Professor login success', ['prof_id'=>$profId,'remember'=>$remember]);
+        $this->recordAttemptProf((string)$user->Prof_ID, $request, true, 'success');
         return redirect()->intended(route('dashboard.professor'));
+    }
+
+    protected function recordAttemptProf(string $profId, Request $request, bool $success, string $reason): void
+    {
+        try {
+            if (!Schema::hasTable('login_attempts')) { return; }
+            LoginAttempt::create([
+                'prof_id' => $profId,
+                'ip' => $request->ip(),
+                'user_agent' => substr((string)$request->userAgent(), 0, 250),
+                'successful' => $success,
+                'reason' => $reason,
+            ]);
+        } catch (\Throwable $e) {
+            // Silent fail
+        }
     }
 
     public function logout(Request $request)

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use App\Models\Admin;
+use App\Models\LoginAttempt;
 
 class AdminAuthController extends Controller
 {
@@ -25,9 +26,12 @@ class AdminAuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'Admin_ID' => 'required|string|max:9',
+            'Admin_ID' => ['required','string','max:9','regex:/^[A-Za-z0-9]+$/'],
             'Password' => 'required|string',
-        ], [ 'Admin_ID.max' => 'Admin ID must not exceed 9 characters.' ]);
+        ], [
+            'Admin_ID.max' => 'Admin ID must not exceed 9 characters.',
+            'Admin_ID.regex' => 'Admin ID may only contain letters and numbers.',
+        ]);
 
         $adminIdInput = (string)$request->Admin_ID;
             $adminIdInput = (string)$request->Admin_ID;
@@ -48,8 +52,32 @@ class AdminAuthController extends Controller
         $admin = Admin::whereRaw('RTRIM(Admin_ID) = ?', [$adminId])->first();
         if(!$admin){
                 RateLimiter::hit($attemptKey, $decay);
+                if (RateLimiter::attempts($attemptKey) >= $maxAttempts) {
+                    RateLimiter::clear($attemptKey);
+                    RateLimiter::hit($lockKey, $decay);
+                    $this->recordAttemptAdmin($adminId, $request, false, 'locked_id_not_found');
+                    return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
+                        ->with('lock_until_admin', time()+$decay)
+                        ->withInput($request->only('Admin_ID'));
+                }
             Log::notice('Admin login failed - id not found', ['admin_id'=>$adminId]);
+            $this->recordAttemptAdmin($adminId, $request, false, 'not_found');
             return back()->withErrors(['Admin_ID' => 'Admin ID does not exist.'])->withInput($request->only('Admin_ID'));
+        }
+
+        // Optional inactive flag support (tolerate missing column)
+        if (isset($admin->is_active) && (int)$admin->is_active === 0) {
+            RateLimiter::hit($attemptKey, $decay);
+            if (RateLimiter::attempts($attemptKey) >= $maxAttempts) {
+                RateLimiter::clear($attemptKey);
+                RateLimiter::hit($lockKey, $decay);
+                $this->recordAttemptAdmin($adminId, $request, false, 'locked_inactive');
+                return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
+                    ->with('lock_until_admin', time()+$decay);
+            }
+            Log::notice('Admin login failed - inactive', ['admin_id'=>$adminId]);
+            $this->recordAttemptAdmin($adminId, $request, false, 'inactive');
+            return back()->withErrors(['login' => 'Account is inactive.']);
         }
 
         $incoming = trim((string)$request->Password);
@@ -64,11 +92,13 @@ class AdminAuthController extends Controller
                 if (RateLimiter::attempts($attemptKey) >= $maxAttempts) {
                     RateLimiter::clear($attemptKey);
                     RateLimiter::hit($lockKey, $decay);
+                    $this->recordAttemptAdmin($adminId, $request, false, 'locked_bad_password');
                     return back()->withErrors(['login' => 'Too many attempts. Try again in '.$decay.'s.'])
                         ->with('lock_until_admin', time()+$decay)
                         ->withInput($request->only('Admin_ID'));
                 }
             Log::notice('Admin login failed - bad password', ['admin_id'=>$adminId,'mode'=>$mode]);
+            $this->recordAttemptAdmin($adminId, $request, false, 'bad_password');
             return back()->withErrors(['Password' => 'Incorrect password.'])->withInput($request->only('Admin_ID'));
         }
 
@@ -82,7 +112,8 @@ class AdminAuthController extends Controller
         Auth::guard('admin')->login($admin, $remember);
         $request->session()->regenerate();
         Log::info('Admin login success', ['admin_id'=>$adminId,'remember'=>$remember]);
-        return redirect()->route('admin.dashboard');
+        $this->recordAttemptAdmin($adminId, $request, true, 'success');
+        return redirect()->intended(route('admin.dashboard'));
     }
 
     public function logout(Request $request)
@@ -96,5 +127,21 @@ class AdminAuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         return redirect('/login/admin');
+    }
+
+    protected function recordAttemptAdmin(string $adminId, Request $request, bool $success, string $reason): void
+    {
+        try {
+            if (!Schema::hasTable('login_attempts')) { return; }
+            LoginAttempt::create([
+                'admin_id' => $adminId,
+                'ip' => $request->ip(),
+                'user_agent' => substr((string)$request->userAgent(), 0, 250),
+                'successful' => $success,
+                'reason' => $reason,
+            ]);
+        } catch (\Throwable $e) {
+            // silent fail
+        }
     }
 }
