@@ -20,7 +20,7 @@
     </div>
 
     <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Search..." autocomplete="off" spellcheck="false" maxlength="50" pattern="[A-Za-z0-9 .,@_-]{0,50}" aria-label="Search professors">
+  <input type="text" id="searchInput" placeholder="Search..." autocomplete="off" spellcheck="false" maxlength="50" pattern="[A-Za-z0-9 ]{0,50}" aria-label="Search professors" oninput="this.value=this.value.replace(/[^A-Za-z0-9 ]/g,'')">
     </div>
 
     <div class="profile-cards-grid">
@@ -60,7 +60,7 @@
       <div class="left-column">
         <div class="input-group">
           <label class="input-label">Faculty ID</label>
-          <input type="text" name="Prof_ID" placeholder="Enter faculty ID" required>
+          <input type="text" name="Prof_ID" placeholder="Enter faculty ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)">
         </div>
         <div class="input-group">
           <label class="input-label">Full Name</label>
@@ -219,7 +219,7 @@
         <div class="left-column">
           <div class="input-group">
             <label class="input-label">Faculty ID</label>
-            <input type="text" name="Prof_ID" id="editProfId" placeholder="Enter faculty ID" required>
+            <input type="text" name="Prof_ID" id="editProfId" placeholder="Enter faculty ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)">
           </div>
           <div class="input-group">
             <label class="input-label">Full Name</label>
@@ -560,17 +560,16 @@
     // Simple search filter for cards with basic sanitization
     function sanitize(input){
       if(!input) return '';
-      let cleaned = input.replace(/\/\*.*?\*\//g,'');
-      cleaned = cleaned.replace(/--/g,' ');
-      cleaned = cleaned.replace(/[;`'"<>]/g,' ');
-      cleaned = cleaned.replace(/\s+/g,' ').trim();
+      // Keep letters, numbers, and spaces only (preserve spaces, just collapse runs)
+      let cleaned = input.replace(/[^A-Za-z0-9 ]/g, '');
+      cleaned = cleaned.replace(/\s{2,}/g,' ');
       return cleaned.slice(0,50);
     }
     document.getElementById('searchInput').addEventListener('input', function() {
       const raw = this.value;
       const cleaned = sanitize(raw);
-      if(cleaned !== raw) this.value = cleaned;
-      const filter = cleaned.toLowerCase();
+      if(cleaned !== raw) this.value = cleaned; // keep spaces visible while typing
+      const filter = cleaned.toLowerCase().trim(); // trim only for matching logic
       document.querySelectorAll('.profile-card').forEach(function(card) {
         const name = card.getAttribute('data-name').toLowerCase();
         card.style.display = name.includes(filter) ? '' : 'none';
@@ -803,7 +802,8 @@
       });
       
       if (!isValid) {
-        alert('Please fill in all required fields');
+        // Use themed notification instead of default alert
+        showNotification('Please fill in all required fields', true);
         return;
       }
       
@@ -834,7 +834,8 @@
           const endMinutes = parseInt(schedule.end.split(':')[0]) * 60 + parseInt(schedule.end.split(':')[1]);
           
           if (endMinutes <= startMinutes) {
-            alert(`End time must be after start time for ${schedule.day}`);
+            // Themed error notification
+            showNotification(`End time must be after start time for ${schedule.day}`, true);
             return;
           }
           
@@ -878,7 +879,8 @@
       .then(data => {
         console.log('Response data:', data); // Debug log
         if (data.success) {
-          alert('Professor updated successfully!');
+          // Themed success notification
+          showNotification('Professor updated successfully');
           const profId = document.getElementById('editProfId').value;
           const card = document.querySelector(`[data-prof-id="${profId}"]`);
             if(card){
@@ -888,12 +890,12 @@
             }
           ModalManager.close('editFaculty');
         } else {
-          alert('Error updating professor: ' + (data.message || 'Unknown error'));
+          showNotification('Error updating professor: ' + (data.message || 'Unknown error'), true);
         }
       })
       .catch(error => {
         console.error('Error:', error);
-        alert('Error updating professor');
+        showNotification('Error updating professor', true);
       });
     });
 
