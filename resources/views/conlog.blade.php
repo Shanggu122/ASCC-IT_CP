@@ -64,7 +64,7 @@
         <!-- Dynamic Data Rows -->
         @forelse($bookings as $b)
         <div class="table-row">
-          <div class="table-cell" data-label="No.">{{ $loop->iteration }}</div>
+          <div class="table-cell" data-label="No." data-booking-id="{{ $b->Booking_ID ?? '' }}">{{ $loop->iteration }}</div>
           <div class="table-cell instructor-cell" data-label="Instructor">{{ $b->Professor }}</div>
           <div class="table-cell" data-label="Subject">{{ $b->subject }}</div>
           <div class="table-cell" data-label="Date">{{ \Carbon\Carbon::parse($b->Booking_Date)->format('D, M d Y') }}</div>
@@ -107,6 +107,7 @@
   </div>
 
   <script src="{{ asset('js/ccit.js') }}"></script>
+  <script src="https://js.pusher.com/7.0/pusher.min.js"></script>
   <script>
 const fixedTypes = [
   'tutoring',
@@ -271,6 +272,92 @@ function updateConsultationTable(bookings) {
 loadConsultationLogs();
 setInterval(loadConsultationLogs, 5000);
 */
+
+// Live updates via Pusher for the current student
+(function(){
+  try {
+    // Try to determine current student ID from navbar or hidden context
+    const metaUser = document.querySelector('meta[name="csrf-token"]'); // placeholder anchor; no student id here
+    // Prefer server-side injection through navbar; fallback to fetch on first update if needed
+    const studIdEl = document.getElementById('navbar') || document.body; // just to keep DOM lookup cheap
+  // Prefer student guard if available; fall back to web user with Stud_ID
+  const studId = {{ optional(auth()->user())->Stud_ID ?? optional(auth()->guard('web')->user())->Stud_ID ?? 'null' }};
+    if(!studId) return;
+
+  const pusher = new Pusher('{{ config('broadcasting.connections.pusher.key') }}', {cluster: '{{ config('broadcasting.connections.pusher.options.cluster') }}'});
+  Pusher.logToConsole = false;
+    const channel = pusher.subscribe('bookings.stud.'+studId);
+
+    function normalizeDate(str){ try{ return new Date(str).toLocaleDateString('en-US',{weekday:'short', month:'short', day:'numeric', year:'numeric'}); }catch(e){ return str; } }
+
+    function renderRow(data){
+      const table = document.querySelector('.table'); if(!table) return;
+      const rows = Array.from(table.querySelectorAll('.table-row'))
+        .filter(r=>!r.classList.contains('table-header') && !r.classList.contains('no-results-row'));
+      let existing = null;
+      const targetId = (data.Booking_ID!==undefined && data.Booking_ID!==null) ? String(data.Booking_ID).trim() : '';
+      rows.forEach(r=>{ const idCell=r.querySelector('[data-booking-id]'); const rowId = idCell? String(idCell.getAttribute('data-booking-id')||'').trim():''; if(rowId && targetId && rowId===targetId){ existing=r; } });
+
+      // Helper to merge missing fields from a given row's current cells
+      function mergeFromRow(row) {
+        if(!row) return;
+        const cells = row.querySelectorAll('.table-cell');
+        data.Professor = data.Professor ?? (cells[1]?.textContent.trim()||'');
+        data.subject = data.subject ?? (cells[2]?.textContent.trim()||'');
+        data.Booking_Date = data.Booking_Date ?? (cells[3]?.textContent.trim()||'');
+        data.type = data.type ?? (cells[4]?.textContent.trim()||'');
+        data.Mode = data.Mode ?? (cells[5]?.textContent.trim().toLowerCase()||'');
+        data.Created_At = data.Created_At ?? (cells[6]?.textContent.trim()||'');
+        data.Status = data.Status ?? (cells[7]?.textContent.trim().toLowerCase()||'');
+      }
+      if(existing){ mergeFromRow(existing); }
+
+      const date = normalizeDate(data.Booking_Date||'');
+      const mode = (data.Mode||'').charAt(0).toUpperCase() + (data.Mode||'').slice(1);
+      const bookedAt = data.Created_At ? new Date(data.Created_At).toLocaleString('en-US', { month:'short', day:'2-digit', year:'numeric', hour:'numeric', minute:'2-digit'}) : (existing? (existing.querySelectorAll('.table-cell')[6]?.textContent||'') : '');
+      const status = (data.Status||'').charAt(0).toUpperCase() + (data.Status||'').slice(1);
+      const iter = existing ? (existing.querySelector('.table-cell')?.textContent||'') : (rows.length+1);
+
+      const html = `
+        <div class="table-cell" data-label="No." data-booking-id="${data.Booking_ID}">${iter}</div>
+        <div class="table-cell instructor-cell" data-label="Instructor">${data.Professor||''}</div>
+        <div class="table-cell" data-label="Subject">${data.subject||''}</div>
+        <div class="table-cell" data-label="Date">${date}</div>
+        <div class="table-cell" data-label="Type">${data.type||''}</div>
+        <div class="table-cell" data-label="Mode">${mode}</div>
+        <div class="table-cell" data-label="Booked At">${bookedAt}</div>
+        <div class="table-cell" data-label="Status">${status}</div>`;
+
+      if(existing){
+        existing.innerHTML = html;
+        // guarantee the data-booking-id attribute remains for subsequent updates
+        const first = existing.querySelector('.table-cell'); if(first){ first.setAttribute('data-booking-id', String(data.Booking_ID)); }
+      }
+      else {
+        // Try to reuse any orphan row (missing data-booking-id) to avoid duplicates from earlier sessions
+        const orphan = rows.find(r => !r.querySelector('[data-booking-id]'));
+        if(orphan){
+          // Merge current orphan cell values for fields not present in payload
+          mergeFromRow(orphan);
+          orphan.innerHTML = html;
+          const first = orphan.querySelector('.table-cell'); if(first){ first.setAttribute('data-booking-id', String(data.Booking_ID)); }
+        } else {
+        const row = document.createElement('div');
+        row.className = 'table-row';
+        row.innerHTML = html;
+        const first = row.querySelector('.table-cell'); if(first){ first.setAttribute('data-booking-id', String(data.Booking_ID)); }
+        table.appendChild(row);
+        }
+      }
+
+      if(typeof filterRows==='function') filterRows();
+    }
+
+    // Bind to the explicit alias and FQCN fallback to be safe across drivers
+    channel.bind('BookingUpdated', renderRow);
+    channel.bind('App\\Events\\BookingUpdatedStudent', renderRow);
+  } catch(e){ console.warn('Realtime (student) init failed', e); }
+})();
 
 // === Chatbot ===
 function toggleChat() {

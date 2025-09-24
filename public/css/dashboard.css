@@ -26,6 +26,16 @@ body {
     color: #12372a;
 }
 
+/* Tablet/smaller desktop: keep title in original left position, just move it down */
+@media (max-width: 950px) and (min-width: 769px) {
+    .header {
+        margin-top: 44px;
+    }
+    .header h1 {
+        padding-left: 0;
+    }
+}
+
 /* Chat Button */
 .chat-button {
     position: fixed;
@@ -90,11 +100,49 @@ body {
     padding: 1rem;
     overflow-y: auto;
 }
-.quick-replies {display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border-top:1px solid #ddd;background:#fff;}
-.quick-reply {background:#12372a;color:#fff;border:none;padding:6px 10px;font-size:12px;border-radius:20px;cursor:pointer;line-height:1.2;transition:background .25s;}
-.quick-reply:hover {background:#0e4e23;}
-.quick-replies-toggle {position:absolute;bottom:85px;right:14px;background:#12372a;color:#fff;border:none;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25);transition:background .25s;font-size:20px;}
-.quick-replies-toggle:hover {background:#0e4e23;}
+.quick-replies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+    border-top: 1px solid #ddd;
+    background: #fff;
+}
+.quick-reply {
+    background: #12372a;
+    color: #fff;
+    border: none;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    line-height: 1.2;
+    transition: background 0.25s;
+}
+.quick-reply:hover {
+    background: #0e4e23;
+}
+.quick-replies-toggle {
+    position: absolute;
+    bottom: 85px;
+    right: 14px;
+    background: #12372a;
+    color: #fff;
+    border: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    transition: background 0.25s;
+    font-size: 20px;
+}
+.quick-replies-toggle:hover {
+    background: #0e4e23;
+}
 .chat-overlay .message.bot {
     margin: 0.5rem 0;
     padding: 0.6rem;
@@ -296,26 +344,39 @@ body {
 
 /* Laptop & mid-width tuning */
 @media (max-width: 1400px) {
-    .calendar-box { max-width: 720px; }
+    .calendar-box {
+        max-width: 720px;
+    }
 }
 @media (max-width: 1300px) {
-    .calendar-box { flex: 1 1 58%; }
-    .box { flex: 1 1 38%; }
+    .calendar-box {
+        flex: 1 1 58%;
+    }
+    .box {
+        flex: 1 1 38%;
+    }
 }
 /* Mid-width: switch to bell icon (avoid stacking notifications below calendar) */
 @media (max-width: 1450px) and (min-width: 769px) {
     /* Convert hidden panel into off-canvas drawer space (will be toggled via JS if needed) */
-    .box { 
+    .box {
         display: none !important; /* default hidden; bell will control a cloned/dropdown container */
     }
-    .flex-layout { justify-content: center; }
-    .calendar-box { flex: 1 1 100%; max-width: 100%; }
+    .flex-layout {
+        justify-content: center;
+    }
+    .calendar-box {
+        flex: 1 1 100%;
+        max-width: 100%;
+    }
     /* Ensure legend spacing tighter when full-width */
-    .legend { margin-top: 40px; }
+    .legend {
+        margin-top: 40px;
+    }
 }
 
 /* Off-canvas style for notifications when shown from bell mid-width */
-@media (max-width:1450px) and (min-width:769px) {
+@media (max-width: 1450px) and (min-width: 769px) {
     .mobile-notifications-dropdown {
         width: 480px !important; /* wider than mobile */
         max-height: 80vh;
@@ -325,11 +386,19 @@ body {
     }
 }
 @media (max-width: 1150px) {
-    .calendar-box { flex: 1 1 100%; max-width: 100%; }
-    .box { flex: 1 1 100%; max-width: 100%; }
+    .calendar-box {
+        flex: 1 1 100%;
+        max-width: 100%;
+    }
+    .box {
+        flex: 1 1 100%;
+        max-width: 100%;
+    }
 }
 @media (max-width: 992px) {
-    .flex-layout { flex-direction: column; }
+    .flex-layout {
+        flex-direction: column;
+    }
 }
 
 @media (max-width: 768px) {
@@ -369,8 +438,8 @@ body {
         width: 100%;
         max-width: 100%;
         margin: 0; /* align left */
-    /* Slightly smaller reserved height on mobile */
-    min-height: 500px;
+        /* Slightly smaller reserved height on mobile */
+        min-height: 500px;
     }
     /* shift legend slightly right only on mobile */
     .legend {
@@ -388,21 +457,60 @@ body {
         left: 0;
         bottom: 76px; /* leave room above chat button */
         width: 100%;
-    background: #e5f0ed; /* exact body background for seamless blend */
-    padding: 10px 18px 12px;
-    margin: 0 !important;
-    box-shadow: none; /* remove contrast line */
+        background: #e5f0ed; /* exact body background for seamless blend */
+        padding: 10px 18px 12px;
+        margin: 0 !important;
+        box-shadow: none; /* remove contrast line */
         z-index: 1200; /* above calendar cells */
         gap: 22px;
         flex-wrap: wrap;
         justify-content: flex-start;
     }
-    .legend div { margin: 4px 16px 0 0 !important; }
-    .legend div:nth-child(2) { margin-left: 0 !important; }
+    .legend div {
+        margin: 4px 16px 0 0 !important;
+    }
+    .legend div:nth-child(2) {
+        margin-left: 0 !important;
+    }
     /* Ensure page content not hidden behind fixed legend */
-    .main-content { padding-bottom: 160px; }
+    .main-content {
+        padding-bottom: 160px;
+    }
     /* Lift chat button slightly so it doesn't overlap legend */
-    .chat-button { bottom: 18px !important; }
+    .chat-button {
+        bottom: 18px !important;
+    }
+}
+
+/* Mobile narrow (<=700px): raise legend a bit so it isn't too low */
+@media (max-width: 700px) {
+    .legend {
+        bottom: 320px; /* default for narrow screens */
+    }
+    /* Add extra bottom padding so content doesn't hide behind raised legend */
+    .main-content {
+        padding-bottom: 380px !important;
+    }
+}
+
+/* Very narrow mobile (<=640px): lower legend slightly */
+@media (max-width: 640px) {
+    .legend {
+        bottom: 280px;
+    }
+    .main-content {
+        padding-bottom: 340px !important;
+    }
+}
+
+/* If viewport height is short, keep legend a bit lower to avoid covering content */
+@media (max-width: 700px) and (max-height: 740px) {
+    .legend {
+        bottom: 180px;
+    }
+    .main-content {
+        padding-bottom: 240px !important;
+    }
 }
 
 /* LAYERING: CHATBOT ON TOP, NOTIFICATIONS SECOND, EVERYTHING ELSE BELOW */
@@ -433,7 +541,9 @@ body:not(.chat-open) #mobileNotificationBell {
 
 /* Slightly larger calendar numbers on mobile for better readability */
 @media (max-width: 768px) {
-    .pika-button { font-size: 0.95rem !important; }
+    .pika-button {
+        font-size: 0.95rem !important;
+    }
     /* Enlarge weekday labels (Mon Tue ...) */
     .pika-table th abbr {
         font-size: 0.9rem !important;
@@ -441,18 +551,59 @@ body:not(.chat-open) #mobileNotificationBell {
     }
 }
 
+/* Small tablet override (701–768px): don't pin legend at the bottom */
+@media (min-width: 701px) and (max-width: 768px) {
+    .legend {
+        position: static !important;
+        left: auto !important;
+        bottom: auto !important;
+        width: 100% !important;
+        background: none !important;
+        padding: 0 !important;
+        margin-top: 36px !important;
+        box-shadow: none !important;
+        gap: 16px !important;
+        justify-content: flex-start !important;
+    }
+    .legend div {
+        margin: 0 12px !important;
+    }
+    .legend div:nth-child(2) {
+        margin-left: 24px !important;
+    }
+    .main-content {
+        padding-bottom: 0 !important;
+    }
+    .chat-button {
+        bottom: 20px !important;
+    }
+}
+
 /* Ultra-small devices */
 @media (max-width: 380px) {
-    .main-content { padding: 1.2rem 1rem 4rem; }
-    .legend { gap: 10px; }
-    .pika-button { font-size: 0.9rem !important; height: 50px !important; }
-    .pika-table td { height: 55px !important; }
+    .main-content {
+        padding: 1.2rem 1rem 4rem;
+    }
+    .legend {
+        gap: 10px;
+    }
+    .pika-button {
+        font-size: 0.9rem !important;
+        height: 50px !important;
+    }
+    .pika-table td {
+        height: 55px !important;
+    }
 }
 
 /* Short viewport adjustments (small laptops) */
 @media (max-height: 820px) and (min-width: 769px) {
-    .pika-table td { height: 60px !important; }
-    .pika-button { height: 54px !important; }
+    .pika-table td {
+        height: 60px !important;
+    }
+    .pika-button {
+        height: 54px !important;
+    }
 }
 
 /* (Removed legend enlargement user disliked) */
