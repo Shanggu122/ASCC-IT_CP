@@ -123,8 +123,61 @@
         markCurrentPairReadProf();
       }
     } else if(data.sender === 'student' && parseInt(data.prof_id)===parseInt(currentProfId)) {
-      const badge = document.querySelector(`[data-unread="stud-${data.stud_id}"]`);
-      if(badge){ let v=parseInt(badge.textContent||'0')+1; badge.textContent=v; badge.classList.remove('hidden'); }
+      // Ensure inbox item exists for this student; if not, fetch summary and insert
+      let inboxItem = document.querySelector(`.inbox-item[data-stud-id="${data.stud_id}"]`);
+      if(!inboxItem){
+        fetch(`/chat/student-summary/${data.stud_id}`)
+          .then(r=>r.ok?r.json():null)
+          .then(info=>{
+            if(!info) return;
+            const avatar = info.profile_picture ? `/storage/${info.profile_picture}` : `{{ asset('images/dprof.jpg') }}`;
+            const wrapper = document.querySelector('.inbox');
+            const el = document.createElement('div');
+            el.className='inbox-item';
+            el.setAttribute('data-stud-id', String(info.stud_id));
+            el.onclick = function(){ loadChat(info.name, info.stud_id); };
+            el.innerHTML = `
+              <img class="inbox-avatar" src="${avatar}" alt="${info.name}">
+              <div class="inbox-meta">
+                <div class="name"><span class="presence-dot" data-presence="stud-${info.stud_id}"></span>${info.name} <span class="unread-badge hidden" data-unread="stud-${info.stud_id}"></span></div>
+                <div class="snippet-line">
+                  <span class="snippet" title="New message">New message</span>
+                  <span class="rel-time">now</span>
+                </div>
+              </div>`;
+            // Insert at top after the header (h2)
+            const afterHeader = wrapper.querySelector('h2')?.nextElementSibling;
+            if(afterHeader){ wrapper.insertBefore(el, afterHeader); } else { wrapper.appendChild(el); }
+            // Bind mobile show panel on click
+            el.addEventListener('click', showChatPanel);
+            // Presence reflect immediately if available
+            const dot = el.querySelector('[data-presence]');
+            if(dot){
+              const dataPresence = dot.getAttribute('data-presence');
+              const id = dataPresence.split('-')[1];
+              if(ChatCommon.state.onlineStudents.has(parseInt(id))){ dot.classList.add('online'); }
+            }
+            // Set badge after creating element
+            const b = el.querySelector(`[data-unread="stud-${info.stud_id}"]`);
+            if(b){ b.textContent='1'; b.classList.remove('hidden'); }
+          })
+          .catch(()=>{});
+      } else {
+        // Update unread badge
+        const badge = document.querySelector(`[data-unread=\"stud-${data.stud_id}\"]`);
+        if(badge){ let v=parseInt(badge.textContent||'0')+1; badge.textContent=v; badge.classList.remove('hidden'); }
+        // Update snippet and time for the existing inbox item
+        const meta = inboxItem.querySelector('.snippet-line .snippet');
+        const rel = inboxItem.querySelector('.snippet-line .rel-time');
+        const isFile = data.file && (!data.message || data.message === '');
+        const lastText = isFile ? '[File]' : (data.message || 'New message');
+        if(meta){ meta.textContent = lastText.length > 36 ? lastText.slice(0,33)+'...' : lastText; meta.setAttribute('title', lastText); }
+        if(rel){ rel.textContent = ChatCommon.formatRelative(data.created_at_iso || new Date().toISOString()); }
+        // Move the item to top (right under header) since it has the newest activity
+        const wrapper = document.querySelector('.inbox');
+        const afterHeader = wrapper.querySelector('h2')?.nextElementSibling;
+        if(afterHeader && inboxItem !== afterHeader){ wrapper.insertBefore(inboxItem, afterHeader); }
+      }
     }
   });
   ChatCommon.onTyping(function(data){
@@ -402,19 +455,28 @@
   </script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      // Auto-select the first student in the inbox
-      let restored = false;
-      try {
-        const lastStud = localStorage.getItem('chat_last_student_id');
-        if(lastStud){
-          const target = document.querySelector(`.inbox-item[data-stud-id="${lastStud}"]`);
-          if(target){ target.click(); restored = true; }
+      // Desktop: show chat panel and try to restore last opened student; Mobile: don't auto-load any chat
+      if (!isMobile()) {
+        document.getElementById('chat-panel').classList.add('active');
+        document.getElementById('back-btn').style.display = 'none';
+        let restored = false;
+        try {
+          const lastStud = localStorage.getItem('chat_last_student_id');
+          if(lastStud){
+            const target = document.querySelector(`.inbox-item[data-stud-id="${lastStud}"]`);
+            if(target){ target.click(); restored = true; }
+          }
+        } catch(e){}
+        if(!restored){
+          const firstInboxItem = document.querySelector('.inbox-item');
+          if (firstInboxItem) { firstInboxItem.click(); }
         }
-      } catch(e){}
-      if(!restored){
-        const firstInboxItem = document.querySelector('.inbox-item');
-        if (firstInboxItem) { firstInboxItem.click(); }
+      } else {
+        document.getElementById('chat-panel').classList.remove('active');
+        document.getElementById('back-btn').style.display = 'none';
+        // Do NOT auto-load any chat on mobile
       }
+      // Initial fetches and timers
       refreshUnread(); refreshPresence(); heartbeat();
       setInterval(refreshUnread, 15000);
       setInterval(refreshPresence, 30000);
@@ -473,21 +535,7 @@
       }
     });
 
-    // On load, show chat panel on desktop, hide on mobile
-    document.addEventListener('DOMContentLoaded', function() {
-      if (!isMobile()) {
-        document.getElementById('chat-panel').classList.add('active');
-        document.getElementById('back-btn').style.display = 'none';
-        const firstInboxItem = document.querySelector('.inbox-item');
-        if (firstInboxItem) {
-          firstInboxItem.click();
-        }
-      } else {
-        document.getElementById('chat-panel').classList.remove('active');
-        document.getElementById('back-btn').style.display = 'none';
-        // Do NOT auto-load any chat on mobile
-      }
-    });
+    // On load handled above: desktop restores last chat or first; mobile does not auto-load any chat
 
     // IMAGE OVERLAY (professor side)
     function openImageOverlayProf(index) {

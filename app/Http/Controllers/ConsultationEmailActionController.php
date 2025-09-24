@@ -29,8 +29,19 @@ class ConsultationEmailActionController extends Controller
         $booking = $this->findBooking($bookingId, $profId);
         if(!$booking) return response()->view('consultation_email_actions.result',[ 'title'=>'Invalid Link', 'message'=>'Booking not found or link invalid.' ],404);
 
-        // Update if not already completed/cancelled
+        // Update if not already completed/cancelled; enforce mode lock if another approved/rescheduled exists that day
         if(!in_array(strtolower($booking->Status), ['approved','completed'])) {
+            $capacityStatuses = ['approved','rescheduled'];
+            $firstExisting = DB::table('t_consultation_bookings')
+                ->where('Prof_ID', $booking->Prof_ID)
+                ->where('Booking_Date', $booking->Booking_Date)
+                ->whereIn('Status', $capacityStatuses)
+                ->where('Booking_ID','!=',$booking->Booking_ID)
+                ->orderBy('Booking_ID','asc')
+                ->first();
+            if ($firstExisting && $firstExisting->Mode && $firstExisting->Mode !== $booking->Mode) {
+                return response()->view('consultation_email_actions.result',[ 'title'=>'Mode Conflict', 'message'=>'Cannot accept: the date is locked to '.ucfirst($firstExisting->Mode).' mode.' ]);
+            }
             DB::table('t_consultation_bookings')->where('Booking_ID',$bookingId)->update(['Status'=>'approved']);
             try {
                 Notification::updateNotificationStatus($bookingId,'accepted',$booking->professor_name,$booking->Booking_Date,null);

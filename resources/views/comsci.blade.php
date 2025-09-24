@@ -157,6 +157,9 @@
     max-width: 420px;
     width: auto;
   }
+
+  /* Minimal helper: dim label when disabled (class applied via JS); keep main CSS in public/css */
+  .mode-selection label.disabled { opacity:.6; cursor:not-allowed; pointer-events:none; }
   /* Calendar error highlight */
   .calendar-wrapper-container.has-error { outline:2px solid #d93025; border-radius:8px; padding:4px 6px 10px; }
   .calendar-wrapper-container.has-error label[for="calendar"] { color:#d93025; }
@@ -304,8 +307,12 @@
 
       function disableDayFn(date){
         const day = date.getDay(); // 0 Sun..6 Sat
-        if(day===0 || day===6) return true; // block weekends always
-        if(allowedWeekdays.size>0 && !allowedWeekdays.has(day)) return true;
+        // Always block weekends
+        if(day===0 || day===6) return true;
+        // If no schedule loaded, block all weekdays (students cannot pick any day)
+        if(allowedWeekdays.size === 0) return true;
+        // When schedule exists, only allow the specified weekdays
+        if(!allowedWeekdays.has(day)) return true;
         return false;
       }
 
@@ -345,15 +352,68 @@
       var picker = new Pikaday({
         field: document.getElementById('calendar'),
         format: 'ddd, MMM DD YYYY',
-        onSelect: function(){ document.getElementById('calendar').value = this.toString('ddd, MMM DD YYYY'); },
+        onSelect: function(){
+          document.getElementById('calendar').value = this.toString('ddd, MMM DD YYYY');
+          // Apply lock whenever a new date is selected
+          try { if (typeof applyLockForSelectedDate === 'function') applyLockForSelectedDate(); } catch(_) {}
+        },
         showDaysInNextAndPreviousMonths: true,
         firstDay: 1,
         bound: false,
         minDate: new Date(),
         disableDayFn: disableDayFn
       });
-      let __availabilityCache = {};
+  let __availabilityCache = {};
+  window.__availabilityCache = __availabilityCache;
+  // Toggle for console debugging if needed
+  window.__DEBUG_MODE_LOCK = window.__DEBUG_MODE_LOCK || false;
       let __dailyCapacity = 5;
+      function setLabelDisabled(input, disabled){
+        if(!input) return; const label = input.closest('label'); if(label){ label.classList.toggle('disabled', !!disabled); }
+      }
+      function setModeLockUI(mode){
+        const online = document.querySelector('input[name="mode"][value="online"]');
+        const onsite = document.querySelector('input[name="mode"][value="onsite"]');
+        if(!online || !onsite) return;
+        // Reset first
+        online.disabled = false; onsite.disabled = false; setLabelDisabled(online,false); setLabelDisabled(onsite,false);
+        if(!mode){
+          // No lock for this date: clear selection entirely
+          online.checked = false; onsite.checked = false;
+          return;
+        }
+        if(mode === 'online'){
+          online.checked = true; onsite.checked = false; onsite.disabled = true; setLabelDisabled(onsite,true);
+          // fire change to ensure CSS/UA paints checked state consistently
+          online.dispatchEvent(new Event('change', { bubbles: true }));
+          online.focus({ preventScroll: true });
+        }
+        if(mode === 'onsite'){
+          onsite.checked = true; online.checked = false; online.disabled = true; setLabelDisabled(online,true);
+          onsite.dispatchEvent(new Event('change', { bubbles: true }));
+          onsite.focus({ preventScroll: true });
+        }
+      }
+
+      function applyLockForSelectedDate(){
+        try{
+          if(!window.picker) return;
+          const d = window.picker.getDate(); if(!d){ setModeLockUI(null); return; }
+          const key = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'2-digit', year:'numeric'}).replace(/,/g,'');
+          const rec = (window.__availabilityCache||{})[key];
+          const mode = rec && rec.mode ? rec.mode : null;
+          if(window.__DEBUG_MODE_LOCK) console.log('[mode-lock] applyLockForSelectedDate', { key, mode, rec });
+          setModeLockUI(mode);
+          // If mode not yet available (async fetch racing), retry once shortly
+          if(!mode){ setTimeout(()=>{
+            const r2 = (window.__availabilityCache||{})[key];
+            const m2 = r2 && r2.mode ? r2.mode : null;
+            if(window.__DEBUG_MODE_LOCK) console.log('[mode-lock] retry applyLockForSelectedDate', { key, m2 });
+            setModeLockUI(m2);
+          }, 60); }
+        }catch(_){}
+      }
+
       window.__applyAvailability = function(map){
         const cells = document.querySelectorAll('.pika-table td');
         cells.forEach(td=>td.classList.remove('slot-free','slot-low','slot-full'));
@@ -373,7 +433,9 @@
           btn.dataset.remaining = remaining;
           btn.dataset.booked = booked;
           btn.dataset.capacity = __dailyCapacity;
-          btn.title = remaining <= 0 ? `Fully booked (0/${__dailyCapacity})` : `${remaining} slot${remaining===1?'':'s'} left (${booked}/${__dailyCapacity} booked)`;
+          btn.dataset.mode = (info && info.mode) ? info.mode : '';
+          const modeTxt = info && info.mode ? ` • Mode: ${info.mode}` : '';
+          btn.title = (remaining <= 0 ? `Fully booked (0/${__dailyCapacity})` : `${remaining} slot${remaining===1?'':'s'} left (${booked}/${__dailyCapacity} booked)`) + modeTxt;
           if(remaining <= 0){
             td.classList.add('slot-full');
             btn.setAttribute('disabled','disabled');
@@ -385,8 +447,14 @@
         });
       };
       function refreshAvailabilityColors(){ window.__applyAvailability(__availabilityCache); }
-      const _origDraw = picker.draw.bind(picker);
-      picker.draw = function(){ _origDraw(); updateWeekdayHeaders(); refreshAvailabilityColors(); };
+  const _origDraw = picker.draw.bind(picker);
+  picker.draw = function(){
+    _origDraw();
+    updateWeekdayHeaders();
+    refreshAvailabilityColors();
+    try{ if(window.applyLockForSelectedDate){ applyLockForSelectedDate(); } }catch(_){}
+    try{ attachSelectionObserver(); }catch(_){}
+  };
       function fetchAvailability(profId){
         if(!profId) return;
         const now = new Date();
@@ -394,14 +462,30 @@
         const endDate = new Date(now.getFullYear(), now.getMonth()+2, 0);
         const end = endDate.toISOString().slice(0,10);
         fetch(`/api/professor/availability?prof_id=${profId}&start=${start}&end=${end}`)
-          .then(r=>r.json())
-          .then(data=>{ if(!data.success) return; if(typeof data.capacity==='number') __dailyCapacity=data.capacity; __availabilityCache={}; data.dates.forEach(rec=>{ __availabilityCache[rec.date]=rec; }); refreshAvailabilityColors(); })
+      .then(r=>r.json())
+    .then(data=>{ if(!data.success) return; if(typeof data.capacity==='number') __dailyCapacity=data.capacity; __availabilityCache={}; data.dates.forEach(rec=>{ __availabilityCache[rec.date]=rec; }); window.__availabilityCache = __availabilityCache; refreshAvailabilityColors(); applyLockForSelectedDate(); })
           .catch(()=>{});
       }
       window.__fetchAvailability = fetchAvailability;
       document.addEventListener('click', function(e){
         const btn = e.target.closest('.pika-button');
         if(!btn) return;
+        // Apply mode lock to radio inputs when selecting a date
+        let mode = btn.dataset.mode || null;
+        if(!mode){
+          // Fallback: compute key and check availability cache
+          try {
+            const key = new Date(btn.getAttribute('data-pika-year'), parseInt(btn.getAttribute('data-pika-month'),10), parseInt(btn.getAttribute('data-pika-day'),10))
+              .toLocaleDateString('en-US', { weekday:'short', month:'short', day:'2-digit', year:'numeric'}).replace(/,/g,'');
+            const rec = (window.__availabilityCache||{})[key];
+            if(rec && rec.mode) mode = rec.mode;
+          } catch(_) {}
+        }
+        if(window.__DEBUG_MODE_LOCK) console.log('[mode-lock] click day', { mode, btn });
+        setModeLockUI(mode);
+        // Also re-apply after the calendar finishes its own handlers
+        setTimeout(()=>{ setModeLockUI(mode); }, 0);
+        setTimeout(()=>{ try{ applyLockForSelectedDate(); }catch(_){} }, 0);
         if(btn.dataset && btn.dataset.remaining === '0'){
           e.preventDefault();
           e.stopPropagation();
@@ -414,6 +498,31 @@
       picker.show();
       updateWeekdayHeaders();
       window.picker = picker;
+
+      // Observe selection highlight changes to enforce mode lock reliably
+      function attachSelectionObserver(){
+        const table = document.querySelector('.pika-table');
+        if(!table) return;
+        if(table.__modeSelObserver){ return; }
+        const obs = new MutationObserver(()=>{
+          const td = table.querySelector('td.is-selected .pika-button');
+          if(!td) return;
+          let mode = td.dataset.mode || null;
+          if(!mode){
+            try{
+              const key = new Date(td.getAttribute('data-pika-year'), parseInt(td.getAttribute('data-pika-month'),10), parseInt(td.getAttribute('data-pika-day'),10))
+                .toLocaleDateString('en-US', { weekday:'short', month:'short', day:'2-digit', year:'numeric'}).replace(/,/g,'');
+              const rec = (window.__availabilityCache||{})[key];
+              if(rec && rec.mode) mode = rec.mode;
+            }catch(_){ }
+          }
+          if(window.__DEBUG_MODE_LOCK) console.log('[mode-lock][observer] apply', { mode });
+          setModeLockUI(mode);
+        });
+        obs.observe(table, { attributes:true, subtree:true, attributeFilter:['class'] });
+        table.__modeSelObserver = obs;
+      }
+      attachSelectionObserver();
   });
 
 // Open modal and set professor info
@@ -482,6 +591,14 @@ function openModal(card) {
     submitBtn.classList.toggle('no-schedule', !hasSchedule);
     submitBtn.title = !hasSchedule ? 'Cannot book: professor has no schedule set.' : '';
   }
+  // Reset mode radios state on open
+  const online = document.querySelector('input[name="mode"][value="online"]');
+  const onsite = document.querySelector('input[name="mode"][value="onsite"]');
+  if(online && onsite){
+    online.checked=false; onsite.checked=false; online.disabled=false; onsite.disabled=false;
+    const cont = document.querySelector('.mode-selection');
+    cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
+  }
 }
 
 // Custom dropdown (isolated)
@@ -544,8 +661,9 @@ if(bookingForm){
     if(!subjectSel || !subjectSel.value) return 'Please select a subject.';
     const typesChecked = bookingForm.querySelectorAll('input[name="types[]"]:checked').length;
     if(typesChecked === 0) return 'Please select at least one consultation type.';
-    const modeChecked = bookingForm.querySelectorAll('input[name="mode"]:checked').length;
-    if(modeChecked === 0) return 'Please select consultation mode (Online or Onsite).';
+  const modeInputs = bookingForm.querySelectorAll('input[name="mode"]');
+  const selected = Array.from(modeInputs).find(i=>i.checked);
+  if(!selected) return 'Please select consultation mode (Online or Onsite).';
     const dateInput = document.getElementById('calendar');
   const hasSelectedCell = document.querySelector('.pika-table td.is-selected');
   if(!dateInput.value.trim() || !hasSelectedCell){
@@ -562,6 +680,14 @@ if(bookingForm){
     const otherCb = document.getElementById('otherTypeCheckbox');
     const otherTxt = document.getElementById('otherTypeText');
     if(otherCb && otherCb.checked && !otherTxt.value.trim()) return 'Please specify the consultation type in the Others field.';
+    // Enforce client-side mode lock to avoid UX confusion
+    if(window.__availabilityCache){
+      const key = dateInput.value.replace(/,/g,'');
+      const rec = window.__availabilityCache[key];
+      if(rec && rec.mode && selected && selected.value !== rec.mode){
+        return `This date is locked to ${rec.mode}.`;
+      }
+    }
     return null;
   }
 
@@ -777,7 +903,7 @@ chatForm.addEventListener("submit", async function (e) {
       div.className='profile-card';
       div.setAttribute('onclick','openModal(this)');
       div.dataset.name = data.Name;
-      const imgPath = data.profile_picture ? ('{{ asset('storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
+  const imgPath = data.profile_picture ? ('{{ url('/storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
       div.dataset.img = imgPath;
       div.dataset.profId = data.Prof_ID;
       div.dataset.profId = data.Prof_ID;
@@ -794,7 +920,7 @@ chatForm.addEventListener("submit", async function (e) {
       if(card){
         card.dataset.name = data.Name;
         card.dataset.schedule = data.Schedule || 'No schedule set';
-        const imgPath = data.profile_picture ? ('{{ asset('storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
+  const imgPath = data.profile_picture ? ('{{ url('/storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
         card.dataset.img = imgPath;
         card.querySelector('.profile-name').textContent = data.Name;
         const imgEl = card.querySelector('img'); if(imgEl) imgEl.src = imgPath;

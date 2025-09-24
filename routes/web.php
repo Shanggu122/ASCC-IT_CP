@@ -63,11 +63,13 @@ Route::get("/login", function () {
 })->name("login");
 
 // Single student login POST route
-Route::post("/login", [AuthController::class, "login"])->name('login.submit');
+Route::post("/login", [AuthController::class, "login"])->name("login.submit");
 // Protected student routes (require authentication)
 Route::get("/dashboard", function () {
     return view("dashboard"); // student dashboard
-})->name("dashboard")->middleware(['auth', \App\Http\Middleware\PreventBackHistory::class]);
+})
+    ->name("dashboard")
+    ->middleware(["auth", \App\Http\Middleware\PreventBackHistory::class]);
 
 // Legacy /itis & /comsci definitions removed here; final definitions below also protected.
 
@@ -75,7 +77,7 @@ Route::get("/dashboard", function () {
 
 Route::get("/conlog", [ConsultationLogController::class, "index"])
     ->name("consultation-log")
-    ->middleware(['auth', \App\Http\Middleware\PreventBackHistory::class]);
+    ->middleware(["auth", \App\Http\Middleware\PreventBackHistory::class]);
 
 // Messages route handled inside auth group below; public definition removed.
 
@@ -102,16 +104,22 @@ Route::post("/consultation-book", [ConsultationBookingController::class, "store"
 Route::get("/get-bookings", [ConsultationLogController::class, "getBookings"]);
 
 // Professor protected pages (ensure no back history caching after logout)
-Route::middleware([\App\Http\Middleware\EnsureProfessorAuthenticated::class, \App\Http\Middleware\PreventBackHistory::class])->group(function () {
+Route::middleware([
+    \App\Http\Middleware\EnsureProfessorAuthenticated::class,
+    \App\Http\Middleware\PreventBackHistory::class,
+])->group(function () {
     Route::get("/profile-professor", [ProfessorProfileController::class, "show"])->name(
         "profile.professor",
     );
     // Professor messages page (secured)
-    Route::get("/messages-professor", [MessageController::class, "showProfessorMessages"])
-        ->name("messages.professor");
+    Route::get("/messages-professor", [MessageController::class, "showProfessorMessages"])->name(
+        "messages.professor",
+    );
     // Export professor consultation logs to PDF
-    Route::post('/conlog-professor/pdf', [ProfessorConsultationPdfController::class, 'download'])
-        ->name('conlog-professor.pdf');
+    Route::post("/conlog-professor/pdf", [
+        ProfessorConsultationPdfController::class,
+        "download",
+    ])->name("conlog-professor.pdf");
     Route::post("/profile-professor/change-password", [
         AuthControllerProfessor::class,
         "changePassword",
@@ -126,9 +134,9 @@ Route::middleware([\App\Http\Middleware\EnsureProfessorAuthenticated::class, \Ap
 });
 
 // dynamic "video-call" page — {user} will be the channel name (students only)
-Route::get("/video-call/{user}", [VideoCallController::class, "show"]) 
+Route::get("/video-call/{user}", [VideoCallController::class, "show"])
     ->name("video.call")
-    ->middleware('auth');
+    ->middleware("auth");
 // Presence limiting endpoints (max 5 students per channel)
 // Route placeholders disabled until CallPresenceController is added
 // (CallPresenceController routes temporarily removed until controller implementation is added)
@@ -143,19 +151,28 @@ Route::get("/login-professor", function () {
 Route::post("/login-professor", [AuthControllerProfessor::class, "login"]);
 Route::get("/dashboard-professor", function () {
     return view("dashboard-professor");
-})->middleware([\App\Http\Middleware\EnsureProfessorAuthenticated::class, \App\Http\Middleware\PreventBackHistory::class])
+})
+    ->middleware([
+        \App\Http\Middleware\EnsureProfessorAuthenticated::class,
+        \App\Http\Middleware\PreventBackHistory::class,
+    ])
     ->name("dashboard.professor");
 
 Route::get("/conlog-professor", [ConsultationLogControllerProfessor::class, "index"])
     ->name("conlog-professor")
-    ->middleware([\App\Http\Middleware\EnsureProfessorAuthenticated::class, \App\Http\Middleware\PreventBackHistory::class]);
+    ->middleware([
+        \App\Http\Middleware\EnsureProfessorAuthenticated::class,
+        \App\Http\Middleware\PreventBackHistory::class,
+    ]);
 
 Route::post("/consultation-book-professor", [
     ConsultationBookingControllerProfessor::class,
     "store",
 ])->name("consultation-book.professor");
 
-Route::get('/logout-professor', [AuthControllerProfessor::class,'logout'])->name('logout-professor');
+Route::get("/logout-professor", [AuthControllerProfessor::class, "logout"])->name(
+    "logout-professor",
+);
 Route::post("/change-password-professor", [AuthControllerProfessor::class, "changePassword"])->name(
     "changePassword.professor",
 );
@@ -186,102 +203,174 @@ Route::post("/consultation-book-professor", [ConsultationBookingController::clas
 );
 
 // Return dates (next 30 days) that are fully booked (>=5 approved/rescheduled) for a professor
-Route::get('/api/professor/fully-booked-dates', function(\Illuminate\Http\Request $request) {
+Route::get("/api/professor/fully-booked-dates", function (\Illuminate\Http\Request $request) {
     try {
-        $profId = auth()->guard('professor')->check() ? auth()->guard('professor')->user()->Prof_ID : $request->query('prof_id');
+        $profId = auth()->guard("professor")->check()
+            ? auth()->guard("professor")->user()->Prof_ID
+            : $request->query("prof_id");
         if (!$profId) {
-            return response()->json(['success'=>false,'message'=>'Professor not identified'],401);
+            return response()->json(
+                ["success" => false, "message" => "Professor not identified"],
+                401,
+            );
         }
-        $today = \Carbon\Carbon::now('Asia/Manila')->startOfDay();
+        $today = \Carbon\Carbon::now("Asia/Manila")->startOfDay();
         $end = $today->copy()->addDays(30);
-        $capacityStatuses = ['approved','rescheduled'];
-        $rows = DB::table('t_consultation_bookings')
-            ->select('Booking_Date', DB::raw('COUNT(*) as cnt'))
-            ->where('Prof_ID',$profId)
-            ->whereBetween('Booking_Date', [$today->format('D M d Y'), $end->format('D M d Y')])
-            ->whereIn('Status',$capacityStatuses)
-            ->groupBy('Booking_Date')
-            ->havingRaw('COUNT(*) >= 5')
+        $capacityStatuses = ["approved", "rescheduled"];
+        $rows = DB::table("t_consultation_bookings")
+            ->select("Booking_Date", DB::raw("COUNT(*) as cnt"))
+            ->where("Prof_ID", $profId)
+            ->whereBetween("Booking_Date", [$today->format("D M d Y"), $end->format("D M d Y")])
+            ->whereIn("Status", $capacityStatuses)
+            ->groupBy("Booking_Date")
+            ->havingRaw("COUNT(*) >= 5")
             ->get();
-        $dates = $rows->pluck('Booking_Date');
-        return response()->json(['success'=>true,'dates'=>$dates]);
+        $dates = $rows->pluck("Booking_Date");
+        return response()->json(["success" => true, "dates" => $dates]);
     } catch (\Exception $e) {
-        return response()->json(['success'=>false,'message'=>'Server error','error'=>$e->getMessage()],500);
+        return response()->json(
+            ["success" => false, "message" => "Server error", "error" => $e->getMessage()],
+            500,
+        );
     }
 });
 
 // Availability endpoint: returns booked & remaining slots per day (approved/rescheduled only) within a date range
-Route::get('/api/professor/availability', function(\Illuminate\Http\Request $request) {
+// Additionally returns the day's locked consultation mode ("online"/"onsite") if at least one
+// approved/rescheduled booking exists for that date for the same professor. The lock is determined
+// by the earliest created booking among the approved/rescheduled set for that date.
+Route::get("/api/professor/availability", function (\Illuminate\Http\Request $request) {
     try {
-        $profId = $request->query('prof_id');
-        if(!$profId){
+        $profId = $request->query("prof_id");
+        if (!$profId) {
             // if authenticated professor w/out prof_id param fallback
-            $profId = auth()->guard('professor')->check() ? auth()->guard('professor')->user()->Prof_ID : null;
+            $profId = auth()->guard("professor")->check()
+                ? auth()->guard("professor")->user()->Prof_ID
+                : null;
         }
-        if(!$profId){
-            return response()->json(['success'=>false,'message'=>'prof_id required'],422);
+        if (!$profId) {
+            return response()->json(["success" => false, "message" => "prof_id required"], 422);
         }
 
         $capacity = 5; // daily capacity per professor (could be moved to config later)
-        $startParam = $request->query('start');
-        $endParam = $request->query('end');
-        $tz = 'Asia/Manila';
-        try { $start = $startParam ? Carbon::parse($startParam, $tz)->startOfDay() : Carbon::now($tz)->startOfMonth(); } catch(\Exception $e){ $start = Carbon::now($tz)->startOfMonth(); }
-        try { $end = $endParam ? Carbon::parse($endParam, $tz)->endOfDay() : $start->copy()->addMonths(1)->endOfMonth(); } catch(\Exception $e){ $end = $start->copy()->addMonths(1)->endOfMonth(); }
+        $startParam = $request->query("start");
+        $endParam = $request->query("end");
+        $tz = "Asia/Manila";
+        try {
+            $start = $startParam
+                ? Carbon::parse($startParam, $tz)->startOfDay()
+                : Carbon::now($tz)->startOfMonth();
+        } catch (\Exception $e) {
+            $start = Carbon::now($tz)->startOfMonth();
+        }
+        try {
+            $end = $endParam
+                ? Carbon::parse($endParam, $tz)->endOfDay()
+                : $start->copy()->addMonths(1)->endOfMonth();
+        } catch (\Exception $e) {
+            $end = $start->copy()->addMonths(1)->endOfMonth();
+        }
 
         // Hard cap on range (max 90 days) to avoid excessive payload
-        if($end->diffInDays($start) > 90){
+        if ($end->diffInDays($start) > 90) {
             $end = $start->copy()->addDays(90)->endOfDay();
         }
 
-        $capacityStatuses = ['approved','rescheduled'];
+        $capacityStatuses = ["approved", "rescheduled"];
 
         // Build explicit list of date strings to avoid lexicographical issues with whereBetween on string dates
         $dateStrings = [];
-        foreach (CarbonPeriod::create($start, $end) as $d) { $dateStrings[] = $d->format('D M d Y'); }
+        foreach (CarbonPeriod::create($start, $end) as $d) {
+            $dateStrings[] = $d->format("D M d Y");
+        }
 
-        $rows = DB::table('t_consultation_bookings')
-            ->select('Booking_Date', DB::raw('COUNT(*) as cnt'))
-            ->where('Prof_ID',$profId)
-            ->whereIn('Status',$capacityStatuses)
-            ->whereIn('Booking_Date', $dateStrings)
-            ->groupBy('Booking_Date')
+        $rows = DB::table("t_consultation_bookings")
+            ->select("Booking_Date", DB::raw("COUNT(*) as cnt"))
+            ->where("Prof_ID", $profId)
+            ->whereIn("Status", $capacityStatuses)
+            ->whereIn("Booking_Date", $dateStrings)
+            ->groupBy("Booking_Date")
             ->get()
-            ->pluck('cnt','Booking_Date');
+            ->pluck("cnt", "Booking_Date");
+
+        // Determine per-day mode lock using the earliest-created approved/rescheduled booking
+        $firstIds = DB::table("t_consultation_bookings")
+            ->select("Booking_Date", DB::raw("MIN(Booking_ID) as first_id"))
+            ->where("Prof_ID", $profId)
+            ->whereIn("Status", $capacityStatuses)
+            ->whereIn("Booking_Date", $dateStrings)
+            ->groupBy("Booking_Date")
+            ->get();
+        $firstIdByDate = [];
+        foreach ($firstIds as $rec) {
+            $firstIdByDate[$rec->Booking_Date] = $rec->first_id;
+        }
+        $modesById = [];
+        if (!empty($firstIdByDate)) {
+            $modesById = DB::table("t_consultation_bookings")
+                ->whereIn("Booking_ID", array_values($firstIdByDate))
+                ->pluck("Mode", "Booking_ID")
+                ->toArray();
+        }
+        $modeLockByDate = [];
+        foreach ($firstIdByDate as $d => $id) {
+            if (isset($modesById[$id])) {
+                $modeLockByDate[$d] = $modesById[$id];
+            }
+        }
 
         $dates = [];
         foreach (CarbonPeriod::create($start, $end) as $day) {
-            $key = $day->format('D M d Y');
+            $key = $day->format("D M d Y");
             $booked = $rows[$key] ?? 0;
             $remaining = max($capacity - $booked, 0);
-            $dates[] = [ 'date'=>$key, 'booked'=>$booked, 'remaining'=>$remaining ];
+            $mode = $modeLockByDate[$key] ?? null; // 'online' | 'onsite' | null (unlocked)
+            $dates[] = [
+                "date" => $key,
+                "booked" => $booked,
+                "remaining" => $remaining,
+                "mode" => $mode,
+            ];
         }
 
         return response()->json([
-            'success'=>true,
-            'capacity'=>$capacity,
-            'dates'=>$dates,
+            "success" => true,
+            "capacity" => $capacity,
+            "dates" => $dates,
         ]);
-    } catch(\Exception $e){
-        return response()->json(['success'=>false,'message'=>'Server error','error'=>$e->getMessage()],500);
+    } catch (\Exception $e) {
+        return response()->json(
+            ["success" => false, "message" => "Server error", "error" => $e->getMessage()],
+            500,
+        );
     }
 });
 
 // Signed email action routes (professor can act directly from email)
-Route::get('/email-action/consultations/{bookingId}/{profId}/accept', [\App\Http\Controllers\ConsultationEmailActionController::class,'accept'])
-    ->name('consultation.email.accept')
-    ->middleware('signed');
-Route::get('/email-action/consultations/{bookingId}/{profId}/reschedule', [\App\Http\Controllers\ConsultationEmailActionController::class,'rescheduleForm'])
-    ->name('consultation.email.reschedule.form')
-    ->middleware('signed');
-Route::post('/email-action/consultations/{bookingId}/{profId}/reschedule', [\App\Http\Controllers\ConsultationEmailActionController::class,'rescheduleSubmit'])
-    ->name('consultation.email.reschedule.submit')
-    ->middleware('signed');
+Route::get("/email-action/consultations/{bookingId}/{profId}/accept", [
+    \App\Http\Controllers\ConsultationEmailActionController::class,
+    "accept",
+])
+    ->name("consultation.email.accept")
+    ->middleware("signed");
+Route::get("/email-action/consultations/{bookingId}/{profId}/reschedule", [
+    \App\Http\Controllers\ConsultationEmailActionController::class,
+    "rescheduleForm",
+])
+    ->name("consultation.email.reschedule.form")
+    ->middleware("signed");
+Route::post("/email-action/consultations/{bookingId}/{profId}/reschedule", [
+    \App\Http\Controllers\ConsultationEmailActionController::class,
+    "rescheduleSubmit",
+])
+    ->name("consultation.email.reschedule.submit")
+    ->middleware("signed");
 
 Route::post("/api/consultations/update-status", function (Request $request) {
     try {
         $id = $request->input("id");
         $status = $request->input("status");
+        $newMode = $request->input("mode"); // optional; current or target mode (if UI sends it)
         $newDate = $request->input("new_date"); // For rescheduling
         $rescheduleReason = $request->input("reschedule_reason"); // For reschedule reason
 
@@ -314,38 +403,71 @@ Route::post("/api/consultations/update-status", function (Request $request) {
             ]);
         }
 
-    // Update the status (with max 5 per day constraint for approve/reschedule).
-    // Capacity counts only bookings already approved or rescheduled (pending does not consume a slot until approved/rescheduled).
-    $capacityStatuses = ['approved','rescheduled'];
-    $updateData = ["Status" => $status];
-    if ($status === "rescheduled" && $newDate) {
+        // Update the status (with max 5 per day constraint for approve/reschedule).
+        // Capacity counts only bookings already approved or rescheduled (pending does not consume a slot until approved/rescheduled).
+        $capacityStatuses = ["approved", "rescheduled"];
+        $updateData = ["Status" => $status];
+        if ($status === "rescheduled" && $newDate) {
             // Normalize new date (accept with or without commas, several formats)
             $rawInput = trim($newDate);
-            $clean = str_replace(',', '', $rawInput);
-            $carbon = null; $formats = ['D M d Y','D M d Y H:i','Y-m-d'];
-            foreach ($formats as $fmt) { try { $carbon = \Carbon\Carbon::createFromFormat($fmt, $clean, 'Asia/Manila'); break; } catch (\Exception $e) {} }
-            if (!$carbon) { try { $carbon = \Carbon\Carbon::parse($clean, 'Asia/Manila'); } catch (\Exception $e) { $carbon = null; } }
-            if (!$carbon) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid date format for reschedule.'
-                ], 422);
+            $clean = str_replace(",", "", $rawInput);
+            $carbon = null;
+            $formats = ["D M d Y", "D M d Y H:i", "Y-m-d"];
+            foreach ($formats as $fmt) {
+                try {
+                    $carbon = \Carbon\Carbon::createFromFormat($fmt, $clean, "Asia/Manila");
+                    break;
+                } catch (\Exception $e) {
+                }
             }
-            $normalizedDate = $carbon->setTimezone('Asia/Manila')->startOfDay()->format('D M d Y');
+            if (!$carbon) {
+                try {
+                    $carbon = \Carbon\Carbon::parse($clean, "Asia/Manila");
+                } catch (\Exception $e) {
+                    $carbon = null;
+                }
+            }
+            if (!$carbon) {
+                return response()->json(
+                    [
+                        "success" => false,
+                        "message" => "Invalid date format for reschedule.",
+                    ],
+                    422,
+                );
+            }
+            $normalizedDate = $carbon->setTimezone("Asia/Manila")->startOfDay()->format("D M d Y");
 
             // Enforce capacity: at most 5 active bookings (pending/approved/rescheduled) per professor per date
             $activeStatuses = $capacityStatuses; // only approved/rescheduled block capacity
-            $existingCount = DB::table('t_consultation_bookings')
-                ->where('Prof_ID', $booking->Prof_ID)
-                ->where('Booking_Date', $normalizedDate)
-                ->whereIn('Status', $activeStatuses)
-                ->where('Booking_ID','!=',$booking->Booking_ID)
+            $existingCount = DB::table("t_consultation_bookings")
+                ->where("Prof_ID", $booking->Prof_ID)
+                ->where("Booking_Date", $normalizedDate)
+                ->whereIn("Status", $activeStatuses)
+                ->where("Booking_ID", "!=", $booking->Booking_ID)
                 ->count();
             if ($existingCount >= 5) {
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot reschedule: selected date already has 5 approved/rescheduled bookings for this professor.'
+                    "success" => false,
+                    "message" =>
+                        "Cannot reschedule: selected date already has 5 approved/rescheduled bookings for this professor.",
                 ]); // 200 with success false so frontend does not show generic network error
+            }
+            // Enforce mode lock on reschedule: if the target date is already locked, it must match the booking's original mode
+            $firstExisting = DB::table("t_consultation_bookings")
+                ->where("Prof_ID", $booking->Prof_ID)
+                ->where("Booking_Date", $normalizedDate)
+                ->whereIn("Status", $capacityStatuses)
+                ->orderBy("Booking_ID", "asc")
+                ->first();
+            if ($firstExisting && $firstExisting->Mode && $booking->Mode !== $firstExisting->Mode) {
+                return response()->json([
+                    "success" => false,
+                    "message" =>
+                        "Cannot reschedule: the date is locked to " .
+                        ucfirst($firstExisting->Mode) .
+                        " mode.",
+                ]);
             }
             $updateData["Booking_Date"] = $normalizedDate;
         }
@@ -354,19 +476,36 @@ Route::post("/api/consultations/update-status", function (Request $request) {
         }
 
         // Enforce capacity when approving a pending booking (if switching to approved)
-        if ($status === 'approved') {
+        if ($status === "approved") {
             $currentDate = $booking->Booking_Date; // existing date retained
-            $existingApproved = DB::table('t_consultation_bookings')
-                ->where('Prof_ID',$booking->Prof_ID)
-                ->where('Booking_Date',$currentDate)
-                ->whereIn('Status',$capacityStatuses)
-                ->where('Booking_ID','!=',$booking->Booking_ID)
+            $existingApproved = DB::table("t_consultation_bookings")
+                ->where("Prof_ID", $booking->Prof_ID)
+                ->where("Booking_Date", $currentDate)
+                ->whereIn("Status", $capacityStatuses)
+                ->where("Booking_ID", "!=", $booking->Booking_ID)
                 ->count();
             if ($existingApproved >= 5) {
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot approve: that date already has 5 approved/rescheduled bookings.'
+                    "success" => false,
+                    "message" =>
+                        "Cannot approve: that date already has 5 approved/rescheduled bookings.",
                 ]); // 200 JSON business rule violation
+            }
+            // Mode-lock: if first approved/rescheduled exists, booking mode must match it
+            $firstExisting = DB::table("t_consultation_bookings")
+                ->where("Prof_ID", $booking->Prof_ID)
+                ->where("Booking_Date", $currentDate)
+                ->whereIn("Status", $capacityStatuses)
+                ->orderBy("Booking_ID", "asc")
+                ->first();
+            if ($firstExisting && $firstExisting->Mode && $booking->Mode !== $firstExisting->Mode) {
+                return response()->json([
+                    "success" => false,
+                    "message" =>
+                        "Cannot approve: the date is locked to " .
+                        ucfirst($firstExisting->Mode) .
+                        " mode.",
+                ]);
             }
         }
 
@@ -397,6 +536,37 @@ Route::post("/api/consultations/update-status", function (Request $request) {
             } catch (\Exception $e) {
                 // Don't fail the whole operation if notification fails
             }
+
+            // Broadcast to professor's booking channel for live update on conlog-professor
+            try {
+                $profId = (int) $booking->Prof_ID;
+                $payload = [
+                    "event" => "BookingUpdated",
+                    "Booking_ID" => (int) $booking->Booking_ID,
+                    "Status" => $status,
+                    "Booking_Date" => $updateData["Booking_Date"] ?? $booking->Booking_Date,
+                    "reschedule_reason" => $updateData["reschedule_reason"] ?? null,
+                ];
+                event(new \App\Events\BookingUpdated($profId, $payload));
+            } catch (\Throwable $e) {
+                // swallow broadcast errors
+            }
+
+            // Broadcast to student's booking channel for live update on student conlog
+            try {
+                $studId = (int) ($booking->Stud_ID ?? 0);
+                if ($studId > 0) {
+                    $studPayload = [
+                        "event" => "BookingUpdated",
+                        "Booking_ID" => (int) $booking->Booking_ID,
+                        "Status" => $status,
+                        "Booking_Date" => $updateData["Booking_Date"] ?? $booking->Booking_Date,
+                    ];
+                    event(new \App\Events\BookingUpdatedStudent($studId, $studPayload));
+                }
+            } catch (\Throwable $e) {
+                // swallow broadcast errors
+            }
         }
 
         return response()->json([
@@ -412,36 +582,51 @@ Route::post("/api/consultations/update-status", function (Request $request) {
 });
 
 // Professor notifications (existing student routes above) - ensure professor guard usage
-Route::get('/api/professor/notifications', [NotificationController::class,'getProfessorNotifications']);
-Route::post('/api/professor/notifications/mark-read', [NotificationController::class,'markProfessorAsRead']);
-Route::post('/api/professor/notifications/mark-all-read', [NotificationController::class,'markAllProfessorAsRead']);
-Route::get('/api/professor/notifications/unread-count', [NotificationController::class,'getProfessorUnreadCount']);
-
+Route::get("/api/professor/notifications", [
+    NotificationController::class,
+    "getProfessorNotifications",
+]);
+Route::post("/api/professor/notifications/mark-read", [
+    NotificationController::class,
+    "markProfessorAsRead",
+]);
+Route::post("/api/professor/notifications/mark-all-read", [
+    NotificationController::class,
+    "markAllProfessorAsRead",
+]);
+Route::get("/api/professor/notifications/unread-count", [
+    NotificationController::class,
+    "getProfessorUnreadCount",
+]);
 
 Route::post("/professor/login-professor", [AuthControllerProfessor::class, "apiLogin"]);
 
 // Unified messaging API routes secured for either authenticated student or professor
-Route::middleware('auth:web,professor')->group(function() {
-    Route::post('/send-message', [MessageController::class,'sendMessage']);
-    Route::post('/send-messageprof', [MessageController::class,'sendMessageprof']);
-    Route::get('/load-messages/{bookingId}', [MessageController::class,'loadMessages']);
+Route::middleware("auth:web,professor")->group(function () {
+    Route::post("/send-message", [MessageController::class, "sendMessage"]);
+    Route::post("/send-messageprof", [MessageController::class, "sendMessageprof"]);
+    Route::get("/load-messages/{bookingId}", [MessageController::class, "loadMessages"]);
     // Direct messaging (booking independent)
-    Route::get('/load-direct-messages/{studId}/{profId}', [MessageController::class,'loadDirectMessages'])
-        ->name('messages.direct.load');
+    Route::get("/load-direct-messages/{studId}/{profId}", [
+        MessageController::class,
+        "loadDirectMessages",
+    ])->name("messages.direct.load");
     // Chat utility endpoints
-    Route::get('/chat/unread/student', [MessageController::class,'unreadCountsStudent']);
-    Route::get('/chat/unread/professor', [MessageController::class,'unreadCountsProfessor']);
-    Route::post('/chat/presence/ping', [MessageController::class,'presencePing']);
-    Route::get('/chat/presence/online', [MessageController::class,'onlineLists']);
-    Route::post('/chat/typing', [MessageController::class,'typing']);
-    Route::post('/chat/read-pair', [MessageController::class,'markPairRead']);
+    Route::get("/chat/unread/student", [MessageController::class, "unreadCountsStudent"]);
+    Route::get("/chat/unread/professor", [MessageController::class, "unreadCountsProfessor"]);
+    Route::post("/chat/presence/ping", [MessageController::class, "presencePing"]);
+    Route::get("/chat/presence/online", [MessageController::class, "onlineLists"]);
+    Route::post("/chat/typing", [MessageController::class, "typing"]);
+    // Minimal student summary for professor inbox realtime insert
+    Route::get("/chat/student-summary/{studId}", [MessageController::class, "studentSummary"]);
+    Route::post("/chat/read-pair", [MessageController::class, "markPairRead"]);
 });
 
 // Final student course list routes (protected)
-Route::get("/itis", [CardItis::class, "showItis"])->middleware('auth');
-Route::get("/comsci", [CardComsci::class, "showComsci"])->middleware('auth');
+Route::get("/itis", [CardItis::class, "showItis"])->middleware("auth");
+Route::get("/comsci", [CardComsci::class, "showComsci"])->middleware("auth");
 
-Route::post('/send-file', [MessageController::class,'sendFile'])->middleware('auth:web,professor');
+Route::post("/send-file", [MessageController::class, "sendFile"])->middleware("auth:web,professor");
 
 Route::post("/profile/upload-picture", [ProfileController::class, "uploadPicture"])->name(
     "profile.uploadPicture",
@@ -469,17 +654,16 @@ Route::delete("/admin-itis/delete-professor/{prof}", [
 // Admin login routes
 Route::get("/login/admin", [AdminAuthController::class, "showLoginForm"])->name("login.admin");
 Route::post("/login/admin", [AdminAuthController::class, "login"])->name("login.admin.submit");
-Route::post("/admin/logout", [AdminAuthController::class, "logout"]) 
-    ->name("logout.admin");
+Route::post("/admin/logout", [AdminAuthController::class, "logout"])->name("logout.admin");
 
 // Example admin dashboard route (create this view/controller as needed)
 
 // Admin analytics page & data
-Route::get('/admin-analytics', [AdminAnalyticsController::class,'index'])
-    ->name('admin.analytics')
+Route::get("/admin-analytics", [AdminAnalyticsController::class, "index"])
+    ->name("admin.analytics")
     ->middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class]);
-Route::get('/api/admin/analytics', [AdminAnalyticsController::class,'data'])
-    ->name('admin.analytics.data')
+Route::get("/api/admin/analytics", [AdminAnalyticsController::class, "data"])
+    ->name("admin.analytics.data")
     ->middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class]);
 
 Route::get("/admin-comsci", [ConsultationBookingController::class, "showFormAdmin"])
@@ -651,4 +835,7 @@ Route::get("/admin/dashboard", function () {
     return view("admin-dashboard");
 })
     ->name("admin.dashboard")
-    ->middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class, \App\Http\Middleware\PreventBackHistory::class]);
+    ->middleware([
+        \App\Http\Middleware\EnsureAdminAuthenticated::class,
+        \App\Http\Middleware\PreventBackHistory::class,
+    ]);

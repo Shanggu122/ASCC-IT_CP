@@ -91,7 +91,10 @@
     font-size: 2rem;
     color: #12372a;
     cursor: pointer;
-    transition: left 0.3s, background 0.3s, color 0.3s;
+    transition:
+        left 0.3s,
+        background 0.3s,
+        color 0.3s;
 }
 
 /* Mobile header container */
@@ -385,20 +388,51 @@ div.mobile-header button#mobileNotificationBell.mobile-notification-bell {
 /* Tablet range for messages page only: hide sidebar to give chat more room */
 /* Tablet override for messages page WAS up to 1100px; now cap at 950px so desktop (>=951) shows normal sidebar without hamburger */
 @media (min-width: 701px) and (max-width: 950px) {
-    body.messages-page .sidebar { left:-240px !important; }
+    body.messages-page .sidebar {
+        left: -240px !important;
+    }
     /* Hamburger without white circular background */
-    body.messages-page .hamburger { display:block !important; position:fixed; top:16px; left:18px; z-index:5001; color:#12372a; background:none; border:none; width:auto; height:auto; line-height:normal; padding:0; }
-    body.messages-page { padding-left:0 !important; }
-    body.messages-page .sidebar.active { left:0 !important; }
+    body.messages-page .hamburger {
+        display: block !important;
+        position: fixed;
+        top: 16px;
+        left: 18px;
+        z-index: 5001;
+        color: #12372a;
+        background: none;
+        border: none;
+        width: auto;
+        height: auto;
+        line-height: normal;
+        padding: 0;
+    }
+    body.messages-page {
+        padding-left: 0 !important;
+    }
+    body.messages-page .sidebar.active {
+        left: 0 !important;
+    }
     /* Remove desktop width shrink so chat can extend fully */
-    body.messages-page .main-content { margin-left:0 !important; width:100% !important; }
+    body.messages-page .main-content {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
 }
 
-/* Mid-width dashboard: keep bell visible (no hamburger) */
-@media (max-width: 1450px) and (min-width: 769px) {
-    .mobile-header { display: block; pointer-events: none; }
-    .mobile-header .hamburger { display: none !important; }
-    .mobile-notification-bell { display: block !important; pointer-events: all; }
+/* Mid-width dashboard: keep bell visible (hide hamburger only above 950px)
+   Note: At <= 950px we want the mobile hamburger visible. */
+@media (max-width: 1450px) and (min-width: 951px) {
+    .mobile-header {
+        display: block;
+        pointer-events: none;
+    }
+    .mobile-header .hamburger {
+        display: none !important;
+    }
+    .mobile-notification-bell {
+        display: block !important;
+        pointer-events: all;
+    }
 }
 
 /* On desktop, if you have a wrapper for your main content, make sure it has: */
@@ -415,7 +449,9 @@ div.mobile-header button#mobileNotificationBell.mobile-notification-bell {
 }
 
 @media (min-width: 1451px) {
-    #mobileNotificationBell.mobile-notification-bell { display: none !important; }
+    #mobileNotificationBell.mobile-notification-bell {
+        display: none !important;
+    }
 }
 
 /* FINAL OVERRIDE - FORCE NOTIFICATION BELL BEHIND CHATBOT */
@@ -444,13 +480,19 @@ button#mobileNotificationBell,
     .sidebar-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,0.45); /* grey/black semi-transparent */
+        background: rgba(0, 0, 0, 0.45); /* grey/black semi-transparent */
         backdrop-filter: blur(2px);
-    z-index: 900; /* below sidebar (1000) and hamburger (5000) */
+        z-index: 900; /* below sidebar (1000) and hamburger (5000) */
         opacity: 0;
         pointer-events: none;
         transition: opacity 0.25s ease;
     }
-    .sidebar-overlay.active { opacity: 1; pointer-events: auto; }
-    body.no-scroll { overflow: hidden; touch-action: none; }
+    .sidebar-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+    body.no-scroll {
+        overflow: hidden;
+        touch-action: none;
+    }
 }

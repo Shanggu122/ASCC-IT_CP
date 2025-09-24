@@ -230,7 +230,7 @@
         <!-- Dynamic Data Rows -->
   @forelse($bookings as $b)
   <div class="table-row">
-          <div class="table-cell" data-label="No.">{{ $loop->iteration }}</div>
+    <div class="table-cell" data-label="No." data-booking-id="{{ $b->Booking_ID }}">{{ $loop->iteration }}</div>
           <div class="table-cell" data-label="Student">{{ $b->student }}</div> <!-- Student name -->
           <div class="table-cell" data-label="Subject">{{ $b->subject }}</div>
           <div class="table-cell" data-label="Date">{{ \Carbon\Carbon::parse($b->Booking_Date)->format('D, M d Y') }}</div>
@@ -240,8 +240,8 @@
           <div class="table-cell" data-label="Action" style="width: 180px;">
             <div class="action-btn-group" style="display: flex; gap: 8px;">
               @if($b->Status !== 'rescheduled')
-              <button 
-                  onclick="showRescheduleModal({{ $b->Booking_ID }}, '{{ $b->Booking_Date }}')" 
+        <button 
+          onclick="showRescheduleModal({{ $b->Booking_ID }}, '{{ $b->Booking_Date }}', '{{ $b->Mode }}')" 
                   class="action-btn btn-reschedule"
                   title="Reschedule"
               >
@@ -389,7 +389,7 @@
     let currentBookingId = null;
     let currentRescheduleButton = null;
 
-    function showRescheduleModal(bookingId, currentDate) {
+    function showRescheduleModal(bookingId, currentDate, bookingMode) {
       currentBookingId = bookingId;
       currentRescheduleButton = event.target.closest('button');
       
@@ -398,44 +398,82 @@
       
       // Set minimum date to today
       const today = new Date().toISOString().split('T')[0];
-      document.getElementById('newDate').setAttribute('min', today);
-      document.getElementById('newDate').value = '';
-      
-      // Fetch fully booked dates to disable before showing modal
-      fetch('/api/professor/fully-booked-dates')
-        .then(r=>r.json())
-        .then(payload => {
-          const input = document.getElementById('newDate');
-          input.removeAttribute('data-full');
-          // Store list for custom validation
-          if (payload.success) {
-            input.setAttribute('data-full', JSON.stringify(payload.dates));
-            // If browser supports setCustomValidity hooks
-            input.addEventListener('input', function() {
-              try {
-                const full = JSON.parse(this.getAttribute('data-full')||'[]');
-                // Convert picked value (YYYY-MM-DD) to format used in DB (D M d Y)
-                if (this.value) {
-                  const d = new Date(this.value);
-                  const map = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-                  const mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                  const fmt = `${map[d.getUTCDay()]} ${mons[d.getUTCMonth()]} ${('0'+d.getUTCDate()).slice(-2)} ${d.getUTCFullYear()}`;
-                  if (full.includes(fmt)) {
-                    this.setCustomValidity('This date is already fully booked (5 consultations). Choose another.');
-                  } else {
-                    this.setCustomValidity('');
-                  }
-                } else {
-                  this.setCustomValidity('');
-                }
-              } catch(e) {}
-            }, { once: true });
-          }
-          document.getElementById('rescheduleOverlay').style.display = 'flex';
-        })
-        .catch(()=>{
-          document.getElementById('rescheduleOverlay').style.display = 'flex';
-        });
+      const dateInput = document.getElementById('newDate');
+      dateInput.setAttribute('min', today);
+      dateInput.value = '';
+
+      // Detect original mode from parameter or table cell fallback
+      let originalMode = (bookingMode||'').toLowerCase();
+      if(!originalMode){
+        // Find closest row and read Mode column text
+        const btn = currentRescheduleButton;
+        const row = btn ? btn.closest('.table-row') : null;
+        const modeCell = row ? row.querySelector('.table-cell[data-label="Mode"]') : null;
+        originalMode = (modeCell ? (modeCell.textContent||'').trim().toLowerCase() : '').replace(/[^a-z]/g,'');
+      }
+
+      // Fetch fully booked dates and availability (with per-day mode) to enforce client-side rule
+      Promise.all([
+        fetch('/api/professor/fully-booked-dates').then(r=>r.json()).catch(()=>null),
+        (function(){
+          // Build a short range availability request for next 60 days
+          try{
+            const profIdEl = document.getElementById('printLogsContainer')?.querySelector('#printProfessor');
+            const profId = profIdEl ? profIdEl.getAttribute('data-prof-id') : null;
+            if(!profId) return Promise.resolve(null);
+            const now = new Date();
+            const start = now.toISOString().slice(0,10);
+            const endDate = new Date(now.getFullYear(), now.getMonth()+2, 0);
+            const end = endDate.toISOString().slice(0,10);
+            return fetch(`/api/professor/availability?prof_id=${profId}&start=${start}&end=${end}`).then(r=>r.json()).catch(()=>null);
+          }catch(e){ return Promise.resolve(null); }
+        })()
+      ]).then(([fullResp, availResp])=>{
+        // Store fully-booked list for capacity validation
+        dateInput.removeAttribute('data-full');
+        if(fullResp && fullResp.success){ dateInput.setAttribute('data-full', JSON.stringify(fullResp.dates)); }
+
+        // Store availability map to check per-day mode lock
+        if(availResp && availResp.success){
+          const map = {};
+          (availResp.dates||[]).forEach(rec=>{ map[rec.date]=rec; });
+          dateInput.setAttribute('data-avail', JSON.stringify(map));
+        } else { dateInput.removeAttribute('data-avail'); }
+
+        // Attach one-time input validator combining capacity + mode rule
+        dateInput.addEventListener('input', function(){
+          try{
+            if(!this.value){ this.setCustomValidity(''); return; }
+            const d = new Date(this.value);
+            const mapDays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            const mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const fmt = `${mapDays[d.getUTCDay()]} ${mons[d.getUTCMonth()]} ${('0'+d.getUTCDate()).slice(-2)} ${d.getUTCFullYear()}`;
+
+            // Capacity check
+            const full = JSON.parse(this.getAttribute('data-full')||'[]');
+            if(full.includes(fmt)){
+              this.setCustomValidity('This date is already fully booked (5 consultations). Choose another.');
+              return;
+            }
+
+            // Mode rule: if the target date already has a lock, it must match original booking mode
+            const avail = JSON.parse(this.getAttribute('data-avail')||'{}');
+            const rec = avail[fmt];
+            if(rec && rec.mode){
+              if(originalMode && rec.mode !== originalMode){
+                this.setCustomValidity(`This date is locked to ${rec.mode}. You can only reschedule this ${originalMode} booking to a ${originalMode} date.`);
+                return;
+              }
+            }
+            // If no lock on that day: allowed client-side; backend will enforce final rule
+            this.setCustomValidity('');
+          }catch(e){ this.setCustomValidity(''); }
+        }, { once: true });
+
+        document.getElementById('rescheduleOverlay').style.display = 'flex';
+      }).catch(()=>{
+        document.getElementById('rescheduleOverlay').style.display = 'flex';
+      });
     }
 
     function closeRescheduleModal() {
@@ -1015,6 +1053,85 @@ function closeProfessorModal() {
   const printBtn = document.getElementById('print-logs-btn');
    if (printBtn) printBtn.addEventListener('click', generateAndDownloadPdf);
     });
+  </script>
+  <script src="https://js.pusher.com/7.0/pusher.min.js"></script>
+  <script>
+    // Live updates: subscribe to the professor's booking channel and patch rows in-place
+    (function(){
+      try {
+        const profEl = document.getElementById('printProfessor');
+        const profId = profEl ? profEl.getAttribute('data-prof-id') : null;
+        if(!profId) return;
+        const pusher = new Pusher('{{ config('broadcasting.connections.pusher.key') }}', {cluster: '{{ config('broadcasting.connections.pusher.options.cluster') }}'});
+  const channel = pusher.subscribe('bookings.prof.'+profId);
+
+        function normalizeDate(str){ try{ return new Date(str).toLocaleDateString('en-US',{weekday:'short', month:'short', day:'numeric', year:'numeric'}); }catch(e){ return str; } }
+        function titleCase(s){ return (s||'').toLowerCase().replace(/^.|\s. /g, c => c.toUpperCase()); }
+        function renderRow(data){
+          const table = document.querySelector('.table');
+          if(!table) return;
+          // find existing row by Booking_ID
+          const rows = Array.from(table.querySelectorAll('.table-row')).filter(r=>!r.classList.contains('table-header'));
+          let existing = null; let index = 0;
+          rows.forEach((r,i)=>{ const idCell = r.querySelector('[data-booking-id]'); if(idCell && parseInt(idCell.getAttribute('data-booking-id'))===parseInt(data.Booking_ID)){ existing = r; index=i; } });
+
+          // If updating and some fields are missing, read them from the existing row
+          if(existing){
+            const cells = existing.querySelectorAll('.table-cell');
+            data.student = data.student ?? (cells[1]?.textContent.trim()||'');
+            data.subject = data.subject ?? (cells[2]?.textContent.trim()||'');
+            data.Booking_Date = data.Booking_Date ?? (cells[3]?.textContent.trim()||'');
+            data.type = data.type ?? (cells[4]?.textContent.trim()||'');
+            data.Mode = data.Mode ?? (cells[5]?.textContent.trim().toLowerCase()||'');
+            data.Status = data.Status ?? (cells[6]?.textContent.trim().toLowerCase()||'');
+          }
+
+          const mode = (data.Mode||'').charAt(0).toUpperCase() + (data.Mode||'').slice(1);
+          const status = (data.Status||'').charAt(0).toUpperCase() + (data.Status||'').slice(1);
+          const date = normalizeDate(data.Booking_Date||'');
+          const iter = existing ? (existing.querySelector('.table-cell')?.textContent||'') : (rows.length+1);
+
+          const actionsHtml = `
+            <div class="action-btn-group" style="display:flex;gap:8px;">
+              ${data.Status?.toLowerCase()!=='rescheduled' ? `<button onclick="showRescheduleModal(${data.Booking_ID}, '${data.Booking_Date}', '${data.Mode||''}')" class="action-btn btn-reschedule" title="Reschedule"><i class='bx bx-calendar-x'></i></button>`:''}
+              ${data.Status?.toLowerCase()!=='approved' ? `<button onclick="approveWithWarning(this, ${data.Booking_ID}, '${data.Booking_Date}')" class="action-btn btn-approve" title="Approve"><i class='bx bx-check-circle'></i></button>`:''}
+              ${data.Status?.toLowerCase()!=='completed' ? `<button onclick="removeThisButton(this, ${data.Booking_ID}, 'Completed')" class="action-btn btn-completed" title="Completed"><i class='bx bx-task'></i></button>`:''}
+            </div>`;
+
+          const html = `
+            <div class="table-cell" data-label="No.">${iter}</div>
+            <div class="table-cell" data-label="Student">${data.student||'N/A'}</div>
+            <div class="table-cell" data-label="Subject">${data.subject||''}</div>
+            <div class="table-cell" data-label="Date">${date}</div>
+            <div class="table-cell" data-label="Type">${data.type||''}</div>
+            <div class="table-cell" data-label="Mode">${mode}</div>
+            <div class="table-cell" data-label="Status">${status}</div>
+            <div class="table-cell" data-label="Action" style="width:180px;">${actionsHtml}</div>`;
+
+          if(existing){ existing.innerHTML = html; existing.querySelector('.table-cell').setAttribute('data-booking-id', data.Booking_ID); }
+          else {
+            const row = document.createElement('div');
+            row.className = 'table-row';
+            row.innerHTML = html;
+            // attach booking id to first cell for lookup next time
+            const first = row.querySelector('.table-cell'); if(first){ first.setAttribute('data-booking-id', data.Booking_ID); }
+            table.appendChild(row);
+          }
+
+          // Re-apply filters to respect current UI state
+          if(typeof filterRows==='function') filterRows();
+        }
+
+        channel.bind('BookingUpdated', function(data){
+          // data.event may be 'BookingCreated' or 'BookingUpdated'
+          renderRow(data);
+        });
+        // Fallback for environments where event name is the FQCN
+        channel.bind('App\\Events\\BookingUpdated', function(data){
+          renderRow(data);
+        });
+      } catch(e) { console.warn('Realtime init failed', e); }
+    })();
   </script>
   <script src="{{ asset('js/ccit.js') }}"></script>
   <script>
