@@ -14,17 +14,10 @@ use App\Events\PresencePing;
 
 class MessageController extends Controller
 {
+    // Send message (used by both student and professor routes)
     public function sendMessage(Request $request)
     {
         try {
-            $validated = $request->validate([
-                "sender" => "required|in:student,professor",
-                "stud_id" => "nullable|numeric",
-                "prof_id" => "nullable|numeric",
-                "message" => "nullable|string|max:2000",
-                "files.*" => "nullable|file|max:5120", // 5MB per file
-            ]);
-            // New flexible direct messaging: bookingId optional
             $bookingId = $request->input("bookingId");
             $sender = $request->input("sender");
             $recipient = $request->input("recipient"); // may be null for public/system later
@@ -180,6 +173,17 @@ class MessageController extends Controller
         }
     }
 
+    // Professor entry points delegate to the same logic
+    public function sendMessageprof(Request $request)
+    {
+        return $this->sendMessage($request);
+    }
+
+    public function sendFile(Request $request)
+    {
+        return $this->sendMessage($request);
+    }
+
     public function showMessages()
     {
         $user = Auth::user();
@@ -202,6 +206,7 @@ class MessageController extends Controller
                     'SUBSTRING_INDEX(GROUP_CONCAT(m.Sender ORDER BY m.Created_At DESC), ",", 1) as last_sender',
                 ),
             ])
+
             ->groupBy("m.Prof_ID");
 
         $professors = DB::table("professors as prof")
@@ -403,15 +408,16 @@ class MessageController extends Controller
                     ->max("Created_At");
             }
             try {
+                $lastCreatedAtIso = $lastCreatedAt
+                    ? \Carbon\Carbon::parse($lastCreatedAt, "Asia/Manila")->toIso8601String()
+                    : null;
                 event(
                     new \App\Events\PairRead(
                         $studId,
                         $profId,
                         $viewerRole,
                         $lastReadId,
-                        $lastCreatedAt
-                            ? new \Carbon\Carbon($lastCreatedAt, "Asia/Manila")->toIso8601String()
-                            : null,
+                        $lastCreatedAtIso,
                     ),
                 );
             } catch (\Throwable $e) {
