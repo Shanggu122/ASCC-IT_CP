@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Events\ProfessorAdded;
 use App\Events\ProfessorDeleted;
 use App\Events\ProfessorUpdated;
+use App\Services\CalendarOverrideService;
 
 class ConsultationBookingController extends Controller
 {
@@ -107,6 +108,30 @@ class ConsultationBookingController extends Controller
                     ->withInput();
             }
             $customType = $data["other_type_text"];
+        }
+
+        // Override checks first: block/forced_mode
+        $override = app(CalendarOverrideService::class)->evaluate((int) $data["prof_id"], $date);
+        if ($override["blocked"] ?? false) {
+            $msg = "Selected date is not available for consultations.";
+            return $request->wantsJson()
+                ? response()->json(["success" => false, "message" => $msg], 422)
+                : redirect()
+                    ->back()
+                    ->withErrors(["booking_date" => $msg])
+                    ->withInput();
+        }
+        if (!empty($override["forced_mode"]) && $override["forced_mode"] !== $data["mode"]) {
+            $msg =
+                "This date is restricted to " .
+                ucfirst($override["forced_mode"]) .
+                " consultations.";
+            return $request->wantsJson()
+                ? response()->json(["success" => false, "message" => $msg], 422)
+                : redirect()
+                    ->back()
+                    ->withErrors(["mode" => $msg])
+                    ->withInput();
         }
 
         // Capacity check: limit 5 already approved/rescheduled bookings per professor per date.
