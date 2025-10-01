@@ -6,6 +6,8 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>Consultation Activity</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <link rel="stylesheet" href="{{ asset('css/legend.css') }}">
   <link rel="stylesheet" href="{{ asset('css/dashboard-professor.css') }}">
   <link rel="stylesheet" href="{{ asset('css/notifications.css') }}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
@@ -13,6 +15,34 @@
      #calendar {
       visibility: hidden;
     }
+    /* Override badges (holiday/suspended/force) */
+    .ov-badge {
+      /* match admin placement: bottom-left inside cell */
+      position: absolute;
+      left: 6px;
+      bottom: 6px;
+      font-size: 10px;
+      line-height: 1;
+      padding: 3px 6px;
+      border-radius: 8px;
+      color: #ffffff;
+      pointer-events: none;
+      white-space: nowrap;
+      max-width: calc(100% - 12px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      z-index: 2;
+    }
+  /* Override badges (palette aligned with admin) */
+  .ov-holiday { background-color: #9B59B6; }   /* Holiday → Violet */
+  .ov-blocked { background-color: #374151; }   /* Suspended → Dark Gray */
+  .ov-force { background-color: #2563eb; }     /* Forced Online → Blue */
+  .ov-online { background-color: #FF69B4; }    /* Online Day → Pink */
+    /* Whole-cell background for overrides */
+  .day-holiday { background: rgba(155, 89, 182, 0.55) !important; } /* Violet */
+    .day-blocked { background: rgba(55, 65, 81, 0.75) !important; }   /* Suspended */
+    .day-force   { background: rgba(37, 99, 235, 0.6) !important; }   /* Forced Online */
+    .day-online  { background: rgba(255, 105, 180, 0.45) !important; }/* Online Day */
     /* Unified arrow styling */
     .pika-prev, .pika-next {
       background-color: #0d2b20; /* dark fill */
@@ -242,6 +272,8 @@
       color: #999;
       font-style: italic;
     }
+
+    /* Legend styles are centralized in public/css/legend.css */
   </style>
 </head>
 <body>
@@ -257,12 +289,41 @@
         <div class="calendar-wrapper-container">
           <input id="calendar" type="text" placeholder="Select Date" name="booking_date" required>
         </div>
-        <div class="legend">
-          <div><span class="legend-box pending"></span> Pending</div>
-          <div><span class="legend-box approved"></span> Approved</div>
-          <div><span class="legend-box completed"></span> Completed</div>
-          <div><span class="legend-box rescheduled"></span> Rescheduled</div>
-          <div><span class="legend-box multiple-bookings"></span> Multiple Bookings</div>
+        <!-- Collapsible legend (bottom-left FAB to avoid chatbot at bottom-right) -->
+        <button id="legendToggle" class="legend-toggle" aria-haspopup="dialog" aria-controls="legendBackdrop" aria-label="View Legend" title="View Legend">
+          <!-- white info icon (SVG) for consistent color control -->
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 4.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zM13 18h-2v-7h2v7z"/>
+          </svg>
+        </button>
+        <div id="legendBackdrop" class="legend-backdrop" aria-hidden="true">
+          <div class="legend-panel" role="dialog" aria-modal="true" aria-labelledby="legendTitle">
+            <div class="legend-header">
+              <h3 id="legendTitle">Legend</h3>
+              <button id="legendClose" class="legend-close" aria-label="Close">✖</button>
+            </div>
+            <div class="legend-content">
+              <div class="legend-section">
+                <div class="legend-section-title">Consultation Status</div>
+                <div class="legend-grid">
+                  <div class="legend-item"><span class="legend-swatch swatch-pending"></span>Pending <i class='bx bx-time legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-approved"></span>Approved <i class='bx bx-check-circle legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-completed"></span>Completed <i class='bx bx-badge-check legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-rescheduled"></span>Rescheduled <i class='bx bx-calendar-edit legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-suspended"></span>Suspended <i class='bx bx-block legend-icon' aria-hidden="true"></i></div>
+                </div>
+              </div>
+              <div class="legend-section">
+                <div class="legend-section-title">Day Types</div>
+                <div class="legend-grid">
+                  <div class="legend-item"><span class="legend-swatch swatch-online"></span>Online Day <i class='bx bx-video legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-forced"></span>Forced Online <i class='bx bx-switch legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-holiday"></span>Holiday <i class='bx bx-party legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-multiple"></span>Multiple Bookings <i class='bx bx-group legend-icon' aria-hidden="true"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="box">
@@ -536,6 +597,9 @@
           } catch(e) { /* silent */ }
           
           cells.forEach(cell => {
+          // clear any previous override visuals
+          const oldBadge = cell.querySelector('.ov-badge'); if (oldBadge) oldBadge.remove();
+          cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
           const day = cell.getAttribute('data-pika-day');
           const month = cell.getAttribute('data-pika-month');
           const year = cell.getAttribute('data-pika-year');
@@ -543,6 +607,44 @@
           if (day && month && year) {
             const cellDate = new Date(year, month, day);
             const key = cellDate.toDateString();
+            // Render overrides (if any)
+            if (window.profOverrides && window.profOverrides[key] && window.profOverrides[key].length > 0) {
+              const items = window.profOverrides[key];
+              let chosen = null;
+              for (const ov of items) { if (ov.effect === 'holiday') { chosen = ov; break; } }
+              if (!chosen) { for (const ov of items) { if (ov.effect === 'block_all') { chosen = ov; break; } } }
+              if (!chosen) { chosen = items[0]; }
+              const badge = document.createElement('span');
+              // Badge class: distinguish Online Day vs Forced Online
+              let chosenCls;
+              if (chosen.effect === 'holiday') {
+                chosenCls = 'ov-holiday';
+              } else if (chosen.effect === 'block_all') {
+                chosenCls = 'ov-blocked';
+              } else if (chosen.effect === 'force_mode') {
+                chosenCls = (chosen.reason_key === 'online_day') ? 'ov-online' : 'ov-force';
+              } else {
+                chosenCls = 'ov-force';
+              }
+              badge.className = 'ov-badge ' + chosenCls;
+              const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
+              badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
+              badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? 'Suspended' : forceLabel);
+              cell.style.position = 'relative';
+              cell.appendChild(badge);
+              // Cell background class, with Online Day distinct from Forced Online
+              let dayCls;
+              if (chosen.effect === 'holiday') {
+                dayCls = 'day-holiday';
+              } else if (chosen.effect === 'block_all') {
+                dayCls = 'day-blocked';
+              } else if (chosen.effect === 'force_mode') {
+                dayCls = (chosen.reason_key === 'online_day') ? 'day-online' : 'day-force';
+              } else {
+                dayCls = 'day-force';
+              }
+              cell.classList.add(dayCls);
+            }
             
             if (bookingMap.has(key)) {
               console.log('Found booking for date:', key, bookingMap.get(key));
@@ -613,11 +715,90 @@
       
       // Store picker globally for real-time updates
       window.professorPicker = picker;
+      // Immediately load overrides for the visible month after initial draw
+      try { if (typeof fetchProfessorOverridesForMonth === 'function' && typeof getVisibleMonthBaseDate === 'function') { fetchProfessorOverridesForMonth(getVisibleMonthBaseDate()); } } catch (_) {}
     })
     .catch(error => {
       console.error('Error fetching consultation data:', error);
       console.log('Calendar will still load without consultation data');
     });
+
+// ---- Overrides: fetch month data and react to month navigation ----
+function getVisibleMonthBaseDate() {
+  try {
+    const labelEl = document.querySelector('.pika-label');
+    if (labelEl) {
+      const text = (labelEl.textContent || '').trim();
+      const parts = text.split(/\s+/);
+      if (parts.length === 2) {
+        const monthMap = { January:0, February:1, March:2, April:3, May:4, June:5, July:6, August:7, September:8, October:9, November:10, December:11 };
+        const m = monthMap[parts[0]];
+        const y = parseInt(parts[1], 10);
+        if (!isNaN(m) && !isNaN(y)) {
+          const d = new Date(y, m, 1);
+          if (!isNaN(d.getTime())) return d;
+        }
+      }
+    }
+    const btn = document.querySelector('.pika-table .pika-button');
+    if (btn) {
+      const yAttr = btn.getAttribute('data-pika-year');
+      const mAttr = btn.getAttribute('data-pika-month');
+      const y = yAttr ? parseInt(yAttr, 10) : NaN;
+      const m = mAttr ? parseInt(mAttr, 10) : NaN;
+      if (!isNaN(y) && !isNaN(m)) {
+        const d = new Date(y, m, 1);
+        if (!isNaN(d.getTime())) return d;
+      }
+    }
+  } catch (_) {}
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth(), 1);
+}
+
+function fetchProfessorOverridesForMonth(dateObj) {
+  try {
+    if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) return;
+    if (window.__profOvLoading) return; // prevent overlapping requests
+    window.__profOvLoading = true;
+    const start = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
+    const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 0);
+    const toIso = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const startStr = toIso(start);
+    const endStr = toIso(end);
+    const bust = Date.now();
+    fetch(`/api/professor/calendar/overrides?start_date=${startStr}&end_date=${endStr}&_=${bust}`, { headers: { 'Accept':'application/json' }, credentials:'same-origin' })
+      .then(r=>r.json())
+      .then(data => {
+        if (data && data.success) {
+          const incoming = data.overrides || {};
+          const prev = window.profOverrides || {};
+          const changed = JSON.stringify(incoming) !== JSON.stringify(prev);
+          if (changed) {
+            window.profOverrides = incoming;
+            if (window.professorPicker) window.professorPicker.draw();
+          }
+        }
+      })
+      .catch(()=>{})
+      .finally(()=>{ window.__profOvLoading = false; });
+  } catch(_){}
+}
+
+(function observeMonthNavigation(){
+  const run = () => fetchProfessorOverridesForMonth(getVisibleMonthBaseDate());
+  setTimeout(run, 100);
+  document.addEventListener('click', (e)=>{
+    const t = e.target;
+    if (t.closest && (t.closest('.pika-prev') || t.closest('.pika-next'))) {
+      setTimeout(run, 150);
+    }
+  });
+  // Lightweight real-time: refresh overrides periodically and on focus
+  setInterval(run, 5000); // every 5s
+  window.addEventListener('focus', () => setTimeout(run, 200));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(run, 200); });
+})();
 function bookingModal(date, bookingId) {
   // Set the modal date
   document.getElementById('bookingModalDate').textContent = date.toDateString();
@@ -648,6 +829,20 @@ setInterval(loadProfessorNotifications, 3000);
 
 // Real-time refresh calendar data every 3 seconds (reduced for smoother updates)
 setInterval(loadProfessorCalendarData, 3000);
+
+// Legend panel interactions
+(function legendPanelInit(){
+  const btn = document.getElementById('legendToggle');
+  const backdrop = document.getElementById('legendBackdrop');
+  const closeBtn = document.getElementById('legendClose');
+  if(!btn || !backdrop) return;
+  const open = () => { backdrop.classList.add('open'); backdrop.setAttribute('aria-hidden','false'); };
+  const close = () => { backdrop.classList.remove('open'); backdrop.setAttribute('aria-hidden','true'); };
+  btn.addEventListener('click', open);
+  closeBtn && closeBtn.addEventListener('click', close);
+  backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) close(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') close(); });
+})();
 
 // GLOBAL EVENT DELEGATION FOR TOOLTIP HOVER (Pikaday-compatible)
 console.log('Setting up global hover event delegation...');

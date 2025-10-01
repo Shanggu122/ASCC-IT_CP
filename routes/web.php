@@ -320,16 +320,20 @@ Route::get("/api/professor/availability", function (\Illuminate\Http\Request $re
         }
 
         $dates = [];
+        $overrideSvc = app(\App\Services\CalendarOverrideService::class);
         foreach (CarbonPeriod::create($start, $end) as $day) {
             $key = $day->format("D M d Y");
             $booked = $rows[$key] ?? 0;
             $remaining = max($capacity - $booked, 0);
             $mode = $modeLockByDate[$key] ?? null; // 'online' | 'onsite' | null (unlocked)
+            $ov = $overrideSvc->evaluate((int) $profId, $key);
             $dates[] = [
                 "date" => $key,
                 "booked" => $booked,
                 "remaining" => $remaining,
                 "mode" => $mode,
+                "blocked" => $ov["blocked"] ?? false,
+                "forced_mode" => $ov["forced_mode"] ?? null,
             ];
         }
 
@@ -437,6 +441,30 @@ Route::post("/api/consultations/update-status", function (Request $request) {
                 );
             }
             $normalizedDate = $carbon->setTimezone("Asia/Manila")->startOfDay()->format("D M d Y");
+
+            // Enforce override constraints first
+            try {
+                $ov = app(\App\Services\CalendarOverrideService::class)->evaluate(
+                    (int) $booking->Prof_ID,
+                    $normalizedDate,
+                );
+                if ($ov["blocked"] ?? false) {
+                    return response()->json([
+                        "success" => false,
+                        "message" => "Cannot reschedule: date is blocked.",
+                    ]);
+                }
+                if (!empty($ov["forced_mode"]) && $ov["forced_mode"] !== $booking->Mode) {
+                    return response()->json([
+                        "success" => false,
+                        "message" =>
+                            "Cannot reschedule: the date is restricted to " .
+                            ucfirst($ov["forced_mode"]) .
+                            " mode.",
+                    ]);
+                }
+            } catch (\Throwable $e) {
+            }
 
             // Enforce capacity: at most 5 active bookings (pending/approved/rescheduled) per professor per date
             $activeStatuses = $capacityStatuses; // only approved/rescheduled block capacity
@@ -803,6 +831,40 @@ Route::get("/api/admin/notifications/unread-count", [
     NotificationController::class,
     "getAdminUnreadCount",
 ])->name("admin.notifications.unread-count");
+
+// Admin calendar override routes
+Route::middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class])->group(function () {
+    Route::post("/api/admin/calendar/overrides/preview", [
+        \App\Http\Controllers\AdminCalendarOverrideController::class,
+        "preview",
+    ]);
+    Route::post("/api/admin/calendar/overrides/apply", [
+        \App\Http\Controllers\AdminCalendarOverrideController::class,
+        "apply",
+    ]);
+    Route::get("/api/admin/calendar/overrides", [
+        \App\Http\Controllers\AdminCalendarOverrideController::class,
+        "list",
+    ]);
+    Route::post("/api/admin/calendar/overrides/remove", [
+        \App\Http\Controllers\AdminCalendarOverrideController::class,
+        "remove",
+    ]);
+});
+
+// Public/student-facing override list (global only)
+Route::get("/api/calendar/overrides", [
+    \App\Http\Controllers\AdminCalendarOverrideController::class,
+    "publicList",
+]);
+
+// Professor-facing override list (global + professor scope)
+Route::middleware([\App\Http\Middleware\EnsureProfessorAuthenticated::class])->group(function () {
+    Route::get("/api/professor/calendar/overrides", [
+        \App\Http\Controllers\AdminCalendarOverrideController::class,
+        "professorList",
+    ]);
+});
 
 // Debug route for notifications
 Route::get("/debug/notifications", function () {

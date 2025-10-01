@@ -74,6 +74,12 @@ body {
 .chat-overlay.open {
     right: 0;
 }
+/* When legend is open on student page, push chat UI behind overlay */
+body.legend-open .chat-button,
+body.legend-open .chat-overlay {
+    z-index: 0 !important;
+    pointer-events: none;
+}
 .chat-overlay .chat-header {
     background-color: #12372a;
     color: white;
