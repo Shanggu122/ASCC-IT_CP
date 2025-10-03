@@ -166,6 +166,12 @@
 
     /* Legend styles are centralized in public/css/legend.css */
 
+    /* Position the legend button just to the right of the left sidebar (desktop only) */
+    @media (min-width: 951px) {
+      .legend-toggle { left: calc(220px + 20px) !important; }
+      .legend-panel { left: calc(220px + 24px) !important; }
+    }
+
     /* Responsive design */
     @media (max-width: 768px) {
       .flex-layout {
@@ -405,7 +411,7 @@
     firstDay: 1,
     bound: false,
     onDraw: function() {
-      const cells = document.querySelectorAll('.pika-button');
+  const cells = document.querySelectorAll('.pika-button');
       cells.forEach(cell => {
         // Remove existing status classes and override visuals
         cell.classList.remove('has-booking', 'status-pending', 'status-approved', 'status-completed', 'status-rescheduled');
@@ -420,9 +426,10 @@
         if (day && month && year) {
           const cellDate = new Date(year, month, day);
           const key = cellDate.toDateString();
+          const isoKey = `${cellDate.getFullYear()}-${String(cellDate.getMonth()+1).padStart(2,'0')}-${String(cellDate.getDate()).padStart(2,'0')}`;
           // Render overrides (if any)
-          if (window.studentOverrides && window.studentOverrides[key] && window.studentOverrides[key].length > 0) {
-            const items = window.studentOverrides[key];
+          if (window.studentOverrides && window.studentOverrides[isoKey] && window.studentOverrides[isoKey].length > 0) {
+            const items = window.studentOverrides[isoKey];
             // Priority: holiday > block_all > force_mode
             let chosen = null;
             for (const ov of items) { if (ov.effect === 'holiday') { chosen = ov; break; } }
@@ -485,12 +492,22 @@
   // ---- Overrides: fetch month data and react to month navigation ----
   function getVisibleMonthBaseDate() {
     try {
+      const selMonth = document.querySelector('.pika-select-month');
+      const selYear = document.querySelector('.pika-select-year');
+      if (selMonth && selYear) {
+        const m = parseInt(selMonth.value, 10);
+        const y = parseInt(selYear.value, 10);
+        if (!isNaN(m) && !isNaN(y)) {
+          const d = new Date(y, m, 1);
+          if (!isNaN(d.getTime())) return d;
+        }
+      }
       const labelEl = document.querySelector('.pika-label');
       if (labelEl) {
         const text = (labelEl.textContent || '').trim();
         const parts = text.split(/\s+/);
         if (parts.length === 2) {
-          const monthMap = { January:0, February:1, March:2, April:3, May:4, June:5, July:6, August:7, September:8, October:9, November:10, December:11 };
+          const monthMap = { January:0, February:1, March:2, April:3, May:4, June:5, July:6, August:7, September:8, October:9, November:10, December:11, Jan:0, Feb:1, Mar:2, Apr:3, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
           const m = monthMap[parts[0]];
           const y = parseInt(parts[1], 10);
           if (!isNaN(m) && !isNaN(y)) {
@@ -499,12 +516,10 @@
           }
         }
       }
-      const btn = document.querySelector('.pika-table .pika-button');
-      if (btn) {
-        const yAttr = btn.getAttribute('data-pika-year');
-        const mAttr = btn.getAttribute('data-pika-month');
-        const y = yAttr ? parseInt(yAttr, 10) : NaN;
-        const m = mAttr ? parseInt(mAttr, 10) : NaN;
+      const cur = document.querySelector('.pika-table .pika-button:not(.is-outside-current-month)');
+      if (cur) {
+        const y = parseInt(cur.getAttribute('data-pika-year'), 10);
+        const m = parseInt(cur.getAttribute('data-pika-month'), 10);
         if (!isNaN(y) && !isNaN(m)) {
           const d = new Date(y, m, 1);
           if (!isNaN(d.getTime())) return d;
@@ -624,7 +639,7 @@
             <div class="notification-type ${notification.type}">${notification.type}</div>
             <div class="notification-title">${cleanTitle}</div>
             <div class="notification-message">${notification.message}</div>
-            <div class="notification-time">${formatNotificationTime(notification.created_at)}</div>
+            <div class="notification-time" data-timeago data-ts="${notification.created_at}"></div>
           </div>
         `;
       }).join('');
@@ -700,24 +715,10 @@
       });
     }
     
-    function formatNotificationTime(timestamp) {
-      const date = new Date(timestamp);
-      const now = new Date();
-      const diffInSeconds = Math.floor((now - date) / 1000);
-      if (diffInSeconds < 60) return 'Just now';
-      if (diffInSeconds < 3600) {
-        const m = Math.floor(diffInSeconds / 60);
-        return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
-      }
-      if (diffInSeconds < 86400) {
-        const h = Math.floor(diffInSeconds / 3600);
-        return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
-      }
-      const d = Math.floor(diffInSeconds / 86400);
-      return `${d} ${d === 1 ? 'day' : 'days'} ago`;
-    }
+    // Live timeago handled by public/js/timeago.js
         
     
   </script>
+  <script src="{{ asset('js/timeago.js') }}"></script>
 </body>
 </html>

@@ -9,6 +9,7 @@
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/conlog-professor.css') }}">
   
+  
   <style>
     /* Reschedule Modal Styles */
     .reschedule-overlay {
@@ -182,7 +183,7 @@
 
   <div class="main-content">
     <div class="header">
-      <h1 style="display:flex;align-items:center;gap:14px;">Consultation Logs
+      <h1 style="display:flex;align-items:center;gap:14px;">Consultation Log
         <button id="print-logs-btn" type="button" class="print-logs-btn" title="Print Consultation Log">
           <i class='bx bx-printer'></i><span class="print-label">Print</span>
         </button>
@@ -239,34 +240,36 @@
           <div class="table-cell" data-label="Status">{{ ucfirst($b->Status) }}</div>
           <div class="table-cell" data-label="Action" style="width: 180px;">
             <div class="action-btn-group" style="display: flex; gap: 8px;">
-              @if($b->Status !== 'rescheduled')
-        <button 
-          onclick="showRescheduleModal({{ $b->Booking_ID }}, '{{ $b->Booking_Date }}', '{{ $b->Mode }}')" 
+              @if(strtolower($b->Status) !== 'completed')
+                @if($b->Status !== 'rescheduled')
+                <button 
+                  onclick="showRescheduleModal({{ $b->Booking_ID }}, '{{ $b->Booking_Date }}', '{{ $b->Mode }}')" 
                   class="action-btn btn-reschedule"
                   title="Reschedule"
-              >
-                  <i class='bx bx-calendar-x'></i> 
-              </button>
-              @endif
+                >
+                  <i class='bx bx-calendar-x'></i>
+                </button>
+                @endif
 
-              @if($b->Status !== 'approved')
-              <button 
+                @if($b->Status !== 'approved')
+                <button 
                   onclick="approveWithWarning(this, {{ $b->Booking_ID }}, '{{ $b->Booking_Date }}')" 
                   class="action-btn btn-approve"
                   title="Approve"
-              >
-                  <i class='bx bx-check-circle'></i> 
-              </button>
-              @endif
+                >
+                  <i class='bx bx-check-circle'></i>
+                </button>
+                @endif
 
-              @if($b->Status !== 'completed')
-              <button 
-                  onclick="removeThisButton(this, {{ $b->Booking_ID }}, 'Completed')" 
+                @if($b->Status !== 'completed')
+                <button 
+                  onclick="confirmComplete(this, {{ $b->Booking_ID }})" 
                   class="action-btn btn-completed"
                   title="Completed"
-              >
-                  <i class='bx bx-task'></i> 
-              </button>
+                >
+                  <i class='bx bx-task'></i>
+                </button>
+                @endif
               @endif
             </div>
           </div>
@@ -324,6 +327,23 @@
             <button type="button" class="btn-cancel" onclick="closeRescheduleModal()">Cancel</button>
             <button type="button" class="btn-confirm" onclick="confirmReschedule()">Reschedule</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generic Confirmation Modal -->
+    <div class="confirm-overlay" id="confirmOverlay" aria-hidden="true">
+      <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+        <div class="confirm-header">
+          <i class='bx bx-help-circle'></i>
+          <div id="confirmTitle">Please confirm your action</div>
+        </div>
+        <div class="confirm-body">
+          <div id="confirmMessage">Are you sure you want to continue?</div>
+        </div>
+        <div class="confirm-actions">
+          <button type="button" class="btn-cancel-red" id="confirmCancelBtn">Cancel</button>
+          <button type="button" class="btn-confirm-green" id="confirmOkBtn">Yes, proceed</button>
         </div>
       </div>
     </div>
@@ -634,8 +654,54 @@
     }
 
     function removeThisButton(btn, bookingId, status) {
-      btn.remove(); // Only remove the clicked button
+      const isCompleted = String(status||'').toLowerCase() === 'completed';
+      const row = btn && btn.closest ? btn.closest('.table-row') : null;
+      if (isCompleted && row) {
+        // Clear all action buttons in this row
+        const actionGroup = row.querySelector('.action-btn-group');
+        if (actionGroup) actionGroup.innerHTML = '';
+        else {
+          const actionCell = row.querySelector('.table-cell[data-label="Action"]');
+          if (actionCell) actionCell.innerHTML = '';
+        }
+        // Update the status cell immediately for better UX
+        const statusCell = row.querySelector('.table-cell[data-label="Status"]');
+        if (statusCell) statusCell.textContent = 'Completed';
+        // Lock this row to prevent realtime re-render from re-adding buttons
+        row.setAttribute('data-completed-lock', '1');
+      } else {
+        // Default: only remove the clicked button
+        if (btn && btn.remove) btn.remove();
+      }
       updateStatus(bookingId, status);
+    }
+
+    // Confirmation modal logic
+    let __confirmPending = null;
+    function showConfirm(message, onConfirm){
+      const overlay = document.getElementById('confirmOverlay');
+      const msg = document.getElementById('confirmMessage');
+      const ok = document.getElementById('confirmOkBtn');
+      const cancel = document.getElementById('confirmCancelBtn');
+      if(!overlay||!msg||!ok||!cancel){ if(typeof onConfirm==='function') onConfirm(false); return; }
+      msg.textContent = message || 'Are you sure you want to continue?';
+      // clear prior
+      if(__confirmPending){ ok.removeEventListener('click', __confirmPending); }
+      const handler = ()=>{ overlay.style.display='none'; document.removeEventListener('keydown', escHandler); onConfirm && onConfirm(true); };
+      const cancelHandler = ()=>{ overlay.style.display='none'; document.removeEventListener('keydown', escHandler); onConfirm && onConfirm(false); };
+      function escHandler(e){ if(e.key==='Escape'){ cancelHandler(); } }
+      __confirmPending = handler;
+      ok.addEventListener('click', handler, { once: true });
+      cancel.onclick = cancelHandler;
+      overlay.style.display='flex';
+      setTimeout(()=>document.addEventListener('keydown', escHandler), 0);
+    }
+
+    // Completed flow: ask confirmation first
+    function confirmComplete(btn, bookingId){
+      showConfirm('Mark this consultation as Completed? This will finalize the record.', (ok)=>{
+        if(!ok) return; removeThisButton(btn, bookingId, 'Completed');
+      });
     }
 
     // Variables to store approval context
@@ -643,7 +709,7 @@
     let pendingApprovalBookingId = null;
 
     // New function to handle approval with warning
-    function approveWithWarning(btn, bookingId, bookingDate) {
+  function approveWithWarning(btn, bookingId, bookingDate) {
       console.log('approveWithWarning called:', { bookingId, bookingDate });
       
       // Store the context for later use
@@ -668,8 +734,10 @@
           if (approvedCount >= 5) {
             showApprovalWarningModal(bookingDate, approvedCount);
           } else {
-            // Directly approve if less than 5
-            removeThisButton(btn, bookingId, 'Approved');
+            // Ask confirmation then approve if less than 5
+            showConfirm('Approve this consultation? A notification will be sent to the student.', (ok)=>{
+              if(!ok) return; removeThisButton(btn, bookingId, 'Approved');
+            });
           }
         })
         .catch(error => {
@@ -719,9 +787,11 @@ function closeProfessorModal() {
 
     function confirmApproval() {
       if (pendingApprovalButton && pendingApprovalBookingId) {
-        // Proceed with the approval
-        removeThisButton(pendingApprovalButton, pendingApprovalBookingId, 'Approved');
+        // Proceed with the approval after second confirmation
         closeApprovalWarningModal();
+        showConfirm('You are approving despite high volume on this date. Continue?', (ok)=>{
+          if(!ok) return; removeThisButton(pendingApprovalButton, pendingApprovalBookingId, 'Approved');
+        });
       }
     }
 
@@ -954,7 +1024,6 @@ function closeProfessorModal() {
       }
       
       const notificationsHtml = notifications.map(notification => {
-        const timeAgo = getTimeAgo(notification.created_at);
         const unreadClass = notification.is_read ? '' : 'unread';
         
         return `
@@ -962,7 +1031,7 @@ function closeProfessorModal() {
             <div class="notification-type ${notification.type}">${notification.type.replace('_', ' ')}</div>
             <div class="notification-title">${notification.title}</div>
             <div class="notification-message">${notification.message}</div>
-            <div class="notification-time">${timeAgo}</div>
+            <div class="notification-time" data-timeago data-ts="${notification.created_at}"></div>
           </div>
         `;
       }).join('');
@@ -1028,22 +1097,7 @@ function closeProfessorModal() {
       });
     }
 
-    function getTimeAgo(dateString) {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffInSeconds = Math.floor((now - date) / 1000);
-      if (diffInSeconds < 60) return 'Just now';
-      if (diffInSeconds < 3600) {
-        const m = Math.floor(diffInSeconds / 60);
-        return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
-      }
-      if (diffInSeconds < 86400) {
-        const h = Math.floor(diffInSeconds / 3600);
-        return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
-      }
-      const d = Math.floor(diffInSeconds / 86400);
-      return `${d} ${d === 1 ? 'day' : 'days'} ago`;
-    }
+    // Live timeago handled by public/js/timeago.js
 
     // Initialize mobile notifications on page load
     document.addEventListener('DOMContentLoaded', function() {
@@ -1087,15 +1141,21 @@ function closeProfessorModal() {
           }
 
           const mode = (data.Mode||'').charAt(0).toUpperCase() + (data.Mode||'').slice(1);
+          // If the row was locally locked as completed, force completed state to avoid re-adding buttons
+          const lockedCompleted = existing && existing.getAttribute('data-completed-lock') === '1';
+          if (lockedCompleted) { data.Status = 'completed'; }
           const status = (data.Status||'').charAt(0).toUpperCase() + (data.Status||'').slice(1);
           const date = normalizeDate(data.Booking_Date||'');
           const iter = existing ? (existing.querySelector('.table-cell')?.textContent||'') : (rows.length+1);
 
-          const actionsHtml = `
+          const isCompletedStatus = (data.Status||'').toLowerCase() === 'completed';
+          const actionsHtml = isCompletedStatus
+            ? `<div class="action-btn-group" style="display:flex;gap:8px;"></div>`
+            : `
             <div class="action-btn-group" style="display:flex;gap:8px;">
               ${data.Status?.toLowerCase()!=='rescheduled' ? `<button onclick="showRescheduleModal(${data.Booking_ID}, '${data.Booking_Date}', '${data.Mode||''}')" class="action-btn btn-reschedule" title="Reschedule"><i class='bx bx-calendar-x'></i></button>`:''}
               ${data.Status?.toLowerCase()!=='approved' ? `<button onclick="approveWithWarning(this, ${data.Booking_ID}, '${data.Booking_Date}')" class="action-btn btn-approve" title="Approve"><i class='bx bx-check-circle'></i></button>`:''}
-              ${data.Status?.toLowerCase()!=='completed' ? `<button onclick="removeThisButton(this, ${data.Booking_ID}, 'Completed')" class="action-btn btn-completed" title="Completed"><i class='bx bx-task'></i></button>`:''}
+              ${data.Status?.toLowerCase()!=='completed' ? `<button onclick="confirmComplete(this, ${data.Booking_ID})" class="action-btn btn-completed" title="Completed"><i class='bx bx-task'></i></button>`:''}
             </div>`;
 
           const html = `
@@ -1206,5 +1266,6 @@ function closeProfessorModal() {
     function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
   function getPrintStyles(){ return `body{font-family:Poppins,Arial,sans-serif;margin:24px;}h2{margin:0 0 4px;color:#12372a;font-size:26px;} .print-professor{font-size:12px;color:#234b3b;margin-bottom:2px;font-weight:500;} .print-meta{font-size:12px;color:#555;margin-bottom:12px;}table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #222;padding:6px 8px;text-align:left;}th{background:#12372a;color:#fff;font-weight:600;} .status-badge{padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px;color:#fff;display:inline-block;} .status-badge.status-pending{background:#ffa600;} .status-badge.status-approved{background:#27ae60;} .status-badge.status-completed{background:#093b2f;} .status-badge.status-rescheduled{background:#c50000;} .print-footer-note{margin-top:22px;font-size:11px;color:#444;text-align:right;}@media print{body{margin:0;padding:0;} }`; }
   </script>
+  <script src="{{ asset('js/timeago.js') }}"></script>
 </body>
 </html>

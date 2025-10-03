@@ -61,6 +61,33 @@
     border: none;
   }
 
+  /* Full-screen loading overlay (match login look) */
+  .auth-loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.82); /* dark translucent like login */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100000; /* above navbar */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
+  }
+  .auth-loading-overlay.active { opacity:1; pointer-events: auto; }
+  .auth-loading-spinner {
+    width: 58px;
+    height: 58px;
+    border: 5px solid rgba(255,255,255,0.18);
+    border-top-color: #36b58b;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 18px;
+  }
+  .auth-loading-text { color:#e9f9f3; font-size:14px; letter-spacing:.08em; font-weight:600; font-family:'Segoe UI', sans-serif; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
   .pika-table {
     border-radius: 3px;
     width: 100%;
@@ -92,7 +119,9 @@
     padding:10px;
     height:40px;
     margin:5px 0;
-    transition:background .18s, transform .18s;
+    /* Remove background transition to eliminate green delay/flicker on select */
+    transition: transform .18s;
+    position: relative; /* anchor for badge positioning */
   }
 
   /* Availability color states */
@@ -126,6 +155,13 @@
     box-shadow: none;
   }
 
+  /* Ensure selected state shows instantly (no transition delay) */
+  .is-selected .pika-button { transition: none !important; }
+  /* On mouse press, show dark green immediately to avoid flicker */
+  .pika-button:active { background: #12372a !important; color:#ffffff !important; }
+  /* On focus (keyboard/mouse), also show dark green immediately */
+  .pika-button:focus { background:#12372a !important; color:#ffffff !important; outline: none; }
+
   .is-today .pika-button {
     color: #fff;
     background-color:#5fb9d4;
@@ -139,7 +175,7 @@
   /* Better contrast for disabled (blocked) days so they don't blend with page background */
   .is-disabled .pika-button,
   .pika-button.is-disabled {
-    background: #e5f0ed !important; /* match page background */
+    background: #e5f0ed !important; /* light grey for schedule-disabled */
     color: #94a5a0 !important;      /* softened text */
     border: 1px solid #d0dbd8;      /* subtle outline */
     opacity: 1 !important;
@@ -157,6 +193,17 @@
   }
   /* Hover should not change disabled look */
   .is-disabled .pika-button:hover { background: #f1f4f6 !important; color:#b3bcc3 !important; }
+
+  /* Dark grey only for override-blocked (holiday/suspended) tiles */
+  .is-disabled .pika-button.ov-hard-block {
+    background: #5f6b77 !important; /* darker grey per screenshot */
+    color: #ffffff !important;      /* white date number */
+    border: 1px solid transparent !important;
+  }
+  .is-disabled .pika-button.ov-hard-block:hover {
+    background: #5f6b77 !important;
+    color: #ffffff !important;
+  }
 
   /* === Restored weekday header styling (green variants) === */
   .pika-table th { 
@@ -192,8 +239,92 @@
   /* Minimal helper: dim label when disabled (class applied via JS); keep main CSS in public css */
   .mode-selection label.disabled { opacity:.6; cursor:not-allowed; pointer-events:none; }
   /* Calendar error highlight */
-  .calendar-wrapper-container.has-error { outline:2px solid #d93025; border-radius:8px; padding:4px 6px 10px; }
-  .calendar-wrapper-container.has-error label[for="calendar"] { color:#d93025; }
+  /* Removed calendar .has-error styles; toast-only error messaging */
+
+
+  /* Override badges and day tints (match admin/professor palettes) */
+  .ov-badge {
+    position: absolute;
+    left: 50%;
+    bottom: 6px;
+    font-size: 11px;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 8px;
+    color: #ffffff;
+    pointer-events: none;
+    white-space: nowrap;
+    max-width: calc(100% - 12px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 3;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+  .ov-holiday { background-color: #9B59B6; }
+  .ov-blocked { background-color: #374151; }
+  .ov-force { background-color: #2563eb; }
+  .ov-online { background-color: #FF69B4; }
+  .day-holiday { background: rgba(155, 89, 182, 0.55) !important; }
+  .day-blocked { background: rgba(55, 65, 81, 0.75) !important; }
+  .day-force   { background: rgba(37, 99, 235, 0.6) !important; }
+  .day-online  { background: rgba(255, 105, 180, 0.45) !important; }
+
+  /* Ensure holiday stays violet even when disabled */
+  .is-disabled .pika-button.day-holiday {
+    background: rgba(155, 89, 182, 0.55) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+  }
+  /* Ensure forced online stays blue even when disabled */
+  .is-disabled .pika-button.day-force {
+    background: rgba(37, 99, 235, 0.6) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+  }
+
+  /* Keep Online Day pink even when disabled (if ever disabled by other logic) */
+  .is-disabled .pika-button.day-online {
+    background: rgba(255, 105, 180, 0.45) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+  }
+
+  /* Make override tints win over availability (green) and hover/selected states */
+  /* Online Day (pink) */
+  .pika-button.day-online,
+  .slot-free .pika-button.day-online,
+  .slot-low .pika-button.day-online,
+  .slot-full .pika-button.day-online,
+  .pika-button.day-online:hover,
+  .slot-free .pika-button.day-online:hover,
+  .slot-low .pika-button.day-online:hover,
+  .slot-full .pika-button.day-online:hover {
+    background: rgba(255, 105, 180, 0.55) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+  }
+  /* Forced Online (blue) when selectable */
+  .pika-button.day-force,
+  .slot-free .pika-button.day-force,
+  .slot-low .pika-button.day-force,
+  .slot-full .pika-button.day-force,
+  .pika-button.day-force:hover,
+  .slot-free .pika-button.day-force:hover,
+  .slot-low .pika-button.day-force:hover,
+  .slot-full .pika-button.day-force:hover {
+    background: rgba(37, 99, 235, 0.7) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+  }
+
+  /* When selected, always show dark green regardless of override tint */
+  .is-selected .pika-button.day-online,
+  .is-selected .pika-button.day-force {
+    background: #12372a !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+  }
 
 
 
@@ -256,7 +387,7 @@
 
 
   <div id="consultationModal" class="modal-overlay" style="display:none;">
-    <form id="bookingForm" action="{{ route('consultation-book') }}" method="POST" class="modal-content">
+  <form id="bookingForm" action="{{ route('consultation-book') }}" method="POST" class="modal-content" novalidate>
       @csrf
 
       {{-- <input type="hidden" name="prof_id" value="{{ $professor->Prof_ID }}"> --}}
@@ -303,7 +434,7 @@
         @endforeach
       </div>
 
-      <div class="flex-layout">
+  <div class="flex-layout">
         <div class="calendar-wrapper-container">
           <label for="calendar">Select Date:</label>
           <div class="availability-legend">
@@ -313,6 +444,7 @@
           </div>
           <input id="calendar" type="text" placeholder="Select Date" name="booking_date" required>
         </div>
+
 
         <div class="message-mode-container">
           <div class="mode-selection">
@@ -326,7 +458,6 @@
         </div>
         
       </div>
-
     </form>
   </div>
 
@@ -336,14 +467,42 @@
       // Will be updated whenever modal opened
       let allowedWeekdays = new Set(); // numeric 1-5 (Mon-Fri) allowed for selected professor
 
+      // Public overrides cache and helpers
+      window.__publicOverrides = window.__publicOverrides || {}; // { 'YYYY-MM-DD': [ {effect, reason_key, allowed_mode, ...} ] }
+      window.__blockedOverrideSet = window.__blockedOverrideSet || new Set();
+      function isOverrideBlocked(date){
+        try{
+          const iso = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+          return window.__blockedOverrideSet.has(iso);
+        }catch(_){ return false; }
+      }
+
+      function hasForceOrOnlineOverride(date){
+        try{
+          const iso = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+          const items = (window.__publicOverrides||{})[iso] || [];
+          return items.some(x => x.effect === 'force_mode');
+        }catch(_){ return false; }
+      }
+
       function disableDayFn(date){
         const day = date.getDay(); // 0 Sun .. 6 Sat
         // Always block weekends
   if(day === 0 || day === 6) return true;
+  // Block by overrides (Holiday or Suspended)
+  if(isOverrideBlocked(date)) return true;
   // If no schedule (allowedWeekdays empty) block ALL weekdays
-  if(allowedWeekdays.size === 0) return true;
+  if(allowedWeekdays.size === 0) {
+    // But allow if there's a force/online override
+    if (hasForceOrOnlineOverride(date)) return false;
+    return true;
+  }
   // Otherwise block days not in allowed set
-  if(!allowedWeekdays.has(day)) return true;
+  if(!allowedWeekdays.has(day)) {
+    // But allow if force/online override exists for this date
+    if (hasForceOrOnlineOverride(date)) return false;
+    return true;
+  }
         return false;
       }
 
@@ -414,8 +573,7 @@
         if(!online || !onsite) return;
         online.disabled = false; onsite.disabled = false; setLabelDisabled(online,false); setLabelDisabled(onsite,false);
         if(!mode){
-          // No lock on this date: clear any previous selection
-          online.checked = false; onsite.checked = false;
+          // No forced mode: do not clear user's current selection
           return;
         }
         if(mode === 'online'){
@@ -429,6 +587,14 @@
           onsite.focus({ preventScroll: true });
         }
       }
+
+      // Remember user's mode choice so redraws don't clear it
+      (function rememberUserMode(){
+        const radios = document.querySelectorAll('input[name="mode"]');
+        radios.forEach(r=>{
+          r.addEventListener('change', ()=>{ if(r.checked){ window.__userSelectedMode = r.value; } });
+        });
+      })();
 
       function applyLockForSelectedDate(){
         try{
@@ -444,11 +610,15 @@
             const m2 = r2 && r2.mode ? r2.mode : null;
             if(window.__DEBUG_MODE_LOCK) console.log('[mode-lock][itis] retry applyLockForSelectedDate', { key, m2 });
             setModeLockUI(m2);
+            // If no forced mode, restore user selection (if set)
+            if(!mode && window.__userSelectedMode){
+              const el = document.querySelector(`input[name="mode"][value="${window.__userSelectedMode}"]`);
+              if(el && !el.disabled && !el.checked){ el.checked = true; }
+            }
           }, 60); }
         }catch(_){ }
       }
-
-  window.__applyAvailability = function(map){
+      window.__applyAvailability = function(map){
         const cells = document.querySelectorAll('.pika-table td');
         cells.forEach(td=> td.classList.remove('slot-free','slot-low','slot-full'));
         cells.forEach(td=>{
@@ -486,6 +656,7 @@
         __origDraw2();
         updateWeekdayHeaders();
         refreshAvailabilityColors();
+        try{ applyPublicOverridesToCalendar(); }catch(_){ }
         try{ applyLockForSelectedDate(); }catch(_){ }
         try{ attachSelectionObserver(); }catch(_){ }
       };
@@ -510,6 +681,217 @@
       }
       window.__fetchAvailability = fetchAvailability;
       
+  // Simple per-professor+month cache to reduce delay when reopening modal
+  window.__ovCache = window.__ovCache || {}; // key: `${profId||'all'}|${startStr}-${endStr}` -> overrides map
+
+  // Apply public overrides to visible calendar cells (badges, tints, disable, mode)
+      function applyPublicOverridesToCalendar(){
+        const cells = document.querySelectorAll('.pika-table td');
+        cells.forEach(td=>{
+          const btn = td.querySelector('.pika-button');
+          if(!btn) return;
+          // Clear previous override visuals
+          const old = btn.querySelector('.ov-badge'); if(old) old.remove();
+          btn.classList.remove('day-holiday','day-blocked','day-force','day-online');
+          // IMPORTANT: Do NOT clear is-disabled or disabled attributes; schedule-based rules must persist
+          // Compute ISO key
+          const y = parseInt(btn.getAttribute('data-pika-year'),10);
+          const m = parseInt(btn.getAttribute('data-pika-month'),10);
+          const d = parseInt(btn.getAttribute('data-pika-day'),10);
+          if(Number.isNaN(y)||Number.isNaN(m)||Number.isNaN(d)) return;
+          const isoKey = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          const items = (window.__publicOverrides||{})[isoKey] || [];
+          if(!items.length) return;
+          // Choose precedence
+          let chosen = items.find(x=>x.effect==='holiday') || items.find(x=>x.effect==='block_all') || items[0];
+          // Badge + tint
+          const badge = document.createElement('span');
+          let chosenCls;
+          if (chosen.effect === 'holiday') chosenCls = 'ov-holiday';
+          else if (chosen.effect === 'block_all') chosenCls = 'ov-blocked';
+          else if (chosen.effect === 'force_mode') chosenCls = (chosen.reason_key === 'online_day') ? 'ov-online' : 'ov-force';
+          else chosenCls = 'ov-force';
+          badge.className = 'ov-badge ' + chosenCls;
+          const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
+          badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
+          badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? 'Suspended' : forceLabel);
+          btn.style.position = 'relative';
+          btn.appendChild(badge);
+          // Apply tint for force_mode/online-day; and for holiday we want violet tile even if disabled.
+          if (chosen.effect === 'force_mode') {
+            const dayCls = (chosen.reason_key === 'online_day') ? 'day-online' : 'day-force';
+            btn.classList.add(dayCls);
+          }
+          // Disable blocked days (additive to any existing schedule-based disabling)
+          if (chosen.effect === 'holiday' || chosen.effect === 'block_all') {
+            // Remove availability color classes so the grey disabled style dominates
+            td.classList.remove('slot-free','slot-low','slot-full');
+            td.classList.add('is-disabled');
+            btn.setAttribute('disabled','disabled');
+            btn.setAttribute('aria-disabled','true');
+            btn.style.pointerEvents='none';
+            // For Suspended (block_all): dark-grey tile; for Holiday: violet tile
+            if (chosen.effect === 'block_all') {
+              btn.classList.add('ov-hard-block');
+            } else {
+              btn.classList.remove('ov-hard-block');
+              btn.classList.add('day-holiday');
+            }
+          }
+          else {
+            // Ensure we don't leave the hard-block class on normal days
+            btn.classList.remove('ov-hard-block','day-holiday');
+          }
+          // Enforce mode if forced
+          if (chosen.effect === 'force_mode') {
+            let mode = chosen.allowed_mode || (chosen.reason_key==='online_day'?'online':null) || 'online';
+            btn.dataset.mode = mode;
+          }
+        });
+      }
+
+      function getVisibleMonthBaseDate(){
+        try{
+          const selMonth = document.querySelector('.pika-select-month');
+          const selYear = document.querySelector('.pika-select-year');
+          if (selMonth && selYear) {
+            const m = parseInt(selMonth.value, 10);
+            const y = parseInt(selYear.value, 10);
+            if (!isNaN(m) && !isNaN(y)) {
+              const d = new Date(y, m, 1);
+              if (!isNaN(d.getTime())) return d;
+            }
+          }
+          const labelEl = document.querySelector('.pika-label');
+          if (labelEl) {
+            const text = (labelEl.textContent || '').trim();
+            const parts = text.split(/\s+/);
+            if (parts.length === 2) {
+              const monthMap = { January:0, February:1, March:2, April:3, May:4, June:5, July:6, August:7, September:8, October:9, November:10, December:11, Jan:0, Feb:1, Mar:2, Apr:3, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
+              const m = monthMap[parts[0]];
+              const y = parseInt(parts[1], 10);
+              if (!isNaN(m) && !isNaN(y)) {
+                const d = new Date(y, m, 1);
+                if (!isNaN(d.getTime())) return d;
+              }
+            }
+          }
+          const cur = document.querySelector('.pika-table .pika-button:not(.is-outside-current-month)');
+          if (cur) {
+            const y = parseInt(cur.getAttribute('data-pika-year'), 10);
+            const m = parseInt(cur.getAttribute('data-pika-month'), 10);
+            if (!isNaN(y) && !isNaN(m)) {
+              const d = new Date(y, m, 1);
+              if (!isNaN(d.getTime())) return d;
+            }
+          }
+        }catch(_){}
+        const today = new Date();
+        return new Date(today.getFullYear(), today.getMonth(), 1);
+      }
+  // Expose helper globally so other scopes (e.g., openModal) can call it
+  window.__itisGetVisibleMonthBaseDate = getVisibleMonthBaseDate;
+
+      function recomputeBlockedSet(){
+        const set = new Set();
+        const map = window.__publicOverrides || {};
+        Object.keys(map).forEach(k=>{
+          const arr = map[k]||[];
+          if(arr.some(x=>x.effect==='holiday' || x.effect==='block_all')) set.add(k);
+        });
+        window.__blockedOverrideSet = set;
+      }
+
+  function fetchPublicOverridesForMonth(dateObj){
+        try{
+          if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) return;
+          if (window.__studentOvLoading) return;
+          window.__studentOvLoading = true;
+          const start = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
+          const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 0);
+          const toIso = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          const startStr = toIso(start);
+          const endStr = toIso(end);
+          const bust = Date.now();
+          const profIdInput = document.getElementById('modalProfId');
+          const profId = profIdInput ? profIdInput.value : '';
+          const cacheKey = `${profId||'all'}|${startStr}-${endStr}`;
+          const url = profId ? `/api/calendar/overrides/professor?prof_id=${encodeURIComponent(profId)}&start_date=${startStr}&end_date=${endStr}&_=${bust}`
+                              : `/api/calendar/overrides?start_date=${startStr}&end_date=${endStr}&_=${bust}`;
+          // If we already have cached overrides for this range, paint immediately
+          try {
+            const cached = window.__ovCache[cacheKey];
+            if (cached) {
+              window.__publicOverrides = cached;
+              recomputeBlockedSet();
+              if(window.picker) window.picker.draw();
+            }
+          } catch(_){ }
+
+          fetch(url, { headers: { 'Accept':'application/json' } })
+            .then(r=>r.json())
+            .then(data=>{
+              if(data && data.success){
+                const incoming = data.overrides || {};
+                const prev = window.__publicOverrides || {};
+                const changed = JSON.stringify(incoming) !== JSON.stringify(prev);
+                try { window.__ovCache[cacheKey] = incoming; } catch(_){ }
+                if(changed){
+                  window.__publicOverrides = incoming;
+                  recomputeBlockedSet();
+                  try{ refreshAvailabilityColors(); }catch(_){}
+                  if(window.picker) window.picker.draw();
+                }
+              }
+            })
+            .catch(()=>{})
+            .finally(()=>{ window.__studentOvLoading = false; });
+        }catch(_){}
+      }
+  // Expose fetcher globally for immediate use after selecting a professor
+  window.__itisFetchOverridesForMonth = fetchPublicOverridesForMonth;
+
+      // Observe month navigation to fetch overrides
+      (function observeMonthNav(){
+        const run = () => fetchPublicOverridesForMonth(getVisibleMonthBaseDate());
+        setTimeout(run, 120);
+        document.addEventListener('click', (e)=>{
+          const t = e.target;
+          if (t.closest && (t.closest('.pika-prev') || t.closest('.pika-next'))) {
+            setTimeout(run, 160);
+          }
+        });
+        setInterval(run, 6000);
+        window.addEventListener('focus', () => setTimeout(run, 250));
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(run, 250); });
+      })();
+      // Prefetch overrides on hover/focus of professor cards to warm cache before modal opens
+      (function prefetchOnHover(){
+        function monthRange(d){ const s=new Date(d.getFullYear(), d.getMonth(), 1); const e=new Date(d.getFullYear(), d.getMonth()+1, 0); return {s,e}; }
+        function toIso(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+        async function prefetch(profId){
+          try{
+            if(!profId) return;
+            const today = new Date();
+            const {s,e} = monthRange(today);
+            const cacheKey = `${profId}|${toIso(s)}-${toIso(e)}`;
+            if(window.__ovCache && window.__ovCache[cacheKey]) return; // already cached
+            const url = `/api/calendar/overrides/professor?prof_id=${encodeURIComponent(profId)}&start_date=${toIso(s)}&end_date=${toIso(e)}&_=${Date.now()}`;
+            const res = await fetch(url, { headers:{ 'Accept':'application/json' } });
+            const data = await res.json();
+            if(data && data.success){ window.__ovCache = window.__ovCache||{}; window.__ovCache[cacheKey] = data.overrides||{}; }
+          }catch(_){ }
+        }
+        document.addEventListener('mouseover', (e)=>{
+          const card = e.target.closest && e.target.closest('.profile-card');
+          if(!card) return; const id = card.getAttribute('data-prof-id'); prefetch(id);
+        });
+        document.addEventListener('focusin', (e)=>{
+          const card = e.target.closest && e.target.closest('.profile-card');
+          if(!card) return; const id = card.getAttribute('data-prof-id'); prefetch(id);
+        });
+      })();
+      
       // Observe when a calendar cell becomes selected and apply the mode lock
       function attachSelectionObserver(){
         const table = document.querySelector('.pika-table');
@@ -519,6 +901,18 @@
           const td = table.querySelector('td.is-selected .pika-button');
           if(!td) return;
           let mode = td.dataset.mode || null;
+          if(!mode){
+            // also check overrides for force_mode
+            try{
+              const y = parseInt(td.getAttribute('data-pika-year'),10);
+              const m = parseInt(td.getAttribute('data-pika-month'),10);
+              const d = parseInt(td.getAttribute('data-pika-day'),10);
+              const isoKey = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+              const items = (window.__publicOverrides||{})[isoKey] || [];
+              const fm = items.find(x=>x.effect==='force_mode');
+              if(fm){ mode = fm.allowed_mode || (fm.reason_key==='online_day'?'online':null) || 'online'; }
+            }catch(_){ }
+          }
           if(!mode){
             try{
               const key = new Date(td.getAttribute('data-pika-year'), parseInt(td.getAttribute('data-pika-month'),10), parseInt(td.getAttribute('data-pika-day'),10))
@@ -548,6 +942,18 @@
             const rec = (window.__availabilityCache||{})[key];
             if(rec && rec.mode) mode = rec.mode;
           } catch(_) {}
+        }
+        if(!mode){
+          // also check overrides for force_mode
+          try{
+            const y = parseInt(btn.getAttribute('data-pika-year'),10);
+            const m = parseInt(btn.getAttribute('data-pika-month'),10);
+            const d = parseInt(btn.getAttribute('data-pika-day'),10);
+            const isoKey = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const items = (window.__publicOverrides||{})[isoKey] || [];
+            const fm = items.find(x=>x.effect==='force_mode');
+            if(fm){ mode = fm.allowed_mode || (fm.reason_key==='online_day'?'online':null) || 'online'; }
+          }catch(_){ }
         }
         if(window.__DEBUG_MODE_LOCK) console.log('[mode-lock][itis] click day', { mode, btn });
         setModeLockUI(mode);
@@ -612,6 +1018,20 @@ function openModal(card) {
     document.getElementById("modalProfileName").textContent = name;
     document.getElementById("modalProfId").value = profId;
   if(window.__fetchAvailability){ setTimeout(()=>window.__fetchAvailability(profId),150); }
+  // Immediately paint from cache if available, then fetch fresh
+  try {
+    const base = getVisibleMonthBaseDate();
+    const toIso = (d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const start = new Date(base.getFullYear(), base.getMonth(), 1);
+    const end = new Date(base.getFullYear(), base.getMonth()+1, 0);
+    const cacheKey = `${profId||'all'}|${toIso(start)}-${toIso(end)}`;
+    if (window.__ovCache && window.__ovCache[cacheKey]){
+      window.__publicOverrides = window.__ovCache[cacheKey];
+      recomputeBlockedSet();
+      if(window.picker) window.picker.draw();
+    }
+    fetchPublicOverridesForMonth(base);
+  } catch(_){ }
     
     // Populate schedule
     const scheduleDiv = document.getElementById("modalSchedule");
@@ -632,11 +1052,11 @@ function openModal(card) {
     submitBtn.classList.toggle('no-schedule', !hasSchedule);
     submitBtn.title = !hasSchedule ? 'Cannot book: professor has no schedule set.' : '';
   }
-  // Reset mode radios on open to avoid stale locks
+  // Reset mode radios on open (do not clear user choice; just enable both)
   const online = document.querySelector('input[name="mode"][value="online"]');
   const onsite = document.querySelector('input[name="mode"][value="onsite"]');
   if(online && onsite){
-    online.checked=false; onsite.checked=false; online.disabled=false; onsite.disabled=false;
+    online.disabled=false; onsite.disabled=false;
     const cont = document.querySelector('.mode-selection');
     cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
   }
@@ -714,10 +1134,7 @@ if(bookingForm){
     const dateInput = document.getElementById('calendar');
   const hasSelectedCell = document.querySelector('.pika-table td.is-selected');
   if(!dateInput.value.trim() || !hasSelectedCell){
-      document.querySelector('.calendar-wrapper-container')?.classList.add('has-error');
-      return 'Please select a booking date.';
-    } else {
-      document.querySelector('.calendar-wrapper-container')?.classList.remove('has-error');
+      return 'Please select your desired consultation date.';
     }
     // Check availability cache for fully booked (defensive race)
     if(window.__availabilityCache){
@@ -743,7 +1160,11 @@ if(bookingForm){
     const err = validateBooking();
     if(err){ showNotification(err, true); return; }
     const submitBtn = bookingForm.querySelector('.submit-btn');
-    if(submitBtn){ submitBtn.disabled = true; submitBtn.dataset.originalText = submitBtn.textContent; submitBtn.textContent = 'Submitting...'; }
+    if(submitBtn){ submitBtn.disabled = true; }
+    const overlay = document.getElementById('submitOverlay');
+    const MIN_LOADING_MS = 2000; // match login feel
+    const showStart = Date.now();
+    if(overlay){ overlay.classList.add('active'); }
     try {
       const fd = new FormData(bookingForm);
       const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -780,7 +1201,12 @@ if(bookingForm){
     } catch(ex){
       showNotification('Network error. Please try again.', true);
     } finally {
-      if(submitBtn){ submitBtn.disabled = false; submitBtn.textContent = submitBtn.dataset.originalText || 'Submit'; }
+      if(submitBtn){ submitBtn.disabled = false; }
+      if(overlay){
+        const elapsed = Date.now() - showStart;
+        const delay = Math.max(0, MIN_LOADING_MS - elapsed);
+        setTimeout(()=> overlay.classList.remove('active'), delay);
+      }
     }
   });
 }
@@ -933,6 +1359,11 @@ chatForm.addEventListener("submit", async function (e) {
       });
     </script>
   @endif
+  <!-- Global submitting overlay covering entire page including navbar -->
+  <div class="auth-loading-overlay" id="submitOverlay">
+    <div class="auth-loading-spinner"></div>
+    <div class="auth-loading-text">Submitting…</div>
+  </div>
 </body>
 <script src="https://js.pusher.com/7.0/pusher.min.js"></script>
 <script>

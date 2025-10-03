@@ -858,6 +858,12 @@ Route::get("/api/calendar/overrides", [
     "publicList",
 ]);
 
+// Public/student-facing override list merged with a specific professor's overrides
+Route::get("/api/calendar/overrides/professor", [
+    \App\Http\Controllers\AdminCalendarOverrideController::class,
+    "publicProfessorList",
+]);
+
 // Professor-facing override list (global + professor scope)
 Route::middleware([\App\Http\Middleware\EnsureProfessorAuthenticated::class])->group(function () {
     Route::get("/api/professor/calendar/overrides", [

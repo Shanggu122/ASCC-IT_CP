@@ -40,7 +40,6 @@
           <input type="password" id="password" name="Password" placeholder=" " required class="{{ $errors->has('Password') ? 'input-error' : '' }}" autocomplete="current-password" />
           <label for="password">Password</label>
           <button type="button" class="toggle-password" id="toggle-password-btn" aria-label="Show password" aria-pressed="false"><i class='bx bx-hide'></i></button>
-          @if(session('status'))<div class="field-success">{{ session('status') }}</div>@endif
         </div>
   <div class="options-row" data-lock-student="{{ session('lock_until_student') ?? '' }}">
           @php
@@ -50,7 +49,9 @@
             if($errors->has('Password')) $messages[] = $errors->first('Password');
             if(session('error')) $messages[] = session('error');
           @endphp
-          @if(count($messages))
+          @if(session('status'))
+            <div class="field-success" role="status" aria-live="polite">{{ session('status') }}</div>
+          @elseif(count($messages))
             <div class="login-error" role="alert" aria-live="assertive">
               @foreach($messages as $i => $msg)
                 @if($i) <br> @endif {{ $msg }}
@@ -75,6 +76,7 @@
   </div>
 
   <script src="{{ asset('js/login.js') }}"></script>
+  <script src="{{ asset('js/errors-auto-dismiss.js') }}"></script>
   <script>
     // Ensure floating labels lift for prefilled/autofill values (student)
     (function(){

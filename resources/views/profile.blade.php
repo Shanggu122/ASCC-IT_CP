@@ -8,6 +8,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/profile.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/profile-shared.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/confirm-modal.css') }}">
 </head>
 <body>
   @include('components.navbar')
@@ -75,7 +77,7 @@
           <input type="password" id="newPassword" name="newPassword" placeholder="Enter new password" required>
           <i class='bx bx-hide eye-icon' onclick="togglePasswordVisibility('newPassword', this)"></i>
         </div>
-        <small class="password-hint" style="color: #666; font-size: 12px; margin-top: 4px; display: block;">
+        <small class="password-hint">
           Password must be at least 8 characters long and different from your current password.
         </small>
 
@@ -85,12 +87,12 @@
           <input type="password" id="newPassword_confirmation" name="newPassword_confirmation" placeholder="Confirm new password" required>
           <i class='bx bx-hide eye-icon' onclick="togglePasswordVisibility('newPassword_confirmation', this)"></i>
         </div>
-        <small class="confirm-password-hint" style="color: #666; font-size: 12px; margin-top: 4px; display: block;">
+        <small class="confirm-password-hint">
           Please re-enter your new password to confirm.
         </small>
 
         <div class="panel-footer">
-          <button type="button" class="cancel-btn" onclick="closePanel('passwordPanel')">Cancel</button>
+          <button type="button" class="cancel-btn" id="pw-cancel-btn">Cancel</button>
           <button type="submit" class="save-btn">Save</button>  
         </div>
         </form>
@@ -178,6 +180,47 @@ function closePanel(panelId) {
   document.getElementById(panelId).classList.remove('open');
 }
 
+// Student profile: Ask for confirmation only if all three password fields are filled
+document.addEventListener('DOMContentLoaded', function(){
+  const cancelBtn = document.getElementById('pw-cancel-btn');
+  if(!cancelBtn) return;
+  // inject themed modal container once
+  let overlay = document.getElementById('confirmOverlay');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'confirmOverlay';
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-modal">
+        <div class="confirm-header"><i class='bx bx-help-circle'></i> Confirm cancel</div>
+        <div class="confirm-body">Are you sure you want to cancel changing your password? Your changes will not be saved.</div>
+        <div class="confirm-actions">
+          <button type="button" class="btn-cancel-red" id="confirmNo">No, keep editing</button>
+          <button type="button" class="btn-confirm-green" id="confirmYes">Yes, cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+  cancelBtn.addEventListener('click', function(){
+    const oldP = document.getElementById('oldPassword');
+    const newP = document.getElementById('newPassword');
+    const confP = document.getElementById('newPassword_confirmation');
+    const allFilled = [oldP, newP, confP].every(el => el && el.value.trim().length > 0);
+    if(allFilled){
+      // open modal
+      overlay.classList.add('active');
+      const onNo = ()=>{ overlay.classList.remove('active'); };
+      const onYes = ()=>{ overlay.classList.remove('active'); closePanel('passwordPanel'); };
+      overlay.querySelector('#confirmNo').onclick = onNo;
+      overlay.querySelector('#confirmYes').onclick = onYes;
+      // click outside to close (acts like cancel)
+      overlay.addEventListener('click', (e)=>{ if(e.target === overlay) onNo(); }, { once:true });
+      return;
+    }
+    closePanel('passwordPanel');
+  });
+});
+
 // Profile picture panel file input and preview
 const sidePanelInputFile = document.getElementById('sidePanelInputFile');
 const sidePanelProfilePic = document.getElementById('sidePanelProfilePic');
@@ -195,27 +238,45 @@ if (sidePanelInputFile) {
 }
 
 function deleteProfilePicture() {
-    if (confirm('Are you sure you want to delete your profile picture?')) {
-        fetch("{{ route('profile.deletePicture') }}", {
-            method: "POST",
-            headers: {
-                "X-CSRF-TOKEN": "{{ csrf_token() }}",
-                "Accept": "application/json"
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Reset the profile picture to default
-                document.getElementById('profilePicture').src = "{{ asset('images/profile.png') }}";
-                document.getElementById('sidePanelProfilePic').src = "{{ asset('images/profile.png') }}";
-                showNotification('Profile picture deleted.');
-            } else {
-                showNotification('Failed to delete profile picture.', true);
-            }
-        })
-        .catch(() => showNotification('Error deleting profile picture.', true));
-    }
+  // Themed confirmation overlay
+  let overlay = document.getElementById('confirmOverlayDeleteStud');
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'confirmOverlayDeleteStud';
+    overlay.className = 'confirm-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-modal">
+        <div class="confirm-header"><i class='bx bx-trash'></i> Delete profile picture?</div>
+        <div class="confirm-body">This will remove your current profile photo and revert to the default avatar.</div>
+        <div class="confirm-actions">
+          <button type="button" class="btn-cancel-red" id="delNoStud">Cancel</button>
+          <button type="button" class="btn-confirm-green" id="delYesStud">Delete</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+  const close = ()=> overlay.classList.remove('active');
+  overlay.classList.add('active');
+  overlay.querySelector('#delNoStud').onclick = close;
+  overlay.querySelector('#delYesStud').onclick = function(){
+    fetch("{{ route('profile.deletePicture') }}", {
+      method: "POST",
+      headers: { "X-CSRF-TOKEN": "{{ csrf_token() }}", "Accept": "application/json" }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if(data.success){
+        document.getElementById('profilePicture').src = "{{ asset('images/dprof.jpg') }}";
+        document.getElementById('sidePanelProfilePic').src = "{{ asset('images/dprof.jpg') }}";
+        showNotification('Profile picture deleted.');
+      } else {
+        showNotification('Failed to delete profile picture.', true);
+      }
+    })
+    .catch(() => showNotification('Error deleting profile picture.', true))
+    .finally(close);
+  };
+  overlay.addEventListener('click', (e)=>{ if(e.target === overlay) close(); }, { once:true });
 }
 
 // === Chatbot ===
@@ -282,6 +343,18 @@ chatForm.addEventListener("submit", async function (e) {
     chatBody.scrollTop = chatBody.scrollHeight;
 });
 </script>
+@php
+  $pwHasErrors = session('error') || $errors->has('oldPassword') || $errors->has('newPassword') || $errors->has('newPassword_confirmation');
+@endphp
+@if($pwHasErrors)
+<script>
+  // Keep the password panel open when there are server-side errors
+  document.addEventListener('DOMContentLoaded', function(){
+    const p = document.getElementById('passwordPanel');
+    if(p) p.classList.add('open');
+  });
+</script>
+@endif
 
 <!-- Blade logic to trigger notification -->
 @if (session('status'))

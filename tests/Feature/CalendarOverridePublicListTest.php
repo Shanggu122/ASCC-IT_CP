@@ -55,7 +55,7 @@ class CalendarOverridePublicListTest extends TestCase
 
         // Assert
         $this->assertTrue(($json["success"] ?? false) === true, "success flag should be true");
-        $key = Carbon::parse("2025-12-25")->format("D M d Y");
+        $key = Carbon::parse("2025-12-25")->format("Y-m-d");
         $this->assertArrayHasKey($key, $json["overrides"], "Date key should exist");
         $items = $json["overrides"][$key];
         $this->assertNotEmpty($items, "Overrides array for date should not be empty");
