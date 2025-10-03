@@ -108,8 +108,8 @@ class CalendarOverrideProfessorListTest extends TestCase
         $json = $res->json();
         $this->assertTrue(($json["success"] ?? false) === true);
 
-        $k1 = Carbon::parse("2025-12-20")->format("D M d Y");
-        $k2 = Carbon::parse("2025-12-22")->format("D M d Y");
+        $k1 = Carbon::parse("2025-12-20")->format("Y-m-d");
+        $k2 = Carbon::parse("2025-12-22")->format("Y-m-d");
         $this->assertArrayHasKey($k1, $json["overrides"]);
         $this->assertArrayHasKey($k2, $json["overrides"]);
         $this->assertSame("block_all", $json["overrides"][$k1][0]["effect"]);

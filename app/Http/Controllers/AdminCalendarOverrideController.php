@@ -35,12 +35,12 @@ class AdminCalendarOverrideController extends Controller
         $period = \Carbon\CarbonPeriod::create($start, $end);
         $byDate = [];
         foreach ($period as $d) {
-            $byDate[$d->format("D M d Y")] = [];
+            $byDate[$d->format("Y-m-d")] = [];
         }
         foreach ($rows as $ov) {
             $subPeriod = \Carbon\CarbonPeriod::create($ov->start_date, $ov->end_date);
             foreach ($subPeriod as $d) {
-                $key = $d->format("D M d Y");
+                $key = $d->format("Y-m-d");
                 if (!array_key_exists($key, $byDate)) {
                     continue;
                 }
@@ -99,12 +99,73 @@ class AdminCalendarOverrideController extends Controller
         $period = \Carbon\CarbonPeriod::create($start, $end);
         $byDate = [];
         foreach ($period as $d) {
-            $byDate[$d->format("D M d Y")] = [];
+            $byDate[$d->format("Y-m-d")] = [];
         }
         foreach ($rows as $ov) {
             $subPeriod = \Carbon\CarbonPeriod::create($ov->start_date, $ov->end_date);
             foreach ($subPeriod as $d) {
-                $key = $d->format("D M d Y");
+                $key = $d->format("Y-m-d");
+                if (!array_key_exists($key, $byDate)) {
+                    continue;
+                }
+                $label = null;
+                if ($ov->effect === "holiday") {
+                    $label = $ov->reason_text ?: "Holiday";
+                } elseif ($ov->effect === "block_all") {
+                    $label = "Suspended";
+                } elseif ($ov->effect === "force_mode") {
+                    $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
+                }
+                $byDate[$key][] = [
+                    "effect" => $ov->effect,
+                    "allowed_mode" => $ov->allowed_mode,
+                    "reason_key" => $ov->reason_key,
+                    "reason_text" => $ov->reason_text,
+                    "label" => $label,
+                ];
+            }
+        }
+        return response()->json(["success" => true, "overrides" => $byDate]);
+    }
+
+    // Public read-only: returns global overrides plus professor-scoped overrides for a given professor ID
+    // This enables student booking calendars to reflect professor-specific overrides.
+    public function publicProfessorList(Request $request)
+    {
+        $data = $request->validate([
+            "prof_id" => "required|integer",
+            "start_date" => "required|date",
+            "end_date" => "nullable|date",
+        ]);
+        $start = Carbon::parse($data["start_date"])->toDateString();
+        $end = isset($data["end_date"]) ? Carbon::parse($data["end_date"])->toDateString() : $start;
+        $profId = (int) $data["prof_id"];
+
+        $rows = CalendarOverride::query()
+            ->where(function ($q) use ($profId) {
+                $q->where("scope_type", "all")->orWhere(function ($qq) use ($profId) {
+                    $qq->where("scope_type", "professor")->where("scope_id", $profId);
+                });
+            })
+            ->where(function ($q) use ($start, $end) {
+                $q->whereBetween("start_date", [$start, $end])
+                    ->orWhereBetween("end_date", [$start, $end])
+                    ->orWhere(function ($qq) use ($start, $end) {
+                        $qq->where("start_date", "<=", $start)->where("end_date", ">=", $end);
+                    });
+            })
+            ->orderBy("start_date", "asc")
+            ->get();
+
+        $period = \Carbon\CarbonPeriod::create($start, $end);
+        $byDate = [];
+        foreach ($period as $d) {
+            $byDate[$d->format("Y-m-d")] = [];
+        }
+        foreach ($rows as $ov) {
+            $sub = \Carbon\CarbonPeriod::create($ov->start_date, $ov->end_date);
+            foreach ($sub as $d) {
+                $key = $d->format("Y-m-d");
                 if (!array_key_exists($key, $byDate)) {
                     continue;
                 }
@@ -151,12 +212,12 @@ class AdminCalendarOverrideController extends Controller
         $period = \Carbon\CarbonPeriod::create($start, $end);
         $byDate = [];
         foreach ($period as $d) {
-            $byDate[$d->format("D M d Y")] = [];
+            $byDate[$d->format("Y-m-d")] = [];
         }
         foreach ($rows as $ov) {
             $subPeriod = \Carbon\CarbonPeriod::create($ov->start_date, $ov->end_date);
             foreach ($subPeriod as $d) {
-                $key = $d->format("D M d Y");
+                $key = $d->format("Y-m-d");
                 if (!array_key_exists($key, $byDate)) {
                     continue;
                 } // skip dates outside requested window

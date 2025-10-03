@@ -1024,7 +1024,6 @@ function closeProfessorModal() {
       }
       
       const notificationsHtml = notifications.map(notification => {
-        const timeAgo = getTimeAgo(notification.created_at);
         const unreadClass = notification.is_read ? '' : 'unread';
         
         return `
@@ -1032,7 +1031,7 @@ function closeProfessorModal() {
             <div class="notification-type ${notification.type}">${notification.type.replace('_', ' ')}</div>
             <div class="notification-title">${notification.title}</div>
             <div class="notification-message">${notification.message}</div>
-            <div class="notification-time">${timeAgo}</div>
+            <div class="notification-time" data-timeago data-ts="${notification.created_at}"></div>
           </div>
         `;
       }).join('');
@@ -1098,22 +1097,7 @@ function closeProfessorModal() {
       });
     }
 
-    function getTimeAgo(dateString) {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffInSeconds = Math.floor((now - date) / 1000);
-      if (diffInSeconds < 60) return 'Just now';
-      if (diffInSeconds < 3600) {
-        const m = Math.floor(diffInSeconds / 60);
-        return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
-      }
-      if (diffInSeconds < 86400) {
-        const h = Math.floor(diffInSeconds / 3600);
-        return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
-      }
-      const d = Math.floor(diffInSeconds / 86400);
-      return `${d} ${d === 1 ? 'day' : 'days'} ago`;
-    }
+    // Live timeago handled by public/js/timeago.js
 
     // Initialize mobile notifications on page load
     document.addEventListener('DOMContentLoaded', function() {
@@ -1282,5 +1266,6 @@ function closeProfessorModal() {
     function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
   function getPrintStyles(){ return `body{font-family:Poppins,Arial,sans-serif;margin:24px;}h2{margin:0 0 4px;color:#12372a;font-size:26px;} .print-professor{font-size:12px;color:#234b3b;margin-bottom:2px;font-weight:500;} .print-meta{font-size:12px;color:#555;margin-bottom:12px;}table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #222;padding:6px 8px;text-align:left;}th{background:#12372a;color:#fff;font-weight:600;} .status-badge{padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px;color:#fff;display:inline-block;} .status-badge.status-pending{background:#ffa600;} .status-badge.status-approved{background:#27ae60;} .status-badge.status-completed{background:#093b2f;} .status-badge.status-rescheduled{background:#c50000;} .print-footer-note{margin-top:22px;font-size:11px;color:#444;text-align:right;}@media print{body{margin:0;padding:0;} }`; }
   </script>
+  <script src="{{ asset('js/timeago.js') }}"></script>
 </body>
 </html>

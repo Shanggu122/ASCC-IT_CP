@@ -488,6 +488,12 @@
       .legend-toggle { left: 12px; bottom: 12px; }
       .chat-button { right: 12px; bottom: 12px; }
     }
+
+    /* Position the legend button just to the right of the left sidebar (desktop only) */
+    @media (min-width: 951px) {
+      .legend-toggle { left: calc(220px + 20px) !important; }
+      .legend-panel { left: calc(220px + 24px) !important; }
+    }
   </style>
 </head>
 <body>
@@ -743,6 +749,11 @@
         firstDay: 1,
         bound: false,
         onDraw: function() {
+          // Determine visible month key once per draw
+          const baseForDraw = (function(){
+            try { return getVisibleMonthBaseDate(); } catch(_) { const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), 1); }
+          })();
+          const monthKeyForDraw = `${baseForDraw.getFullYear()}-${String(baseForDraw.getMonth()+1).padStart(2,'0')}`;
           const cells = document.querySelectorAll('.pika-button');
           cells.forEach(cell => {
             const day = cell.getAttribute('data-pika-day');
@@ -751,15 +762,28 @@
             if (day && month && year) {
               const cellDate = new Date(year, month, day);
               const key = cellDate.toDateString();
+              const isoKey = `${cellDate.getFullYear()}-${String(cellDate.getMonth()+1).padStart(2,'0')}-${String(cellDate.getDate()).padStart(2,'0')}`;
 
-              // Remove old override badges and classes
-              const oldBadge = cell.querySelector('.ov-badge');
-              if (oldBadge) oldBadge.remove();
-              cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
+              // Use overrides source with per-month sticky fallback so badges don't flicker
+              const ovSource = (function(){
+                if (window.adminOverrides && typeof window.adminOverrides === 'object') return window.adminOverrides;
+                if (window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[monthKeyForDraw]) return window.__adminOvCacheByMonth[monthKeyForDraw];
+                // legacy single cache fallback
+                if (window.__adminOvCache && typeof window.__adminOvCache === 'object') return window.__adminOvCache;
+                return null;
+              })();
+              const haveOv = !!ovSource;
 
-              // Render overrides badge if present
-              if (window.adminOverrides && window.adminOverrides[key] && window.adminOverrides[key].length > 0) {
-                const items = window.adminOverrides[key];
+              // Only clear previous override visuals if we have some source to repaint from
+              if (haveOv) {
+                const oldBadge = cell.querySelector('.ov-badge');
+                if (oldBadge) oldBadge.remove();
+                cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
+              }
+
+              // Render overrides badge if present (pulling from chosen source)
+              if (haveOv && ovSource[isoKey] && ovSource[isoKey].length > 0) {
+                const items = ovSource[isoKey];
                 let chosen = null;
                 for (const ov of items) { if (ov.effect === 'holiday') { chosen = ov; break; } }
                 if (!chosen) { for (const ov of items) { if (ov.effect === 'block_all') { chosen = ov; break; } } }
@@ -801,6 +825,22 @@
               }
             }
           });
+          // Debug: show how many override days are available for the visible month
+          try {
+            const monthKey = `${baseForDraw.getFullYear()}-${String(baseForDraw.getMonth()+1).padStart(2,'0')}`;
+            const src = (function(){
+              if (window.adminOverrides && typeof window.adminOverrides === 'object') return window.adminOverrides;
+              if (window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[monthKey]) return window.__adminOvCacheByMonth[monthKey];
+              if (window.__adminOvCache && typeof window.__adminOvCache === 'object') return window.__adminOvCache;
+              return null;
+            })();
+            if (src) {
+              const cnt = Object.keys(src).filter(k=>Array.isArray(src[k]) && src[k].length>0).length;
+              console.debug('[OV] Draw visible month', monthKey, 'days:', cnt);
+            } else {
+              console.debug('[OV] Draw visible month', monthKey, 'no source yet');
+            }
+          } catch(_) {}
         }
       });
       picker.show();
@@ -851,6 +891,7 @@
         }
         const start = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
         const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 0);
+        const monthKey = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}`;
         const toIso = (d) => {
           if (!d || !(d instanceof Date) || isNaN(d.getTime())) return null;
           const y = d.getFullYear();
@@ -864,22 +905,78 @@
           console.warn('Overrides fetch skipped: start/end invalid', { start, end });
           return;
         }
-        fetch(`/api/admin/calendar/overrides?start_date=${startStr}&end_date=${endStr}`, {
+        const adminUrl = `/api/admin/calendar/overrides?start_date=${startStr}&end_date=${endStr}`;
+        const publicUrl = `/api/calendar/overrides?start_date=${startStr}&end_date=${endStr}`;
+        console.debug('[OV] Fetching admin overrides for', monthKey, adminUrl);
+        fetch(adminUrl, {
         method: 'GET',
         headers: { 'Accept':'application/json' },
         credentials: 'same-origin'
-      }).then(r=>{
-        if (!r.ok) { console.error('Overrides fetch failed with status', r.status); }
-        return r.json();
-      }).then(data => {
-        if (data && data.success) {
-          window.adminOverrides = data.overrides || {};
-          // Re-draw if picker exists to paint badges
-          if (window.adminPicker) window.adminPicker.draw();
-        } else {
-          console.warn('Overrides payload not successful', data);
+      }).then(async r=>{
+        if (!r.ok) {
+          console.warn('[OV] Admin overrides HTTP status', r.status);
+          throw new Error('http_' + r.status);
         }
-      }).catch((e) => { console.error('Overrides fetch error', e); });
+        let data;
+        try {
+          data = await r.json();
+        } catch(jsonErr) {
+          console.warn('[OV] Admin overrides non-JSON response, keeping cache', jsonErr);
+          throw new Error('non_json');
+        }
+        if (data && data.success) {
+          const incoming = data.overrides || {};
+          const keys = Object.keys(incoming).filter(k=>Array.isArray(incoming[k]) && incoming[k].length>0);
+          console.debug('[OV] Admin overrides loaded', { monthKey, days: keys.length, sample: keys.slice(0,5) });
+          // Init per-month cache
+          if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+          window.__adminOvCacheByMonth[monthKey] = incoming;
+          // Only update live overrides if the fetched month matches the currently visible month
+          const visibleBase = (function(){
+            try { return getVisibleMonthBaseDate(); } catch(_) { const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), 1); }
+          })();
+          const visibleKey = `${visibleBase.getFullYear()}-${String(visibleBase.getMonth()+1).padStart(2,'0')}`;
+          if (visibleKey === monthKey) {
+            window.adminOverrides = incoming;
+            // Legacy single cache for older paths
+            window.__adminOvCache = incoming;
+            // Re-draw if picker exists to paint badges
+            if (window.adminPicker) window.adminPicker.draw();
+          }
+        } else {
+          console.warn('[OV] Admin overrides payload not successful', data);
+          throw new Error('payload_unsuccessful');
+        }
+      }).catch((e) => {
+        console.warn('[OV] Admin overrides fetch failed, will try public fallback', e && e.message);
+        // Public fallback: global overrides only (fine for Suspended/Holiday/Online Day global cases)
+        fetch(publicUrl, { method:'GET', headers:{'Accept':'application/json'} })
+          .then(r=>r.ok ? r.json() : Promise.reject(new Error('public_http_'+r.status)))
+          .then(data=>{
+            if (data && data.success) {
+              const incoming = data.overrides || {};
+              const keys = Object.keys(incoming).filter(k=>Array.isArray(incoming[k]) && incoming[k].length>0);
+              console.debug('[OV/FALLBACK] Public overrides loaded', { monthKey, days: keys.length, sample: keys.slice(0,5) });
+              if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+              window.__adminOvCacheByMonth[monthKey] = incoming;
+              const visibleBase = (function(){
+                try { return getVisibleMonthBaseDate(); } catch(_) { const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), 1); }
+              })();
+              const visibleKey = `${visibleBase.getFullYear()}-${String(visibleBase.getMonth()+1).padStart(2,'0')}`;
+              if (visibleKey === monthKey) {
+                // Note: mark as fallback source
+                window.adminOverrides = incoming;
+                window.__adminOvCache = incoming;
+                if (window.adminPicker) window.adminPicker.draw();
+              }
+            } else {
+              console.warn('[OV/FALLBACK] Public overrides payload not successful', data);
+            }
+          })
+          .catch(err=>{
+            console.warn('[OV/FALLBACK] Public overrides failed', err && err.message);
+          });
+      });
       } catch (err) {
         console.error('Admin Error loading calendar data:', err);
       }
@@ -888,12 +985,27 @@
     // Helper: find the currently visible calendar month as a safe Date (YYYY,MM,1)
     function getVisibleMonthBaseDate() {
       try {
+        // 1) Prefer Pikaday select elements (most reliable)
+        const selMonth = document.querySelector('.pika-select-month');
+        const selYear = document.querySelector('.pika-select-year');
+        if (selMonth && selYear) {
+          const m = parseInt(selMonth.value, 10);
+          const y = parseInt(selYear.value, 10);
+          if (!isNaN(m) && !isNaN(y)) {
+            const d = new Date(y, m, 1);
+            if (!isNaN(d.getTime())) return d;
+          }
+        }
+        // 2) Parse label; support full and short month names
         const labelEl = document.querySelector('.pika-label');
         if (labelEl) {
           const text = (labelEl.textContent || '').trim();
           const parts = text.split(/\s+/);
           if (parts.length === 2) {
-            const monthMap = { January:0, February:1, March:2, April:3, May:4, June:5, July:6, August:7, September:8, October:9, November:10, December:11 };
+            const monthMap = {
+              January:0, February:1, March:2, April:3, May:4, June:5, July:6, August:7, September:8, October:9, November:10, December:11,
+              Jan:0, Feb:1, Mar:2, Apr:3, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11
+            };
             const m = monthMap[parts[0]];
             const y = parseInt(parts[1], 10);
             if (!isNaN(m) && !isNaN(y)) {
@@ -902,12 +1014,11 @@
             }
           }
         }
-        const btn = document.querySelector('.pika-table .pika-button');
-        if (btn) {
-          const yAttr = btn.getAttribute('data-pika-year');
-          const mAttr = btn.getAttribute('data-pika-month');
-          const y = yAttr ? parseInt(yAttr, 10) : NaN;
-          const m = mAttr ? parseInt(mAttr, 10) : NaN;
+        // 3) Fallback: use any current-month day cell if available
+        const cur = document.querySelector('.pika-table .pika-button:not(.is-outside-current-month)');
+        if (cur) {
+          const y = parseInt(cur.getAttribute('data-pika-year'), 10);
+          const m = parseInt(cur.getAttribute('data-pika-month'), 10);
           if (!isNaN(y) && !isNaN(m)) {
             const d = new Date(y, m, 1);
             if (!isNaN(d.getTime())) return d;
@@ -1221,7 +1332,9 @@
     // Helper: determine if a given date has any override applied (by data map or DOM fallback)
     function hasOverrideForDate(dateStr) {
       try {
-        if (window.adminOverrides && window.adminOverrides[dateStr] && window.adminOverrides[dateStr].length > 0) {
+        const dt = new Date(dateStr);
+        const iso = isNaN(dt.getTime()) ? null : `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+        if (iso && window.adminOverrides && window.adminOverrides[iso] && window.adminOverrides[iso].length > 0) {
           return true;
         }
         // Fallback: scan DOM for a badge or override day class on the specific cell
@@ -1600,7 +1713,8 @@
         // If there is no override for this date, do not proceed
         try {
           const exists = (function(){
-            if (window.adminOverrides && window.adminOverrides[dateLabel] && window.adminOverrides[dateLabel].length > 0) return true;
+            const iso = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+            if (window.adminOverrides && window.adminOverrides[iso] && window.adminOverrides[iso].length > 0) return true;
             const cells = document.querySelectorAll('.pika-button');
             for (const cell of cells) {
               const d = new Date(
@@ -1643,7 +1757,7 @@
                 if (d.toDateString() === dateLabel) {
                   const old = cell.querySelector('.ov-badge');
                   if (old) old.remove();
-                  cell.classList.remove('day-holiday','day-blocked','day-force');
+                  cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
                   break;
                 }
               }
@@ -1816,25 +1930,48 @@
             cells.forEach(cell => {
               const cellDate = new Date(cell.getAttribute('data-pika-year'), cell.getAttribute('data-pika-month'), cell.getAttribute('data-pika-day'));
               const dateStr = cellDate.toDateString();
-              // Refresh override badges/classes on update
-              const oldBadge = cell.querySelector('.ov-badge');
-              if (oldBadge) oldBadge.remove();
-              cell.classList.remove('day-holiday','day-blocked','day-force');
-              if (window.adminOverrides && window.adminOverrides[dateStr] && window.adminOverrides[dateStr].length > 0) {
-                const items = window.adminOverrides[dateStr];
+              const isoKey = `${cellDate.getFullYear()}-${String(cellDate.getMonth()+1).padStart(2,'0')}-${String(cellDate.getDate()).padStart(2,'0')}`;
+              // Refresh override badges/classes on update, using per-month sticky cache to avoid flicker
+              const visibleBaseNow = (function(){
+                try { return getVisibleMonthBaseDate(); } catch(_) { const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), 1); }
+              })();
+              const visKeyNow = `${visibleBaseNow.getFullYear()}-${String(visibleBaseNow.getMonth()+1).padStart(2,'0')}`;
+              const ovSource = (function(){
+                if (window.adminOverrides && typeof window.adminOverrides === 'object') return window.adminOverrides;
+                if (window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[visKeyNow]) return window.__adminOvCacheByMonth[visKeyNow];
+                if (window.__adminOvCache && typeof window.__adminOvCache === 'object') return window.__adminOvCache;
+                return null;
+              })();
+              if (ovSource) {
+                const oldBadge = cell.querySelector('.ov-badge');
+                if (oldBadge) oldBadge.remove();
+                cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
+              }
+              if (ovSource && ovSource[isoKey] && ovSource[isoKey].length > 0) {
+                const items = ovSource[isoKey];
                 let chosen = null;
                 for (const ov of items) { if (ov.effect === 'holiday') { chosen = ov; break; } }
                 if (!chosen) { for (const ov of items) { if (ov.effect === 'block_all') { chosen = ov; break; } } }
                 if (!chosen) { chosen = items[0]; }
                 const badge = document.createElement('span');
-                const chosenCls = (chosen.effect === 'holiday' ? 'ov-holiday' : (chosen.effect === 'block_all' ? 'ov-blocked' : 'ov-force'));
+                // Distinguish Online Day vs Forced Online for clarity
+                const isOnlineDay = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day'));
+                const chosenCls = (chosen.effect === 'holiday'
+                  ? 'ov-holiday'
+                  : (chosen.effect === 'block_all'
+                    ? 'ov-blocked'
+                    : (isOnlineDay ? 'ov-online' : 'ov-force')));
                 badge.className = 'ov-badge ' + chosenCls;
-                const forceLabel2 = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
+                const forceLabel2 = isOnlineDay ? 'Online Day' : 'Forced Online';
                 badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel2 : chosen.effect);
                 badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? 'Suspended' : forceLabel2);
                 cell.style.position = 'relative';
                 cell.appendChild(badge);
-                const dayCls = (chosen.effect === 'holiday' ? 'day-holiday' : (chosen.effect === 'block_all' ? 'day-blocked' : 'day-force'));
+                const dayCls = (chosen.effect === 'holiday'
+                  ? 'day-holiday'
+                  : (chosen.effect === 'block_all'
+                    ? 'day-blocked'
+                    : (isOnlineDay ? 'day-online' : 'day-force')));
                 cell.classList.add(dayCls);
               }
               const booking = bookingMap.get(dateStr);
@@ -1924,7 +2061,7 @@
       }
       
       const notificationsHtml = notifications.map(notification => {
-        const timeAgo = getTimeAgo(notification.created_at);
+  const timeTs = notification.created_at;
         const unreadClass = notification.is_read ? '' : 'unread';
         
         return `
@@ -1932,7 +2069,7 @@
             <div class="notification-type ${notification.type}">${notification.type.replace('_', ' ')}</div>
             <div class="notification-title">${notification.title}</div>
             <div class="notification-message">${notification.message}</div>
-            <div class="notification-time">${timeAgo}</div>
+            <div class="notification-time" data-timeago data-ts="${timeTs}"></div>
           </div>
         `;
       }).join('');
@@ -2006,22 +2143,7 @@
       return colors[status] || '#666';
     }
 
-    function getTimeAgo(dateString) {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffInSeconds = Math.floor((now - date) / 1000);
-      if (diffInSeconds < 60) return 'Just now';
-      if (diffInSeconds < 3600) {
-        const m = Math.floor(diffInSeconds / 60);
-        return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
-      }
-      if (diffInSeconds < 86400) {
-        const h = Math.floor(diffInSeconds / 3600);
-        return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
-      }
-      const d = Math.floor(diffInSeconds / 86400);
-      return `${d} ${d === 1 ? 'day' : 'days'} ago`;
-    }
+    // Live timeago handled by public/js/timeago.js
 
     // Modal functions for consultation details
     function showConsultationDetails(notificationId, bookingId) {
@@ -2167,5 +2289,6 @@
     // Real-time refresh calendar data every 3 seconds (reduced for smoother updates)
     setInterval(loadAdminCalendarData, 3000);
   </script>
+  <script src="{{ asset('js/timeago.js') }}"></script>
 </body>
 </html>

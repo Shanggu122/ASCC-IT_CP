@@ -2,20 +2,27 @@
 .confirm-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: none;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1100;
+    z-index: 2000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.confirm-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .confirm-modal {
-    background: #0f2e22; /* dark green */
+    background: #0b3d2e; /* app dark green */
     color: #e7f6ef;
     border-radius: 12px;
     width: 92%;
-    max-width: 460px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    max-width: 520px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
     overflow: hidden;
     animation: modalSlideIn 0.25s ease-out;
 }
@@ -52,7 +59,7 @@
 .btn-cancel-red {
     padding: 10px 16px;
     border: none;
-    border-radius: 8px;
+    border-radius: 999px; /* pill */
     font-weight: 600;
     cursor: pointer;
     transition:
