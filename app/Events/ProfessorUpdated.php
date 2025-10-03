@@ -22,17 +22,18 @@ class ProfessorUpdated implements ShouldBroadcast
 
     public function broadcastOn(): Channel
     {
-        return new Channel('professors.dept.' . $this->professor->Dept_ID);
+        return new Channel("professors.dept." . $this->professor->Dept_ID);
     }
 
     public function broadcastWith(): array
     {
         return [
-            'Prof_ID' => $this->professor->Prof_ID,
-            'Name' => $this->professor->Name,
-            'Schedule' => $this->professor->Schedule,
-            'Dept_ID' => $this->professor->Dept_ID,
-            'profile_picture' => $this->professor->profile_picture,
+            "Prof_ID" => $this->professor->Prof_ID,
+            "Name" => $this->professor->Name,
+            "Schedule" => $this->professor->Schedule,
+            "Dept_ID" => $this->professor->Dept_ID,
+            "profile_picture" => $this->professor->profile_picture,
+            "profile_photo_url" => $this->professor->profile_photo_url,
         ];
     }
 }
