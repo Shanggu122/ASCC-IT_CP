@@ -24,7 +24,7 @@
 
   <div class="main-content">
     <div class="header">
-      <h1>Consultation Logs</h1>
+      <h1>Consultation Log</h1>
     </div>
 
     <div class="search-container">
@@ -76,7 +76,7 @@
 
       @empty
         <div class="table-row">
-          <div class="table-cell" colspan="8">No consultations found.</div>
+          <div class="table-cell" colspan="8">No consultation found.</div>
         </div>
       @endforelse
       <div style="height: 80px;"></div> <!-- Spacer under the last table row -->

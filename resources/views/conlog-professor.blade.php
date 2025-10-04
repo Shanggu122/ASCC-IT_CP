@@ -193,7 +193,7 @@
     <div class="search-container">
       <input type="text" id="searchInput" placeholder="Search..." style="flex:1;"
              autocomplete="off" spellcheck="false" maxlength="50"
-             pattern="[A-Za-z0-9 .,@_-]{0,50}" aria-label="Search consultations">
+             pattern="[A-Za-z0-9 .,@_-]{0,50}" aria-label="Search consultation">
       <div class="filter-group-horizontal">
         <select id="typeFilter" class="filter-select">
           <option value="">All Types</option>
@@ -276,7 +276,7 @@
         </div>
         @empty
           <div class="table-row">
-            <div class="table-cell" colspan="8">No consultations found.</div>
+            <div class="table-cell" colspan="8">No consultation found.</div>
           </div>
         @endforelse
       <div style="height: 80px;"></div> <!-- Spacer under the last table row -->
@@ -1223,7 +1223,7 @@ function closeProfessorModal() {
             status: cells[6]?.innerText.trim() || ''
           });
         });
-        if (data.length === 0){ alert('No consultations to print.'); return; }
+        if (data.length === 0){ alert('No consultation to print.'); return; }
         // sort by date then student
         data.sort((a,b)=> parseDate(a.date) - parseDate(b.date) || a.student.localeCompare(b.student));
         // Prepare payload for server
