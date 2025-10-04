@@ -76,7 +76,7 @@
                     <button class="back-btn" id="back-btn" style="display:none;"><i class='bx bx-arrow-back'></i></button>
                     <span id="chat-person">Select a Professor</span>
                     <span id="typing-indicator" class="typing-indicator" style="display:none;">Typing...</span>
-                    <button class="video-btn" id="launch-call" onclick="startVideoCall()" disabled title="Video call available only on an approved or rescheduled consultation today">Video Call</button>
+                    <button class="video-btn" id="launch-call" onclick="startVideoCall()" title="Video call is only available during your consultation schedule">Video Call</button>
           
                 </div>
                 <div class="chat-body" id="chat-body">
@@ -102,6 +102,38 @@
     <script src="{{ asset('js/messages.js') }}"></script>
     <script src="https://js.pusher.com/7.0/pusher.min.js"></script>
     <script>
+  // Themed toast helper for consistent UI feedback
+  function showToast(message, variant = 'error', timeout = 2800){
+    let root = document.getElementById('toast-root');
+    if(!root){
+      root = document.createElement('div');
+      root.id = 'toast-root';
+      root.className = 'toast-root';
+      document.body.appendChild(root);
+    }
+    // Coalesce: if a toast with same message exists, reset its timer instead of stacking
+    const existing = Array.from(root.querySelectorAll('.toast')).find(el => el.dataset.msg === message);
+    if(existing){
+      clearTimeout(existing._hideTimer);
+      existing.style.animation = 'toast-in 180ms ease-out forwards';
+      existing._hideTimer = setTimeout(()=>{
+        existing.style.animation = 'toast-out 160ms ease-in forwards';
+        setTimeout(()=>{ existing.remove(); }, 190);
+      }, timeout);
+      return;
+    }
+    const t = document.createElement('div');
+    t.className = 'toast ' + (variant === 'error' ? 'toast--error' : 'toast--ok');
+    t.setAttribute('data-msg', message);
+    t.innerHTML = "<i class='bx bxs-info-circle toast__icon'></i><div class='toast__text'></div>";
+    t.querySelector('.toast__text').textContent = message;
+    root.appendChild(t);
+    t._hideTimer = setTimeout(()=>{
+      t.style.animation = 'toast-out 160ms ease-in forwards';
+      setTimeout(()=>{ t.remove(); }, 190);
+    }, timeout);
+  }
+
   let currentChatPerson = '';
   let currentProfId = null; // direct messaging target
   const currentStudentId = {{ auth()->user()->Stud_ID ?? 0 }};
@@ -285,11 +317,11 @@
           const canVideo = selected && selected.getAttribute('data-can-video') === '1';
           const btn = document.getElementById('launch-call');
           if(canVideo){
-            btn.disabled = false;
+            btn.classList.remove('is-blocked');
             btn.title = 'Start video call';
           } else {
-            btn.disabled = true;
-            btn.title = 'Video call available only on an approved or rescheduled consultation today';
+            btn.classList.add('is-blocked');
+            btn.title = 'Video call is only available during your consultation schedule';
           }
 
           // Fetch messages for the selected chat
@@ -301,12 +333,12 @@
 
         function startVideoCall() {
           if (!currentChatPerson) {
-            alert('Please select a professor to start a video call.');
+            showToast('Please select a professor to start a video call.', 'error');
             return;
           }
           const active = document.querySelector('.inbox-item.active');
           if(!active || active.getAttribute('data-can-video') !== '1'){
-            alert('Video call only works if you have an approved or rescheduled consultation today.');
+            showToast('Video call is only available during your consultation schedule.', 'error');
             return;
           }
           const channel = encodeURIComponent(currentChatPerson.replace(/\s+/g, ''));
@@ -752,5 +784,8 @@
       <img id="overlay-main" class="overlay-main" alt="Preview" />
       <div id="overlay-thumbs" class="overlay-thumbs"></div>
     </div>
+    <!-- Toast root (bottom center) -->
+    <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>
+

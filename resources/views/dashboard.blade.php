@@ -265,7 +265,7 @@
 
     <div class="chat-overlay" id="chatOverlay">
       <div class="chat-header">
-        <span>AI Chat Assistant</span>
+        <span>ASCC-IT</span>
         <button class="close-btn" onclick="toggleChat()">×</button>
       </div>
       <div class="chat-body" id="chatBody">
