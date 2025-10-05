@@ -114,7 +114,7 @@
           <div class="table-cell" colspan="8">No consultation found.</div>
         </div>
       @endforelse
-      <div style="height: 80px;"></div> <!-- Spacer under the last table row -->
+  <div id="tableSpacer" style="height: 80px;"></div> <!-- Spacer under the last table row -->
     
       </div>
     </div>
@@ -238,7 +238,14 @@ function sanitize(raw){
     }
 
     matched.sort(compareRows);
-    const frag = document.createDocumentFragment(); matched.forEach(r=>frag.appendChild(r)); table.appendChild(frag);
+    const frag = document.createDocumentFragment();
+    matched.forEach(r=>frag.appendChild(r));
+    const spacer = document.getElementById('tableSpacer');
+    if (spacer && spacer.parentElement === table) {
+      table.insertBefore(frag, spacer);
+    } else {
+      table.appendChild(frag);
+    }
 
     const total = matched.length; const totalPages = Math.max(1, Math.ceil(total/pageSize));
     if(currentPage>totalPages) currentPage = totalPages;
