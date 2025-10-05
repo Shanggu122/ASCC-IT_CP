@@ -673,12 +673,15 @@ body {
     margin-right: auto;
 }
 
-/* Sticky header on wider screens */
+/* Sticky header on wider screens
+   Note: applying sticky to the table row can create gaps in some browsers.
+   Apply sticky to header cells instead to avoid spacing issues. */
 @media (min-width: 769px) {
-    .table-header {
+    .table-header .table-cell {
         position: sticky;
         top: 0;
         z-index: 5;
+        background-color: #0b2e24; /* ensure background while sticky */
     }
 }
 
@@ -742,9 +745,12 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin: 0.5rem 0 1.5rem 0;
+    /* align width with .table (centered, constrained) */
+    max-width: 1600px;
+    margin: 0.75rem auto 2rem auto;
+    padding: 0 8px; /* slight inner padding so buttons/text line up with table borders */
 }
-.page-info { color: #12372a; font-size: 14px; }
+.page-info { color: #12372a; font-size: 14px; line-height: 1; opacity: 0.85; }
 .pagination { display: flex; gap: 6px; flex-wrap: wrap; }
 .page-btn {
     padding: 6px 10px;
@@ -756,7 +762,7 @@ body {
     font-size: 14px;
 }
 .page-btn:hover { background: #e5f0ed; }
-.page-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.page-btn:disabled { opacity: 0.45; cursor: not-allowed; background: #f3f3f3; }
 .page-btn.active { background: #12372a; color: #fff; border-color: #12372a; }
 
 .search-container {
