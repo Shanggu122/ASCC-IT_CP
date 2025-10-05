@@ -870,6 +870,15 @@ Route::middleware([\App\Http\Middleware\EnsureProfessorAuthenticated::class])->g
         \App\Http\Controllers\AdminCalendarOverrideController::class,
         "professorList",
     ]);
+    // Professor leave day apply/remove
+    Route::post("/api/professor/calendar/leave/apply", [
+        \App\Http\Controllers\ProfessorCalendarOverrideController::class,
+        "applyLeave",
+    ]);
+    Route::post("/api/professor/calendar/leave/remove", [
+        \App\Http\Controllers\ProfessorCalendarOverrideController::class,
+        "removeLeave",
+    ]);
 });
 
 // Debug route for notifications

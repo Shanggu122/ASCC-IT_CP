@@ -38,11 +38,13 @@
   .ov-blocked { background-color: #374151; }   /* Suspended → Dark Gray */
   .ov-force { background-color: #2563eb; }     /* Forced Online → Blue */
   .ov-online { background-color: #FF69B4; }    /* Online Day → Pink */
+  .ov-leave  { background-color: #0ea5a4; }    /* Leave Day → Teal/Cyan */
     /* Whole-cell background for overrides */
   .day-holiday { background: rgba(155, 89, 182, 0.55) !important; } /* Violet */
     .day-blocked { background: rgba(55, 65, 81, 0.75) !important; }   /* Suspended */
-    .day-force   { background: rgba(37, 99, 235, 0.6) !important; }   /* Forced Online */
-    .day-online  { background: rgba(255, 105, 180, 0.45) !important; }/* Online Day */
+  .day-force   { background: rgba(37, 99, 235, 0.6) !important; }   /* Forced Online */
+  .day-online  { background: rgba(255, 105, 180, 0.45) !important; }/* Online Day */
+  .day-leave   { background: rgba(14, 165, 164, 0.55) !important; } /* Leave Day */
     /* Unified arrow styling */
     .pika-prev, .pika-next {
       background-color: #0d2b20; /* dark fill */
@@ -120,20 +122,45 @@
     .pika-button {
       background-color: #cac7c7;
       border-radius: 4px;
-      color: #ffffff;
+      color: #ffffff !important;
       padding: 10px;
       height: 50px;
       margin: 5px 0;
-      pointer-events: auto; /* Keep auto for hover tooltips to work */
-      cursor: default; /* Change cursor to default - no pointer cursor */
+      pointer-events: auto; /* allow hover/tooltip */
+      cursor: default; /* match admin: not a hand cursor by default */
       user-select: none; /* Prevent text selection */
     }
-    .pika-button:hover, .pika-row.pick-whole-week:hover .pika-button {
-      color: #fff;
+    .pika-button:hover,
+    .pika-row.pick-whole-week:hover .pika-button,
+    .pika-button:focus,
+    .pika-button:active {
+      /* Keep neutral look like admin; tinted states win due to !important */
+      color: #fff !important;
       background: #cac7c7;
-      box-shadow: none;
+      box-shadow: none !important;
+      outline: none !important;
       border-radius: 3px;
     }
+
+  /* Tinted states keep their colors on hover due to !important */
+  .pika-button.day-online:hover,
+  .pika-button.day-online:focus,
+  .pika-button.day-online:active { background: rgba(255, 105, 180, 0.45) !important; color:#fff !important; }
+  .pika-button.day-force:hover,
+  .pika-button.day-force:focus,
+  .pika-button.day-force:active { background: rgba(37, 99, 235, 0.6) !important; color:#fff !important; }
+  .pika-button.day-holiday:hover,
+  .pika-button.day-holiday:focus,
+  .pika-button.day-holiday:active { background: rgba(155, 89, 182, 0.55) !important; color:#fff !important; }
+  .pika-button.day-blocked:hover,
+  .pika-button.day-blocked:focus,
+  .pika-button.day-blocked:active { background: rgba(55, 65, 81, 0.75) !important; color:#fff !important; }
+  .pika-button.day-leave:hover,
+  .pika-button.day-leave:focus,
+  .pika-button.day-leave:active { background: rgba(14, 165, 164, 0.55) !important; color:#fff !important; }
+  .is-today .pika-button:hover,
+  .is-today .pika-button:focus,
+  .is-today .pika-button:active { background:#5fb9d4 !important; color:#fff !important; }
     
     /* Enhanced hover states for consultation cells */
     .pika-button.has-booking {
@@ -182,10 +209,10 @@
         width: 100%;
       }
       
-      /* Mobile-specific calendar button styling - CLICK DISABLED */
+      /* Mobile-specific calendar button styling */
       .pika-button {
-        pointer-events: auto !important; /* Keep for hover tooltips */
-        cursor: default !important; /* No pointer cursor on mobile */
+        pointer-events: auto !important; /* allow tapping for leave toggle */
+        cursor: pointer !important;
         user-select: none !important; /* Prevent text selection */
         -webkit-touch-callout: none !important; /* Disable iOS callout */
         -webkit-user-select: none !important; /* Disable text selection on Safari */
@@ -194,11 +221,11 @@
         touch-action: manipulation !important; /* Disable double-tap zoom */
       }
       
-      /* Disable hover effects on mobile to prevent sticky hover states */
-      .pika-button:hover {
-        background: #cac7c7 !important;
-        transform: none !important;
-      }
+  /* Match admin: no special pointer and neutral hover on mobile */
+  .pika-button { cursor: default; }
+  .pika-button:hover { background:#cac7c7 !important; transform: none !important; }
+  .pika-button:active,
+  .pika-button:focus { background:#cac7c7 !important; outline: none !important; }
     }
 
     /* Consultation Tooltip Styles */
@@ -279,6 +306,27 @@
       .legend-toggle { left: calc(220px + 20px) !important; }
       .legend-panel { left: calc(220px + 24px) !important; }
     }
+
+    /* Themed confirm + toast (minimal styles to ensure visibility) */
+    .ascc-confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 10000; display:flex; align-items:center; justify-content:center; padding:16px; }
+    .ascc-confirm { background:#ffffff; border-radius:10px; width: min(92vw, 420px); box-shadow: 0 12px 40px rgba(0,0,0,0.25); overflow:hidden; font-family:'Poppins', sans-serif; }
+    .ascc-confirm-header { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; background:#0d2b20; color:#fff; }
+    .ascc-confirm-title { font-weight:600; font-size:16px; }
+    .ascc-confirm-close { background:transparent; border:none; color:#fff; font-size:20px; line-height:1; cursor:pointer; }
+    .ascc-confirm-body { padding:16px; color:#12372a; }
+    .ascc-confirm-actions { display:flex; gap:10px; justify-content:flex-end; padding:12px 16px 16px; }
+    .ascc-btn { border:none; border-radius:8px; padding:10px 14px; font-weight:600; cursor:pointer; }
+    .ascc-btn-primary { background:#0d2b20; color:#fff; }
+    .ascc-btn-secondary { background:#e9ecef; color:#0d2b20; }
+    .toast-wrapper { position: fixed; top: 16px; right: 16px; display:flex; flex-direction:column; gap:10px; z-index:10001; }
+    .ascc-toast { background:#fff; color:#12372a; border-left:4px solid #0d2b20; border-radius:8px; padding:10px 12px; box-shadow:0 6px 20px rgba(0,0,0,0.15); display:flex; align-items:center; gap:10px; }
+    .ascc-toast-success { border-left-color:#28a745; }
+    .ascc-toast-error { border-left-color:#dc3545; }
+    .ascc-toast-info { border-left-color:#0d2b20; }
+    .ascc-toast-close { background:transparent; border:none; font-size:16px; margin-left:6px; cursor:pointer; color:#666; }
+    .ascc-toast.hide { opacity:0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; }
+    /* Local swatch color for Leave Day if not present in shared legend.css */
+    .legend-swatch.swatch-leave { background-color: #0ea5a4; }
   </style>
 </head>
 <body>
@@ -325,6 +373,7 @@
                   <div class="legend-item"><span class="legend-swatch swatch-forced"></span>Forced Online <i class='bx bx-switch legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-holiday"></span>Holiday <i class='bx bx-party legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-multiple"></span>Multiple Bookings <i class='bx bx-group legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-leave"></span>Leave Day <i class='bx bx-coffee legend-icon' aria-hidden="true"></i></div>
                 </div>
               </div>
             </div>
@@ -588,7 +637,7 @@
           cells.forEach(cell => {
           // clear any previous override visuals
           const oldBadge = cell.querySelector('.ov-badge'); if (oldBadge) oldBadge.remove();
-          cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
+          cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-leave');
           const day = cell.getAttribute('data-pika-day');
           const month = cell.getAttribute('data-pika-month');
           const year = cell.getAttribute('data-pika-year');
@@ -610,7 +659,8 @@
               if (chosen.effect === 'holiday') {
                 chosenCls = 'ov-holiday';
               } else if (chosen.effect === 'block_all') {
-                chosenCls = 'ov-blocked';
+                const isLeave = (chosen.reason_key === 'prof_leave' || chosen.label === 'Leave');
+                chosenCls = isLeave ? 'ov-leave' : 'ov-blocked';
               } else if (chosen.effect === 'force_mode') {
                 chosenCls = (chosen.reason_key === 'online_day') ? 'ov-online' : 'ov-force';
               } else {
@@ -619,7 +669,8 @@
               badge.className = 'ov-badge ' + chosenCls;
               const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
               badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
-              badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? 'Suspended' : forceLabel);
+              const isProfLeave = (chosen.effect === 'block_all' && (chosen.reason_key === 'prof_leave' || chosen.label === 'Leave'));
+              badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (isProfLeave ? 'Leave' : 'Suspended') : forceLabel);
               cell.style.position = 'relative';
               cell.appendChild(badge);
               // Cell background class, with Online Day distinct from Forced Online
@@ -627,7 +678,8 @@
               if (chosen.effect === 'holiday') {
                 dayCls = 'day-holiday';
               } else if (chosen.effect === 'block_all') {
-                dayCls = 'day-blocked';
+                const isLeave = (chosen.reason_key === 'prof_leave' || chosen.label === 'Leave');
+                dayCls = isLeave ? 'day-leave' : 'day-blocked';
               } else if (chosen.effect === 'force_mode') {
                 dayCls = (chosen.reason_key === 'online_day') ? 'day-online' : 'day-force';
               } else {
@@ -688,6 +740,8 @@
             }
           }
         });
+        // After painting cells, bind leave-day click handlers to each date button
+        try { if (window.__bindLeaveHandlers) { window.__bindLeaveHandlers(); } } catch (_) {}
         }
       });
       picker.show();
@@ -796,6 +850,125 @@ function fetchProfessorOverridesForMonth(dateObj) {
   setInterval(run, 5000); // every 5s
   window.addEventListener('focus', () => setTimeout(run, 200));
   document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(run, 200); });
+})();
+
+// ---- Professor Leave Day: bind click per-cell on each draw ----
+(function enableProfessorLeaveToggle(){
+  window.__enableLeaveToggle = true;
+  function toIsoFromCell(btn){
+    const y = parseInt(btn.getAttribute('data-pika-year'),10);
+    const m = parseInt(btn.getAttribute('data-pika-month'),10);
+    const d = parseInt(btn.getAttribute('data-pika-day'),10);
+    if (Number.isNaN(y)||Number.isNaN(m)||Number.isNaN(d)) return null;
+    return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  }
+  function isLeaveOnIso(iso){
+    try{
+      const list = (window.profOverrides||{})[iso] || [];
+      return list.some(x => x.effect==='block_all' && (x.reason_key==='prof_leave' || x.label==='Leave'));
+    }catch(_){return false;}
+  }
+  async function postJson(url, body){
+    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN': token}, body: JSON.stringify(body), credentials:'same-origin' });
+    return res.json();
+  }
+  function ensureToastWrapper(){ let wrap=document.querySelector('.toast-wrapper'); if(!wrap){ wrap=document.createElement('div'); wrap.className='toast-wrapper'; document.body.appendChild(wrap);} return wrap; }
+  function showToast(message, type='info', timeout=2200){ const wrap=ensureToastWrapper(); const toast=document.createElement('div'); toast.className=`ascc-toast ${type==='success'?'ascc-toast-success': type==='error'?'ascc-toast-error':'ascc-toast-info'}`; toast.innerHTML=`<div>${message}</div><button class="ascc-toast-close" aria-label="Close">×</button>`; wrap.appendChild(toast); const closer=toast.querySelector('.ascc-toast-close'); let hid=false; const hide=()=>{ if(hid) return; hid=true; toast.classList.add('hide'); setTimeout(()=> toast.remove(), 250); }; closer.addEventListener('click', hide); setTimeout(hide, timeout); }
+  function themedConfirm(title, html){ return new Promise(resolve=>{ const overlay=document.createElement('div'); overlay.className='ascc-confirm-overlay'; const dlg=document.createElement('div'); dlg.className='ascc-confirm'; dlg.setAttribute('role','dialog'); dlg.setAttribute('aria-modal','true'); dlg.innerHTML=`<div class=\"ascc-confirm-header\"><div class=\"ascc-confirm-title\">${title}</div><button class=\"ascc-confirm-close\" aria-label=\"Close\">×</button></div><div class=\"ascc-confirm-body\">${html}</div><div class=\"ascc-confirm-actions\"><button id=\"dlgCancel\" class=\"ascc-btn ascc-btn-secondary\">Cancel</button><button id=\"dlgOk\" class=\"ascc-btn ascc-btn-primary\">Confirm</button></div>`; overlay.appendChild(dlg); document.body.appendChild(overlay); const okBtn=dlg.querySelector('#dlgOk'); const cancelBtn=dlg.querySelector('#dlgCancel'); const closeBtn=dlg.querySelector('.ascc-confirm-close'); const cleanup=()=>{ document.removeEventListener('keydown', onKey); overlay.remove(); }; const close=(v)=>{ cleanup(); resolve(v); }; const onKey=(e)=>{ if(e.key==='Escape'){ e.preventDefault(); close(false);} if(e.key==='Tab'){ const focusables=dlg.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])'); if(focusables.length){ const first=focusables[0]; const last=focusables[focusables.length-1]; if(e.shiftKey && document.activeElement===first){ last.focus(); e.preventDefault(); } else if(!e.shiftKey && document.activeElement===last){ first.focus(); e.preventDefault(); } } } }; closeBtn.addEventListener('click', ()=>close(false)); cancelBtn.addEventListener('click', ()=>close(false)); okBtn.addEventListener('click', ()=>close(true)); document.addEventListener('keydown', onKey); okBtn.focus(); }); }
+
+  async function handleLeaveToggle(btn){
+    try { console.log('[LeaveToggle] date cell clicked'); } catch(_) {}
+    const iso = toIsoFromCell(btn);
+    if (!iso) return;
+    const currentlyLeave = isLeaveOnIso(iso);
+    const title = currentlyLeave ? 'Remove Leave Day' : 'Set Leave Day';
+    const msg = currentlyLeave ? `Remove your leave on <strong>${btn.getAttribute('aria-label')||iso}</strong>?` : `Mark <strong>${btn.getAttribute('aria-label')||iso}</strong> as a Leave day? This will block bookings.`;
+    const ok = await themedConfirm(title, msg);
+    if (!ok) return;
+    try {
+      const url = currentlyLeave ? '/api/professor/calendar/leave/remove' : '/api/professor/calendar/leave/apply';
+      const data = await postJson(url, { start_date: iso });
+      if (data && data.success) {
+        window.profOverrides = window.profOverrides || {};
+        const arr = window.profOverrides[iso] || [];
+        if (currentlyLeave) {
+          window.profOverrides[iso] = arr.filter(x => !(x.effect==='block_all' && (x.reason_key==='prof_leave' || x.label==='Leave')));
+          showToast('Leave removed', 'success');
+        } else {
+          arr.push({ effect:'block_all', reason_key:'prof_leave', reason_text:'Leave', label:'Leave' });
+          window.profOverrides[iso] = arr;
+          showToast('Leave set', 'success');
+        }
+        if (window.professorPicker) window.professorPicker.draw();
+      } else {
+        showToast('Failed to update leave', 'error');
+      }
+    } catch(_){ showToast('Failed to update leave', 'error'); }
+  }
+
+  function bindLeaveHandlers(){
+    const buttons = document.querySelectorAll('.pika-button');
+    let boundCount = 0;
+    buttons.forEach(btn => {
+      if (btn.dataset.leaveBound === '1') return;
+      btn.dataset.leaveBound = '1';
+      // Guard to prevent double-fire when multiple events occur
+      const guard = () => {
+        if (btn.dataset.leaveInFlight === '1') return true;
+        btn.dataset.leaveInFlight = '1';
+        setTimeout(()=>{ delete btn.dataset.leaveInFlight; }, 600);
+        return false;
+      };
+      btn.addEventListener('click', (e)=>{
+        // prevent Pikaday selection but allow our own flow
+        try { e.preventDefault(); e.stopPropagation(); } catch(_) {}
+        if (!guard()) handleLeaveToggle(btn);
+      }, { passive:false });
+      // Also bind early events in case some code prevents .click later
+      ['pointerdown','mousedown','touchstart'].forEach(type => {
+        btn.addEventListener(type, (e)=>{
+          try { e.preventDefault(); e.stopPropagation(); } catch(_) {}
+          if (!guard()) handleLeaveToggle(btn);
+        }, { passive:false });
+      });
+      boundCount++;
+    });
+    try { if (boundCount) console.log(`[LeaveToggle] bound per-cell handlers: ${boundCount}`); } catch(_) {}
+  }
+  // expose binder so onDraw can call
+  window.__bindLeaveHandlers = bindLeaveHandlers;
+  // In case the first onDraw fired before this script, bind once now
+  setTimeout(bindLeaveHandlers, 0);
+
+  // Delegated fallback: if a button wasn't bound yet, catch the click here
+  document.addEventListener('click', function(e){
+    const btn = e.target && e.target.closest ? e.target.closest('.pika-button') : null;
+    if (!btn) return;
+    if (btn.dataset.leaveBound === '1') return; // per-cell handler will take over
+    // Avoid interfering with other UI parts
+    try { console.log('[LeaveToggle] delegated bubble click caught on', btn.getAttribute('aria-label')||btn.textContent); e.preventDefault(); e.stopPropagation(); } catch(_) {}
+    handleLeaveToggle(btn);
+  }, { passive:false, capture:false });
+
+  // Extra visibility: capture-phase logger to ensure clicks reach the page
+  document.addEventListener('click', function(e){
+    const btn = e.target && e.target.closest ? e.target.closest('.pika-button') : null;
+    if (btn) {
+      try { console.log('[LeaveToggle] capture click on', btn.getAttribute('aria-label')||btn.textContent); } catch(_) {}
+    }
+  }, { passive:false, capture:true });
+
+  // Delegated early-phase for pointerdown/mousedown/touchstart as ultimate fallback
+  ['pointerdown','mousedown','touchstart'].forEach(type => {
+    document.addEventListener(type, function(e){
+      const btn = e.target && e.target.closest ? e.target.closest('.pika-button') : null;
+      if (!btn) return;
+      if (btn.dataset.leaveBound === '1') return; // per-cell will handle
+      try { console.log(`[LeaveToggle] delegated ${type} caught on`, btn.getAttribute('aria-label')||btn.textContent); e.preventDefault(); e.stopPropagation(); } catch(_) {}
+      handleLeaveToggle(btn);
+    }, { passive:false, capture:true });
+  });
 })();
 function bookingModal(date, bookingId) {
   // Set the modal date
@@ -1006,6 +1179,11 @@ function preventCalendarClicks(e) {
   // Allow mouseover/mouseout for tooltips
   if (target && target.classList && target.classList.contains('pika-button') && target.closest('.pika-table')) {
     if (e.type === 'click' || e.type === 'mousedown' || e.type === 'touchstart' || e.type === 'touchend') {
+      // If leave toggle is enabled, let the event flow (no preventDefault, no stopPropagation)
+      if (window.__enableLeaveToggle === true) {
+        return; 
+      }
+      // Otherwise, block default selection and propagation
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -1039,8 +1217,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Prevent only specific events that cause date selection
 ['click', 'mousedown', 'touchstart', 'touchend'].forEach(eventType => {
-  document.addEventListener(eventType, preventCalendarClicks, true); // Capture phase
-  document.addEventListener(eventType, preventCalendarClicks, false); // Bubble phase
+  // Use passive:false so we may call preventDefault when we intend to block interactions
+  document.addEventListener(eventType, preventCalendarClicks, { capture: true, passive: false }); // Capture phase
+  document.addEventListener(eventType, preventCalendarClicks, { capture: false, passive: false }); // Bubble phase
 });
 
 

@@ -708,13 +708,15 @@
           const badge = document.createElement('span');
           let chosenCls;
           if (chosen.effect === 'holiday') chosenCls = 'ov-holiday';
-          else if (chosen.effect === 'block_all') chosenCls = 'ov-blocked';
+          else if (chosen.effect === 'block_all') chosenCls = (chosen.reason_key === 'prof_leave' ? 'ov-leave' : 'ov-blocked');
           else if (chosen.effect === 'force_mode') chosenCls = (chosen.reason_key === 'online_day') ? 'ov-online' : 'ov-force';
           else chosenCls = 'ov-force';
           badge.className = 'ov-badge ' + chosenCls;
           const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
           badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
-          badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? 'Suspended' : forceLabel);
+          badge.textContent = chosen.effect === 'holiday'
+            ? (chosen.reason_text || 'Holiday')
+            : (chosen.effect === 'block_all' ? (chosen.reason_key === 'prof_leave' ? 'Leave' : 'Suspended') : forceLabel);
           btn.style.position = 'relative';
           btn.appendChild(badge);
           // Apply tint for force_mode/online-day; and for holiday we want violet tile even if disabled.
@@ -732,15 +734,19 @@
             btn.style.pointerEvents='none';
             // For Suspended (block_all): dark-grey tile; for Holiday: violet tile
             if (chosen.effect === 'block_all') {
-              btn.classList.add('ov-hard-block');
+              if (chosen.reason_key === 'prof_leave') {
+                btn.classList.add('day-leave');
+                btn.classList.remove('ov-hard-block');
+              }
+              else { btn.classList.add('ov-hard-block'); }
             } else {
               btn.classList.remove('ov-hard-block');
               btn.classList.add('day-holiday');
             }
           }
           else {
-            // Ensure we don't leave the hard-block class on normal days
-            btn.classList.remove('ov-hard-block','day-holiday');
+            // Ensure we don't leave the hard-block or leave classes on normal days
+            btn.classList.remove('ov-hard-block','day-holiday','day-leave');
           }
           // Enforce mode if forced
           if (chosen.effect === 'force_mode') {
@@ -867,6 +873,8 @@
       })();
       // Prefetch overrides on hover/focus of professor cards to warm cache before modal opens
       (function prefetchOnHover(){
+        // Track in-flight override requests so openModal can await briefly
+        window.__ovPending = window.__ovPending || {}; // key -> Promise
         function monthRange(d){ const s=new Date(d.getFullYear(), d.getMonth(), 1); const e=new Date(d.getFullYear(), d.getMonth()+1, 0); return {s,e}; }
         function toIso(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
         async function prefetch(profId){
@@ -876,12 +884,34 @@
             const {s,e} = monthRange(today);
             const cacheKey = `${profId}|${toIso(s)}-${toIso(e)}`;
             if(window.__ovCache && window.__ovCache[cacheKey]) return; // already cached
+            if(window.__ovPending && window.__ovPending[cacheKey]) return window.__ovPending[cacheKey];
             const url = `/api/calendar/overrides/professor?prof_id=${encodeURIComponent(profId)}&start_date=${toIso(s)}&end_date=${toIso(e)}&_=${Date.now()}`;
-            const res = await fetch(url, { headers:{ 'Accept':'application/json' } });
-            const data = await res.json();
-            if(data && data.success){ window.__ovCache = window.__ovCache||{}; window.__ovCache[cacheKey] = data.overrides||{}; }
+            const p = fetch(url, { headers:{ 'Accept':'application/json' } })
+              .then(r=>r.json())
+              .then(data=>{ if(data && data.success){ window.__ovCache = window.__ovCache||{}; window.__ovCache[cacheKey] = data.overrides||{}; } return data; })
+              .finally(()=>{ try{ delete window.__ovPending[cacheKey]; }catch(_){ } });
+            window.__ovPending[cacheKey] = p;
+            return p;
           }catch(_){ }
         }
+        // Prefetch all visible professors on load to remove initial delay when opening any card
+        async function prefetchAllVisible(){
+          try{
+            const cards = Array.from(document.querySelectorAll('.profile-card'));
+            const profIds = cards.map(c => c.getAttribute('data-prof-id')).filter(Boolean);
+            const uniq = Array.from(new Set(profIds));
+            // Run a limited batch to avoid request spikes
+            const chunkSize = 6;
+            for(let i=0;i<uniq.length;i+=chunkSize){
+              const slice = uniq.slice(i, i+chunkSize);
+              await Promise.all(slice.map(id => prefetch(id)));
+            }
+          }catch(_){ }
+        }
+        // Run immediately and once more after a short delay to catch late-rendered cards
+        setTimeout(prefetchAllVisible, 150);
+        setTimeout(prefetchAllVisible, 800);
+        setTimeout(prefetchAllVisible, 1800);
         document.addEventListener('mouseover', (e)=>{
           const card = e.target.closest && e.target.closest('.profile-card');
           if(!card) return; const id = card.getAttribute('data-prof-id'); prefetch(id);
@@ -890,6 +920,11 @@
           const card = e.target.closest && e.target.closest('.profile-card');
           if(!card) return; const id = card.getAttribute('data-prof-id'); prefetch(id);
         });
+        // Prefetch on pointerdown to get a head start before click opens modal
+        document.addEventListener('pointerdown', (e)=>{
+          const card = e.target.closest && e.target.closest('.profile-card');
+          if(!card) return; const id = card.getAttribute('data-prof-id'); prefetch(id);
+        }, true);
       })();
       
       // Observe when a calendar cell becomes selected and apply the mode lock
@@ -972,9 +1007,7 @@
 });
 
 // Open modal and set professor info
-function openModal(card) {
-    document.getElementById("consultationModal").style.display = "flex";
-    document.body.classList.add("modal-open");
+async function openModal(card) {
 
     // Reset any previous calendar selection so user must pick a date each time
     (function resetCalendar(){
@@ -1018,20 +1051,50 @@ function openModal(card) {
     document.getElementById("modalProfileName").textContent = name;
     document.getElementById("modalProfId").value = profId;
   if(window.__fetchAvailability){ setTimeout(()=>window.__fetchAvailability(profId),150); }
-  // Immediately paint from cache if available, then fetch fresh
+  // Immediately paint from cache if available; if a prefetch is in-flight, await briefly; then fetch fresh.
   try {
     const base = getVisibleMonthBaseDate();
     const toIso = (d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const start = new Date(base.getFullYear(), base.getMonth(), 1);
     const end = new Date(base.getFullYear(), base.getMonth()+1, 0);
     const cacheKey = `${profId||'all'}|${toIso(start)}-${toIso(end)}`;
+    // If a prefetch promise exists for this window, await it briefly (up to ~180ms)
+    try{
+      const p = (window.__ovPending||{})[cacheKey];
+      if(p){ await Promise.race([p, new Promise(res=>setTimeout(res,180))]); }
+    }catch(_){ }
     if (window.__ovCache && window.__ovCache[cacheKey]){
       window.__publicOverrides = window.__ovCache[cacheKey];
       recomputeBlockedSet();
       if(window.picker) window.picker.draw();
+      try { applyPublicOverridesToCalendar(); } catch(_) {}
     }
-    fetchPublicOverridesForMonth(base);
+    // Fetch fresh data and apply immediately on resolve
+    try {
+      const start = new Date(base.getFullYear(), base.getMonth(), 1);
+      const end = new Date(base.getFullYear(), base.getMonth()+1, 0);
+      const toIso = (d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const url = `/api/calendar/overrides/professor?prof_id=${encodeURIComponent(profId)}&start_date=${toIso(start)}&end_date=${toIso(end)}&_=${Date.now()}`;
+      fetch(url, { headers:{ 'Accept':'application/json' } })
+        .then(r=>r.json())
+        .then(data=>{
+          if(data && data.success){
+            window.__publicOverrides = data.overrides || {};
+            recomputeBlockedSet();
+            if(window.picker) window.picker.draw();
+            try { applyPublicOverridesToCalendar(); } catch(_) {}
+            // cache for next-open instant paint
+            const cacheKey2 = `${profId||'all'}|${toIso(start)}-${toIso(end)}`;
+            window.__ovCache = window.__ovCache||{}; window.__ovCache[cacheKey2] = window.__publicOverrides;
+          }
+        })
+        .catch(()=>{})
+        .finally(()=>{ try{ fetchPublicOverridesForMonth(base); }catch(_){ } });
+    } catch(_){ fetchPublicOverridesForMonth(base); }
   } catch(_){ }
+  // Now show the modal after we've attempted cache-first paint
+  document.getElementById("consultationModal").style.display = "flex";
+  document.body.classList.add("modal-open");
     
     // Populate schedule
     const scheduleDiv = document.getElementById("modalSchedule");
