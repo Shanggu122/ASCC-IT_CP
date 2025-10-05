@@ -338,7 +338,7 @@
     document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') close(); });
   })();
     
-   const bookingMap = new Map();
+  const bookingMap = new Map();
   
   function loadBookingData() {
     fetch('/api/consul')
@@ -350,7 +350,8 @@
         
         data.forEach(entry => {
           const date = new Date(entry.Booking_Date);
-          bookingMap.set(date.toDateString(), entry.Status.toLowerCase());
+          const key = date.toDateString();
+          bookingMap.set(key, (entry.Status || '').toLowerCase());
         });
         
         // Only update calendar if there are actual changes
@@ -393,6 +394,7 @@
               }
             }
           });
+          // Keep dashboard overrides global-only; no extra fetch needed here
         }
       })
       .catch((err) => {
@@ -427,7 +429,7 @@
           const cellDate = new Date(year, month, day);
           const key = cellDate.toDateString();
           const isoKey = `${cellDate.getFullYear()}-${String(cellDate.getMonth()+1).padStart(2,'0')}-${String(cellDate.getDate()).padStart(2,'0')}`;
-          // Render overrides (if any)
+          // Render overrides (global-only; no professor leave shown here)
           if (window.studentOverrides && window.studentOverrides[isoKey] && window.studentOverrides[isoKey].length > 0) {
             const items = window.studentOverrides[isoKey];
             // Priority: holiday > block_all > force_mode
@@ -435,6 +437,11 @@
             for (const ov of items) { if (ov.effect === 'holiday') { chosen = ov; break; } }
             if (!chosen) { for (const ov of items) { if (ov.effect === 'block_all') { chosen = ov; break; } } }
             if (!chosen) { chosen = items[0]; }
+            // Skip professor leave in dashboard calendar
+            if (chosen && chosen.effect === 'block_all' && chosen.reason_key === 'prof_leave') {
+              chosen = null;
+            }
+            if (!chosen) { return; }
             const badge = document.createElement('span');
             // Badge class: distinguish Online Day vs Forced Online
             let chosenCls;
@@ -541,6 +548,7 @@
       const startStr = toIso(start);
       const endStr = toIso(end);
       const bust = Date.now();
+      // Global-only overrides for student dashboard
       fetch(`/api/calendar/overrides?start_date=${startStr}&end_date=${endStr}&_=${bust}`, { headers: { 'Accept':'application/json' } })
         .then(r=>r.json())
         .then(data => {

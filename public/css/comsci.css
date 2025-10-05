@@ -60,6 +60,39 @@ body {
     border-radius: 50%;
     object-fit: cover;
 }
+
+/* Leave Day (professor-specific) visuals for calendar on ComSci booking modal */
+.ov-leave {
+    background: #12a39b !important;
+    color: #fff !important;
+    border-radius: 8px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 600;
+    display: inline-block;
+}
+.day-leave {
+    background: rgba(18, 163, 155, 0.55) !important;
+}
+/* Keep Leave tint when disabled (similar to Online Day rules) */
+.is-disabled .pika-button.day-leave {
+    background: rgba(18, 163, 155, 0.55) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+}
+/* Ensure tint wins over availability/hover like Online Day */
+.pika-button.day-leave,
+.slot-free .pika-button.day-leave,
+.slot-low .pika-button.day-leave,
+.slot-full .pika-button.day-leave,
+.pika-button.day-leave:hover,
+.slot-free .pika-button.day-leave:hover,
+.slot-low .pika-button.day-leave:hover,
+.slot-full .pika-button.day-leave:hover {
+    background: rgba(18, 163, 155, 0.65) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+}
 .profile-name {
     font-weight: 600;
     color: #12372a;

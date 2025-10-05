@@ -48,7 +48,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = "Suspended";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspended";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -112,7 +112,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = "Suspended";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspended";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -173,7 +173,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = "Suspended";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspended";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -199,6 +199,10 @@ class AdminCalendarOverrideController extends Controller
 
         // Fetch overrides overlapping the requested range
         $rows = CalendarOverride::query()
+            // Admin calendar should not reflect professor leave days
+            ->where(function ($q) {
+                $q->whereNull("reason_key")->orWhere("reason_key", "!=", "prof_leave");
+            })
             ->where(function ($q) use ($start, $end) {
                 $q->whereBetween("start_date", [$start, $end])
                     ->orWhereBetween("end_date", [$start, $end])

@@ -543,6 +543,7 @@
           }, 60); }
         }catch(_){}
       }
+        try { applyPublicOverridesToCalendar(); } catch(_) {}
 
       window.__applyAvailability = function(map){
         const cells = document.querySelectorAll('.pika-table td');
@@ -748,7 +749,8 @@
           if(!items.length) {
             // No override for this date: clear only override visuals; DO NOT touch schedule-disabled state
             const old = btn.querySelector('.ov-badge'); if(old) old.remove();
-            btn.classList.remove('day-holiday','day-blocked','day-force','day-online','ov-hard-block');
+            btn.classList.remove('day-holiday','day-blocked','day-force','day-online','ov-hard-block','day-leave');
+            td.classList.remove('day-leave-td');
             return;
           }
           // We have items: clear previous and paint
@@ -758,13 +760,13 @@
           const badge = document.createElement('span');
           let chosenCls;
           if (chosen.effect === 'holiday') chosenCls = 'ov-holiday';
-          else if (chosen.effect === 'block_all') chosenCls = 'ov-blocked';
+          else if (chosen.effect === 'block_all') chosenCls = (chosen.reason_key === 'prof_leave' ? 'ov-leave' : 'ov-blocked');
           else if (chosen.effect === 'force_mode') chosenCls = (chosen.reason_key === 'online_day') ? 'ov-online' : 'ov-force';
           else chosenCls = 'ov-force';
           badge.className = 'ov-badge ' + chosenCls;
           const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
           badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
-          badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? 'Suspended' : forceLabel);
+          badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (chosen.reason_key === 'prof_leave' ? 'Leave' : 'Suspended') : forceLabel);
           btn.style.position = 'relative';
           btn.appendChild(badge);
           if (chosen.effect === 'force_mode') {
@@ -777,10 +779,12 @@
             btn.setAttribute('disabled','disabled');
             btn.setAttribute('aria-disabled','true');
             btn.style.pointerEvents='none';
-            if (chosen.effect === 'block_all') { btn.classList.add('ov-hard-block'); }
-            else { btn.classList.add('day-holiday'); }
+            if (chosen.effect === 'block_all') {
+              if (chosen.reason_key === 'prof_leave') { btn.classList.add('day-leave'); btn.classList.remove('ov-hard-block'); }
+              else { btn.classList.add('ov-hard-block'); }
+            } else { btn.classList.add('day-holiday'); }
           } else {
-            btn.classList.remove('ov-hard-block','day-holiday');
+            btn.classList.remove('ov-hard-block','day-holiday','day-leave');
           }
           if (chosen.effect === 'force_mode'){
             let mode = chosen.allowed_mode || (chosen.reason_key==='online_day'?'online':null) || 'online';
@@ -814,6 +818,24 @@
               // Also apply directly to avoid relying solely on draw timing
               try { applyPublicOverridesToCalendar(); } catch(_) {}
             }
+            // Fetch fresh professor overrides and apply immediately when ready
+            try {
+              const toIso = (d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+              const url = `/api/calendar/overrides/professor?prof_id=${encodeURIComponent(profId)}&start_date=${toIso(start)}&end_date=${toIso(end)}&_=${Date.now()}`;
+              fetch(url, { headers:{ 'Accept':'application/json' } })
+                .then(r=>r.json())
+                .then(data=>{
+                  if(data && data.success){
+                    window.__publicOverrides = data.overrides || {};
+                    recomputeBlockedSet();
+                    if(window.picker) window.picker.draw();
+                    try { applyPublicOverridesToCalendar(); } catch(_) {}
+                    // update cache
+                    window.__ovCache = window.__ovCache || {}; window.__ovCache[cacheKey] = window.__publicOverrides;
+                  }
+                })
+                .catch(()=>{});
+            } catch(_){ }
           }
           if (window.__comsciOvLoading) return;
           window.__comsciOvLoading = true;
@@ -857,6 +879,8 @@
       })();
       // Prefetch overrides on hover/focus of professor cards to warm cache before modal opens
       (function prefetchOnHover(){
+        // Track in-flight override fetches so openModal can await briefly
+        window.__ovPending = window.__ovPending || {}; // key -> Promise
         function monthRange(d){ const s=new Date(d.getFullYear(), d.getMonth(), 1); const e=new Date(d.getFullYear(), d.getMonth()+1, 0); return {s,e}; }
         function toIso(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
         async function prefetch(profId){
@@ -866,12 +890,32 @@
             const {s,e} = monthRange(today);
             const cacheKey = `${profId}|${toIso(s)}-${toIso(e)}`;
             if(window.__ovCache && window.__ovCache[cacheKey]) return; // already cached
+            if(window.__ovPending && window.__ovPending[cacheKey]) return window.__ovPending[cacheKey];
             const url = `/api/calendar/overrides/professor?prof_id=${encodeURIComponent(profId)}&start_date=${toIso(s)}&end_date=${toIso(e)}&_=${Date.now()}`;
-            const res = await fetch(url, { headers:{ 'Accept':'application/json' } });
-            const data = await res.json();
-            if(data && data.success){ window.__ovCache = window.__ovCache||{}; window.__ovCache[cacheKey] = data.overrides||{}; }
+            const p = fetch(url, { headers:{ 'Accept':'application/json' } })
+              .then(r=>r.json())
+              .then(data=>{ if(data && data.success){ window.__ovCache = window.__ovCache||{}; window.__ovCache[cacheKey] = data.overrides||{}; } return data; })
+              .finally(()=>{ try{ delete window.__ovPending[cacheKey]; }catch(_){ } });
+            window.__ovPending[cacheKey] = p;
+            return p;
           }catch(_){ }
         }
+        // Prefetch all visible professor cards to avoid delay on first open
+        async function prefetchAllVisible(){
+          try{
+            const cards = Array.from(document.querySelectorAll('.profile-card'));
+            const profIds = cards.map(c => c.getAttribute('data-prof-id')).filter(Boolean);
+            const uniq = Array.from(new Set(profIds));
+            const chunkSize = 6;
+            for(let i=0;i<uniq.length;i+=chunkSize){
+              const slice = uniq.slice(i, i+chunkSize);
+              await Promise.all(slice.map(id => prefetch(id)));
+            }
+          }catch(_){ }
+        }
+        setTimeout(prefetchAllVisible, 150);
+        setTimeout(prefetchAllVisible, 800);
+        setTimeout(prefetchAllVisible, 1800);
         document.addEventListener('mouseover', (e)=>{
           const card = e.target.closest && e.target.closest('.profile-card');
           if(!card) return; const id = card.getAttribute('data-prof-id'); prefetch(id);
@@ -881,13 +925,31 @@
           if(!card) return; const id = card.getAttribute('data-prof-id'); prefetch(id);
         });
       })();
+      // Pointerdown prefetch to eliminate initial delay on click
+      (function pointerdownPrefetch(){
+        document.addEventListener('pointerdown', (e)=>{
+          const card = e.target && e.target.closest ? e.target.closest('.profile-card') : null;
+          if(!card) return;
+          const id = card.getAttribute('data-prof-id');
+          if(!id) return;
+          try {
+            const today = new Date();
+            const s = new Date(today.getFullYear(), today.getMonth(), 1);
+            const eN = new Date(today.getFullYear(), today.getMonth()+1, 0);
+            const toIso = d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const cacheKey = `${id}|${toIso(s)}-${toIso(eN)}`;
+            if(window.__ovCache && window.__ovCache[cacheKey]) return;
+            fetch(`/api/calendar/overrides/professor?prof_id=${encodeURIComponent(id)}&start_date=${toIso(s)}&end_date=${toIso(eN)}&_=${Date.now()}`, { headers:{ 'Accept':'application/json' } })
+              .then(r=>r.json())
+              .then(data=>{ if(data && data.success){ window.__ovCache = window.__ovCache||{}; window.__ovCache[cacheKey] = data.overrides||{}; } })
+              .catch(()=>{});
+          } catch(_) {}
+        }, { passive:true });
+      })();
   });
 
 // Open modal and set professor info
-function openModal(card) {
-    document.getElementById("consultationModal").style.display = "flex";
-    document.body.classList.add("modal-open");
-
+async function openModal(card) {
     // Reset previous calendar selection so a date is required freshly each time
     (function resetCalendar(){
       const input = document.getElementById('calendar');
@@ -934,19 +996,27 @@ function openModal(card) {
     if(window.__fetchAvailability){ setTimeout(()=>window.__fetchAvailability(profId),120); }
     // Fetch professor-specific overrides for the visible month (use exposed global)
     try { if (typeof window.__comsciFetchOverridesForMonth === 'function') window.__comsciFetchOverridesForMonth(window.__comsciGetVisibleMonthBaseDate ? window.__comsciGetVisibleMonthBaseDate() : getVisibleMonthBaseDate()); } catch(_) {}
-    // Cache-first immediate paint like ITIS
+    // Cache-first immediate paint like ITIS: paint BEFORE showing modal to avoid initial blank state
     try {
       const base = (window.__comsciGetVisibleMonthBaseDate ? window.__comsciGetVisibleMonthBaseDate() : getVisibleMonthBaseDate());
       const toIso = d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       const start = new Date(base.getFullYear(), base.getMonth(), 1);
       const end = new Date(base.getFullYear(), base.getMonth()+1, 0);
       const cacheKey = `${profId}|${toIso(start)}-${toIso(end)}`;
+      // Await a pending prefetch for this window briefly (up to ~180ms) to maximize cache hit
+      try { const p=(window.__ovPending||{})[cacheKey]; if(p){ await Promise.race([p, new Promise(r=>setTimeout(r,180))]); } } catch(_) {}
       if (window.__ovCache && window.__ovCache[cacheKey]){
         window.__publicOverrides = window.__ovCache[cacheKey];
         window.__ovInitialized = true;
+        try { if (typeof recomputeBlockedSet === 'function') recomputeBlockedSet(); } catch(_) {}
         if(window.picker) window.picker.draw();
+        try { applyPublicOverridesToCalendar(); } catch(_) {}
       }
     } catch(_) {}
+
+    // Now show the modal after attempting cache-first so Leave/overrides are visible instantly
+    document.getElementById("consultationModal").style.display = "flex";
+    document.body.classList.add("modal-open");
     
     // Populate schedule
     const scheduleDiv = document.getElementById("modalSchedule");
