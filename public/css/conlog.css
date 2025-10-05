@@ -673,17 +673,7 @@ body {
     margin-right: auto;
 }
 
-/* Sticky header on wider screens
-   Note: applying sticky to the table row can create gaps in some browsers.
-   Apply sticky to header cells instead to avoid spacing issues. */
-@media (min-width: 769px) {
-    .table-header .table-cell {
-        position: sticky;
-        top: 0;
-        z-index: 5;
-        background-color: #0b2e24; /* ensure background while sticky */
-    }
-}
+/* Sticky header disabled for now to avoid visible gap between header and first row */
 
 /* Mid-width adjustments (laptop) */
 @media (max-width: 1250px) and (min-width: 769px) {
@@ -714,7 +704,7 @@ body {
     width: 100%;
     border-collapse: collapse;
     font-family: 'Poppins', sans-serif;
-    margin-top: 2rem;
+    margin-top: 1rem; /* reduce top margin to bring first row closer to header */
 }
 
 .table-row {
@@ -726,6 +716,8 @@ body {
     color: white;
     font-weight: 600;
 }
+
+.table-header .table-cell { padding-top: 0.9rem; padding-bottom: 0.9rem; }
 
 /* Sortable headers */
 .sort-header { cursor: pointer; user-select: none; }
