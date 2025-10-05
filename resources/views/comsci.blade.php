@@ -1360,7 +1360,7 @@ chatForm.addEventListener("submit", async function (e) {
       div.className='profile-card';
       div.setAttribute('onclick','openModal(this)');
       div.dataset.name = data.Name;
-  const imgPath = data.profile_picture ? ('{{ url('/storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
+  const imgPath = data.profile_photo_url || (data.profile_picture ? ('{{ url('/storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}');
       div.dataset.img = imgPath;
       div.dataset.profId = data.Prof_ID;
       div.dataset.profId = data.Prof_ID;
@@ -1377,7 +1377,7 @@ chatForm.addEventListener("submit", async function (e) {
       if(card){
         card.dataset.name = data.Name;
         card.dataset.schedule = data.Schedule || 'No schedule set';
-  const imgPath = data.profile_picture ? ('{{ url('/storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}';
+  const imgPath = data.profile_photo_url || (data.profile_picture ? ('{{ url('/storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}');
         card.dataset.img = imgPath;
         card.querySelector('.profile-name').textContent = data.Name;
         const imgEl = card.querySelector('img'); if(imgEl) imgEl.src = imgPath;

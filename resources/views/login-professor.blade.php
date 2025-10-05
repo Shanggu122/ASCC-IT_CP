@@ -14,6 +14,9 @@
   <div class="container">
     <!-- Left Panel -->
     <div class="left-panel">
+      <a href="{{ route('landing') }}" class="back-to-landing" aria-label="Back to landing page" title="Back">
+        <i class='bx bx-left-arrow-alt'></i>
+      </a>
       <img src="{{ asset('images/CCIT_logo2.png') }}" alt="Adamson Logo" class="left-logo"/>
       <h2 class="college-title">
         <div class="adamson-uni">Adamson University</div>

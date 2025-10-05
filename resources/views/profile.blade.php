@@ -18,7 +18,7 @@
     <!-- Header -->
     <div class="header-info">
       <div class="profile-pic-wrapper">
-        <img src="{{ $user->profile_picture ? asset('storage/' . $user->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture" class="profile-picture" id="profilePicture">
+  <img src="{{ $user->profile_photo_url }}" alt="Profile Picture" class="profile-picture" id="profilePicture">
         <button type="button" class="edit-profile-pic-btn" onclick="togglePanel('profilePicPanel')">
           <i class='bx bx-camera'></i>
         </button>
@@ -107,10 +107,10 @@
       </div>
       <div class="panel-body profile-pic-panel-body">
         <div class="profile-pic-container">
-            <img id="sidePanelProfilePic"
-                 src="{{ $user->profile_picture ? asset('storage/' . $user->profile_picture) : asset('images/dprof.jpg') }}"
-                 alt="Profile Picture"
-                 class="side-panel-profile-pic">
+      <img id="sidePanelProfilePic"
+        src="{{ $user->profile_photo_url }}"
+        alt="Profile Picture"
+        class="side-panel-profile-pic">
             <button class="delete-pic-btn" type="button" onclick="deleteProfilePicture()" title="Delete Profile Picture">
                 <i class='bx bx-trash'></i>
             </button>

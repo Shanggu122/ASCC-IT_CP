@@ -16,7 +16,7 @@
 
   <div class="main-content">
     <div class="header">
-      <h1>Information Technology and Information System</h1>
+      <h1>Information Technology and Information System Faculty</h1>
     </div>
 
     <div class="search-container">
