@@ -653,6 +653,7 @@ body {
     -webkit-overflow-scrolling: touch;
     border-radius: 10px;
     background: #e5f0ed;
+    margin-bottom: 0.75rem; /* so pagination is closer to the table */
 }
 .table-container::-webkit-scrollbar {
     height: 10px;
@@ -704,7 +705,7 @@ body {
     width: 100%;
     border-collapse: collapse;
     font-family: 'Poppins', sans-serif;
-    margin-top: 1rem; /* reduce top margin to bring first row closer to header */
+    margin-top: 0.75rem; /* closer to filters */
 }
 
 .table-row {
@@ -739,7 +740,7 @@ body {
     gap: 1rem;
     /* align width with .table (centered, constrained) */
     max-width: 1600px;
-    margin: 0.75rem auto 2rem auto;
+    margin: 0.5rem auto 1.25rem auto; /* closer to the table */
     padding: 0 8px; /* slight inner padding so buttons/text line up with table borders */
 }
 .page-info { color: #12372a; font-size: 14px; line-height: 1; opacity: 0.85; }
