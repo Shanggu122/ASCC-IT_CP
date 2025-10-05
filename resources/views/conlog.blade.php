@@ -26,6 +26,11 @@
     <div class="header">
       <h1>Consultation Log</h1>
     </div>
+    @php
+      // Build unique subjects list for subject filter
+      $subjects = collect($bookings ?? [])->pluck('subject')->filter(fn($s)=>filled($s))
+                   ->map(fn($s)=>trim($s))->unique()->sort()->values();
+    @endphp
 
     <div class="search-container">
       <input type="text" id="searchInput" placeholder="Search..." style="flex:1;"
@@ -45,25 +50,55 @@
             <ul class="cs-dd-list" id="typeFilterList"></ul>
           </div>
       </div>
+      <div class="filter-group-horizontal">
+        <select id="subjectFilter" class="filter-select" aria-label="Subject filter">
+          <option value="">All Subjects</option>
+          @foreach($subjects as $s)
+            <option value="{{ $s }}">{{ $s }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div class="filter-group-horizontal" style="margin-left:auto">
+        <label for="pageSize" class="filter-label-inline">Show</label>
+        <select id="pageSize" class="filter-select" style="width:92px">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+        <span class="filter-label-inline">entries</span>
+      </div>
     </div>
 
     <div class="table-container">
       <div class="table">
         <!-- Header Row -->
-        <div class="table-row table-header">
-          <div class="table-cell">No.</div> <!-- Add this line -->
-          <div class="table-cell">Instructor</div>
-          <div class="table-cell">Subject</div>
-          <div class="table-cell">Date</div>
-          <div class="table-cell">Type</div>
-          <div class="table-cell">Mode</div>
-          <div class="table-cell">Booked At</div>
-          <div class="table-cell">Status</div>
+        <div class="table-row table-header" id="conlogHeader">
+          <div class="table-cell">No.</div>
+          <div class="table-cell sort-header" data-sort="instructor" role="button" tabindex="0" aria-label="Sort by instructor">Instructor <span class="sort-icon"></span></div>
+          <div class="table-cell sort-header" data-sort="subject" role="button" tabindex="0" aria-label="Sort by subject">Subject <span class="sort-icon"></span></div>
+          <div class="table-cell sort-header" data-sort="date" role="button" tabindex="0" aria-label="Sort by date">Date <span class="sort-icon"></span></div>
+          <div class="table-cell sort-header" data-sort="type" role="button" tabindex="0" aria-label="Sort by type">Type <span class="sort-icon"></span></div>
+          <div class="table-cell sort-header" data-sort="mode" role="button" tabindex="0" aria-label="Sort by mode">Mode <span class="sort-icon"></span></div>
+          <div class="table-cell sort-header" data-sort="booked" role="button" tabindex="0" aria-label="Sort by booked at">Booked At <span class="sort-icon"></span></div>
+          <div class="table-cell sort-header" data-sort="status" role="button" tabindex="0" aria-label="Sort by status">Status <span class="sort-icon"></span></div>
         </div>
     
         <!-- Dynamic Data Rows -->
         @forelse($bookings as $b)
-        <div class="table-row">
+        <div class="table-row"
+             data-instructor="{{ strtolower($b->Professor) }}"
+             data-subject="{{ strtolower($b->subject) }}"
+             data-date="{{ \Carbon\Carbon::parse($b->Booking_Date)->format('Y-m-d') }}"
+             data-date-ts="{{ \Carbon\Carbon::parse($b->Booking_Date)->timestamp }}"
+             data-type="{{ strtolower($b->type) }}"
+             data-mode="{{ strtolower($b->Mode) }}"
+             data-booked="{{ \Carbon\Carbon::parse($b->Created_At)->timezone('Asia/Manila')->format('Y-m-d H:i:s') }}"
+             data-booked-ts="{{ \Carbon\Carbon::parse($b->Created_At)->timezone('Asia/Manila')->timestamp }}"
+             data-status="{{ strtolower($b->Status) }}"
+             data-matched="1"
+        >
           <div class="table-cell" data-label="No." data-booking-id="{{ $b->Booking_ID ?? '' }}">{{ $loop->iteration }}</div>
           <div class="table-cell instructor-cell" data-label="Instructor">{{ $b->Professor }}</div>
           <div class="table-cell" data-label="Subject">{{ $b->subject }}</div>
@@ -82,6 +117,12 @@
       <div style="height: 80px;"></div> <!-- Spacer under the last table row -->
     
       </div>
+    </div>
+
+    <!-- Pagination controls -->
+    <div class="pagination-bar">
+      <div id="pageInfo" class="page-info"></div>
+      <div id="paginationControls" class="pagination"></div>
     </div>
 
     <button class="chat-button" onclick="toggleChat()">
@@ -129,58 +170,126 @@ function sanitize(raw){
     .slice(0,50);
 }
 
+  // ===== Sorting + Pagination State =====
+  let sortKey = 'date'; // default sort
+  let sortDir = 'desc';
+  let currentPage = 1;
+  let pageSize = parseInt(localStorage.getItem('conlog.pageSize')||'10',10);
+  if(![5,10,25,50,100].includes(pageSize)) pageSize = 10;
+  document.addEventListener('DOMContentLoaded',()=>{
+    const ps = document.getElementById('pageSize'); if(ps) ps.value = String(pageSize);
+  });
+
+  function getDataRows(){
+    return Array.from(document.querySelectorAll('.table .table-row'))
+      .filter(r=>!r.classList.contains('table-header') && !r.classList.contains('no-results-row'));
+  }
+
+  function setSortIndicators(){
+    const headers = document.querySelectorAll('#conlogHeader .sort-header');
+    headers.forEach(h=>{
+      const icon = h.querySelector('.sort-icon');
+      if(!icon) return;
+      const key = h.getAttribute('data-sort');
+      if(key===sortKey){ icon.textContent = sortDir==='asc' ? ' ▲' : ' ▼'; h.classList.add('active-sort'); }
+      else { icon.textContent=''; h.classList.remove('active-sort'); }
+    });
+  }
+
+  function compareRows(a,b){
+    const get = (row,key)=>{
+      if(key==='date') return Number(row.dataset.dateTs||0);
+      if(key==='booked') return Number(row.dataset.bookedTs||0);
+      return (row.dataset[key]||'').toString();
+    };
+    const va = get(a,sortKey); const vb = get(b,sortKey);
+    let cmp = 0;
+    if(typeof va==='number' && typeof vb==='number') cmp = va - vb;
+    else cmp = va.localeCompare(vb);
+    return sortDir==='asc' ? cmp : -cmp;
+  }
+
+  function rebuildSubjectOptions(){
+    const sel = document.getElementById('subjectFilter'); if(!sel) return;
+    const seen = new Set();
+    getDataRows().forEach(r=>{ const s=(r.dataset.subject||'').trim(); if(s) seen.add(s); });
+    const cur = sel.value; const arr = Array.from(seen).sort((a,b)=>a.localeCompare(b));
+    sel.innerHTML = '<option value="">All Subjects</option>' + arr.map(v=>`<option value="${v}">${v}</option>`).join('');
+    if(arr.includes(cur)) sel.value = cur;
+  }
+
+  function applySortAndPaginate(){
+    const table = document.querySelector('.table'); if(!table) return;
+    const header = document.querySelector('.table-header');
+    const rows = getDataRows();
+    const matched = rows.filter(r=>r.dataset.matched==='1');
+
+    const existingNo = document.querySelector('.no-results-row'); if(existingNo) existingNo.remove();
+    if(matched.length===0){
+      rows.forEach(r=>r.style.display='none');
+      const noRow = document.createElement('div');
+      noRow.className='table-row no-results-row';
+      noRow.innerHTML = `<div class="table-cell" style="text-align:center;padding:20px;color:#666;font-style:italic;grid-column:1 / -1;">No Consultations Found.</div>`;
+      header.insertAdjacentElement('afterend', noRow);
+      const info = document.getElementById('pageInfo'); if(info) info.textContent='';
+      const pag = document.getElementById('paginationControls'); if(pag) pag.innerHTML='';
+      setSortIndicators();
+      return;
+    }
+
+    matched.sort(compareRows);
+    const frag = document.createDocumentFragment(); matched.forEach(r=>frag.appendChild(r)); table.appendChild(frag);
+
+    const total = matched.length; const totalPages = Math.max(1, Math.ceil(total/pageSize));
+    if(currentPage>totalPages) currentPage = totalPages;
+    const start = (currentPage-1)*pageSize; const end = Math.min(total, start+pageSize)-1;
+
+    const matchedSet = new Set(matched);
+    rows.forEach(r=>{
+      if(!matchedSet.has(r)) { r.style.display='none'; return; }
+      const idx = matched.indexOf(r);
+      r.style.display = (idx>=start && idx<=end) ? '' : 'none';
+    });
+
+    const pageInfo = document.getElementById('pageInfo'); if(pageInfo) pageInfo.textContent = `Showing ${start+1} to ${end+1} of ${total} entries`;
+    const pag = document.getElementById('paginationControls');
+    if(pag){
+      const mk = (label, page, disabled=false, active=false)=>{ const b=document.createElement('button'); b.className='page-btn'+(active?' active':''); b.textContent=label; b.disabled=disabled; b.addEventListener('click',()=>{ currentPage=page; applySortAndPaginate();}); return b; };
+      pag.innerHTML='';
+      const totalPagesCalc = Math.max(1, Math.ceil(total/pageSize));
+      pag.appendChild(mk('Prev', Math.max(1,currentPage-1), currentPage===1));
+      const span=2; let s=Math.max(1,currentPage-span); let e=Math.min(totalPagesCalc,currentPage+span);
+      if(e-s<span*2){ if(s===1) e=Math.min(totalPagesCalc, s+span*2); else if(e===totalPagesCalc) s=Math.max(1, e-span*2); }
+      for(let p=s;p<=e;p++) pag.appendChild(mk(String(p), p, false, p===currentPage));
+      pag.appendChild(mk('Next', Math.min(totalPagesCalc,currentPage+1), currentPage===totalPagesCalc));
+    }
+    setSortIndicators();
+  }
+
 function filterRows() {
   const inputEl = document.getElementById('searchInput');
   let search = sanitize(inputEl.value).toLowerCase();
   if(inputEl.value !== search) inputEl.value = search; // reflect sanitized
   let type = document.getElementById('typeFilter').value.toLowerCase();
+  let subject = (document.getElementById('subjectFilter')?.value||'').toLowerCase();
   let rows = document.querySelectorAll('.table-row:not(.table-header)');
-  let visibleCount = 0;
-  
-  // Remove any existing "no results" message
-  const existingNoResults = document.querySelector('.no-results-row');
-  if (existingNoResults) {
-    existingNoResults.remove();
-  }
-  
-  rows.forEach(row => {
-    // Skip if this is already a "no results" row
-    if (row.classList.contains('no-results-row')) return;
-    
-    let rowType = row.querySelector('[data-label="Type"]')?.textContent.toLowerCase() || '';
-    let instructor = row.querySelector('.instructor-cell')?.textContent.toLowerCase() || '';
-    let rowSubject = row.querySelector('[data-label="Subject"]')?.textContent.toLowerCase() || '';
 
-    // Is this row a custom type (not in fixedTypes)?
+  rows.forEach(row => {
+    if (row.classList.contains('no-results-row')) return;
+    let rowType = (row.dataset.type||'').toLowerCase();
+    let instructor = (row.dataset.instructor||'').toLowerCase();
+    let rowSubject = (row.dataset.subject||'').toLowerCase();
+
     let isOthers = fixedTypes.indexOf(rowType) === -1 && rowType !== '';
 
-    let matchesType =
-      !type ||
-      (type !== 'others' && rowType === type) ||
-      (type === 'others' && isOthers);
-
+    let matchesType = !type || (type !== 'others' && rowType === type) || (type === 'others' && isOthers);
+    let matchesSubject = !subject || rowSubject === subject;
     let matchesSearch = instructor.includes(search) || rowSubject.includes(search) || rowType.includes(search);
 
-    if (matchesSearch && matchesType) {
-      row.style.display = '';
-      visibleCount++;
-    } else {
-      row.style.display = 'none';
-    }
+    row.dataset.matched = (matchesSearch && matchesType && matchesSubject) ? '1' : '0';
   });
-  
-  // Show "No Consultations Found." message if no rows are visible and there's a search term
-  if (visibleCount === 0 && (search || type)) {
-    const table = document.querySelector('.table');
-    const header = document.querySelector('.table-header');
-    const noResultsRow = document.createElement('div');
-    noResultsRow.className = 'table-row no-results-row';
-    noResultsRow.innerHTML = `
-      <div class="table-cell" style="text-align: center; padding: 20px; color: #666; font-style: italic; grid-column: 1 / -1;">No Consultations Found.</div>
-    `;
-    // Insert right after the header row
-    header.insertAdjacentElement('afterend', noResultsRow);
-  }
+  currentPage = 1;
+  applySortAndPaginate();
 }
 
   // Custom dropdown for type filter (mobile)
@@ -207,6 +316,27 @@ function filterRows() {
 
 document.getElementById('searchInput').addEventListener('input', filterRows);
 document.getElementById('typeFilter').addEventListener('change', filterRows);
+document.getElementById('subjectFilter').addEventListener('change', filterRows);
+document.getElementById('pageSize').addEventListener('change', (e)=>{
+  pageSize = parseInt(e.target.value,10) || 10;
+  localStorage.setItem('conlog.pageSize', String(pageSize));
+  currentPage = 1;
+  applySortAndPaginate();
+});
+
+// Header sorting handlers
+document.querySelectorAll('#conlogHeader .sort-header').forEach(h=>{
+  const set = ()=>{
+    const key = h.getAttribute('data-sort');
+    if(sortKey===key){ sortDir = (sortDir==='asc' ? 'desc' : 'asc'); }
+    else { sortKey = key; sortDir = (key==='date' || key==='booked') ? 'desc' : 'asc'; }
+    applySortAndPaginate();
+  };
+  h.addEventListener('click', set);
+  h.addEventListener('keypress', (e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); set(); } });
+});
+
+document.addEventListener('DOMContentLoaded',()=>{ filterRows(); });
 
 // Real-time updates for consultation log - DISABLED TO PREVENT DUPLICATE ROWS
 /*
@@ -328,10 +458,30 @@ setInterval(loadConsultationLogs, 5000);
         <div class="table-cell" data-label="Booked At">${bookedAt}</div>
         <div class="table-cell" data-label="Status">${status}</div>`;
 
+      function setDataAttrs(row){
+        const d = new Date(data.Booking_Date||'');
+        const created = data.Created_At ? new Date(data.Created_At) : null;
+        row.dataset.instructor = (data.Professor||'').toString().toLowerCase();
+        row.dataset.subject = (data.subject||'').toString().toLowerCase();
+        if(!isNaN(d.getTime())){
+          row.dataset.date = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          row.dataset.dateTs = String(Math.floor(d.getTime()/1000));
+        }
+        row.dataset.type = (data.type||'').toString().toLowerCase();
+        row.dataset.mode = (data.Mode||'').toString().toLowerCase();
+        if(created && !isNaN(created.getTime())){
+          row.dataset.booked = `${created.getFullYear()}-${String(created.getMonth()+1).padStart(2,'0')}-${String(created.getDate()).padStart(2,'0')} ${String(created.getHours()).padStart(2,'0')}:${String(created.getMinutes()).padStart(2,'0')}:00`;
+          row.dataset.bookedTs = String(Math.floor(created.getTime()/1000));
+        }
+        row.dataset.status = (data.Status||'').toString().toLowerCase();
+        row.dataset.matched = '1';
+      }
+
       if(existing){
         existing.innerHTML = html;
         // guarantee the data-booking-id attribute remains for subsequent updates
         const first = existing.querySelector('.table-cell'); if(first){ first.setAttribute('data-booking-id', String(data.Booking_ID)); }
+        setDataAttrs(existing);
       }
       else {
         // Try to reuse any orphan row (missing data-booking-id) to avoid duplicates from earlier sessions
@@ -341,16 +491,19 @@ setInterval(loadConsultationLogs, 5000);
           mergeFromRow(orphan);
           orphan.innerHTML = html;
           const first = orphan.querySelector('.table-cell'); if(first){ first.setAttribute('data-booking-id', String(data.Booking_ID)); }
+          setDataAttrs(orphan);
         } else {
         const row = document.createElement('div');
         row.className = 'table-row';
         row.innerHTML = html;
         const first = row.querySelector('.table-cell'); if(first){ first.setAttribute('data-booking-id', String(data.Booking_ID)); }
+        setDataAttrs(row);
         table.appendChild(row);
         }
       }
 
       if(typeof filterRows==='function') filterRows();
+      rebuildSubjectOptions();
     }
 
     // Bind to the explicit alias and FQCN fallback to be safe across drivers
