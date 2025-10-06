@@ -34,8 +34,12 @@
 
     <div class="search-container">
       <input type="text" id="searchInput" placeholder="Search..." style="flex:1;"
-             autocomplete="off" spellcheck="false" maxlength="50"
-             pattern="[A-Za-z0-9 .,@_-]{0,50}" aria-label="Search consultations">
+        autocomplete="off" spellcheck="false" maxlength="100"
+        pattern="[A-Za-z0-9 .,@_-]{0,100}" aria-label="Search consultations">
+      <!-- Mobile-only: Filters button on the right side of the search bar -->
+      <button type="button" class="filters-btn" id="openFiltersBtn" aria-label="Open filters" title="Filters">
+        <i class='bx bx-slider-alt'></i>
+      </button>
       <div class="filter-group-horizontal">
     <select id="typeFilter" class="filter-select">
             <option value="">All Types</option>
@@ -58,16 +62,15 @@
           @endforeach
         </select>
       </div>
-      <div class="filter-group-horizontal" style="margin-left:auto">
-        <label for="pageSize" class="filter-label-inline">Show</label>
-        <select id="pageSize" class="filter-select" style="width:92px">
+      <div class="filter-group-horizontal page-size-group" style="margin-left:auto">
+        <select id="pageSize" class="filter-select" aria-label="Items per page" style="width:92px">
           <option value="5">5</option>
           <option value="10" selected>10</option>
           <option value="25">25</option>
           <option value="50">50</option>
           <option value="100">100</option>
         </select>
-        <span class="filter-label-inline">entries</span>
+        <span class="filter-label-inline items-per-page-label">items per page</span>
       </div>
     </div>
 
@@ -121,8 +124,45 @@
 
     <!-- Pagination controls -->
     <div class="pagination-bar">
-      <div id="pageInfo" class="page-info"></div>
-      <div id="paginationControls" class="pagination"></div>
+      <div class="pagination-right">
+        <div id="paginationControls" class="pagination"></div>
+      </div>
+    </div>
+
+    <!-- Mobile Filters Overlay -->
+    <div class="filters-overlay" id="filtersOverlay" aria-hidden="true">
+      <div class="filters-drawer" role="dialog" aria-modal="true" aria-labelledby="filtersTitle">
+        <div class="filters-drawer-header">
+          <h2 id="filtersTitle">Filters</h2>
+          <button type="button" class="filters-close" id="closeFiltersBtn" aria-label="Close">×</button>
+        </div>
+        <div class="filters-drawer-body">
+          <div class="filter-group">
+            <label class="filter-label" for="typeFilterMobile">Type</label>
+            <select id="typeFilterMobile" class="filter-select" aria-label="Type (mobile)">
+              <option value="">All Types</option>
+              @foreach($fixedTypes as $type)
+                <option value="{{ $type }}">{{ $type }}</option>
+              @endforeach
+              <option value="Others">Others</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label" for="subjectFilterMobile">Subject</label>
+            <select id="subjectFilterMobile" class="filter-select" aria-label="Subject (mobile)">
+              <option value="">All Subjects</option>
+              @foreach($subjects as $s)
+                <option value="{{ $s }}">{{ $s }}</option>
+              @endforeach
+            </select>
+          </div>
+          
+        </div>
+        <div class="filters-drawer-footer">
+          <button type="button" class="btn-reset" id="resetFiltersBtn">Reset</button>
+          <button type="button" class="btn-apply" id="applyFiltersBtn">Apply</button>
+        </div>
+      </div>
     </div>
 
     <button class="chat-button" onclick="toggleChat()">
@@ -253,17 +293,26 @@ function sanitize(raw){
       r.style.display = (idx>=start && idx<=end) ? '' : 'none';
     });
 
-    const pageInfo = document.getElementById('pageInfo'); if(pageInfo) pageInfo.textContent = `Showing ${start+1} to ${end+1} of ${total} entries`;
+  /* pageInfo removed from UI */
     const pag = document.getElementById('paginationControls');
     if(pag){
-      const mk = (label, page, disabled=false, active=false)=>{ const b=document.createElement('button'); b.className='page-btn'+(active?' active':''); b.textContent=label; b.disabled=disabled; b.addEventListener('click',()=>{ currentPage=page; applySortAndPaginate();}); return b; };
-      pag.innerHTML='';
+      // Build compact pagination: ‹ Page [select] of N ›
       const totalPagesCalc = Math.max(1, Math.ceil(total/pageSize));
-      pag.appendChild(mk('Prev', Math.max(1,currentPage-1), currentPage===1));
-      const span=2; let s=Math.max(1,currentPage-span); let e=Math.min(totalPagesCalc,currentPage+span);
-      if(e-s<span*2){ if(s===1) e=Math.min(totalPagesCalc, s+span*2); else if(e===totalPagesCalc) s=Math.max(1, e-span*2); }
-      for(let p=s;p<=e;p++) pag.appendChild(mk(String(p), p, false, p===currentPage));
-      pag.appendChild(mk('Next', Math.min(totalPagesCalc,currentPage+1), currentPage===totalPagesCalc));
+      const makeBtn = (label, target, disabled=false)=>{ const b=document.createElement('button'); b.className='page-btn'; b.textContent=label; b.disabled=disabled; b.addEventListener('click',()=>{ currentPage = target; applySortAndPaginate(); }); return b; };
+      pag.innerHTML='';
+  // Prev chevron
+  const prevBtn = makeBtn('‹', Math.max(1, currentPage-1), currentPage===1); prevBtn.classList.add('chev','prev'); pag.appendChild(prevBtn);
+      // "Page" label
+      const lbl = document.createElement('span'); lbl.className='page-label'; lbl.textContent='Page'; pag.appendChild(lbl);
+      // Page select
+      const sel = document.createElement('select'); sel.className='page-select'; sel.setAttribute('aria-label','Current page');
+      for(let p=1;p<=totalPagesCalc;p++){ const o=document.createElement('option'); o.value=String(p); o.textContent=String(p); if(p===currentPage) o.selected=true; sel.appendChild(o); }
+      sel.addEventListener('change', (e)=>{ const v=parseInt(e.target.value,10)||1; currentPage = Math.min(Math.max(1,v), totalPagesCalc); applySortAndPaginate(); });
+      pag.appendChild(sel);
+      // "of N"
+      const of = document.createElement('span'); of.className='page-of'; of.textContent=`of ${totalPagesCalc}`; pag.appendChild(of);
+  // Next chevron
+  const nextBtn = makeBtn('›', Math.min(totalPagesCalc, currentPage+1), currentPage===totalPagesCalc); nextBtn.classList.add('chev','next'); pag.appendChild(nextBtn);
     }
     setSortIndicators();
   }
@@ -339,6 +388,61 @@ document.querySelectorAll('#conlogHeader .sort-header').forEach(h=>{
 });
 
 document.addEventListener('DOMContentLoaded',()=>{ filterRows(); });
+
+// ===== Mobile Filters Overlay =====
+function syncOverlayFromMain(){
+  const tMain = document.getElementById('typeFilter');
+  const sMain = document.getElementById('subjectFilter');
+  const pMain = document.getElementById('pageSize');
+  const tMob = document.getElementById('typeFilterMobile');
+  const sMob = document.getElementById('subjectFilterMobile');
+  const pMob = null;
+  if(tMain && tMob) tMob.value = tMain.value;
+  if(sMain && sMob) {
+    // Ensure mobile subject options include any dynamic subjects
+    const seen = new Set();
+    const options = ['<option value="">All Subjects</option>'];
+    getDataRows().forEach(r=>{ const v=(r.dataset.subject||'').trim(); if(v) seen.add(v); });
+    const arr = Array.from(seen).sort((a,b)=>a.localeCompare(b));
+    sMob.innerHTML = options.concat(arr.map(v=>`<option value="${v}">${v}</option>`)).join('');
+    sMob.value = sMain.value;
+  }
+  // page size is not in overlay anymore
+}
+
+function openFilters(){ const ov = document.getElementById('filtersOverlay'); if(!ov) return; syncOverlayFromMain(); ov.classList.add('open'); ov.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }
+function closeFilters(){ const ov = document.getElementById('filtersOverlay'); if(!ov) return; ov.classList.remove('open'); ov.setAttribute('aria-hidden','true'); document.body.style.overflow=''; }
+
+function applyFiltersFromOverlay(){
+  const tMain = document.getElementById('typeFilter');
+  const sMain = document.getElementById('subjectFilter');
+  const pMain = document.getElementById('pageSize');
+  const tMob = document.getElementById('typeFilterMobile');
+  const sMob = document.getElementById('subjectFilterMobile');
+  const pMob = null;
+  if(tMain && tMob){ tMain.value = tMob.value; tMain.dispatchEvent(new Event('change')); }
+  if(sMain && sMob){ sMain.value = sMob.value; sMain.dispatchEvent(new Event('change')); }
+  // no page size in overlay to apply
+  closeFilters();
+}
+
+function resetFiltersOverlay(){
+  const tMob = document.getElementById('typeFilterMobile');
+  const sMob = document.getElementById('subjectFilterMobile');
+  const pMob = null;
+  if(tMob) tMob.value = '';
+  if(sMob) sMob.value = '';
+  // no page size to reset in overlay
+}
+
+document.getElementById('openFiltersBtn')?.addEventListener('click', openFilters);
+document.getElementById('closeFiltersBtn')?.addEventListener('click', closeFilters);
+document.getElementById('applyFiltersBtn')?.addEventListener('click', applyFiltersFromOverlay);
+document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFiltersOverlay);
+document.getElementById('filtersOverlay')?.addEventListener('click', (e)=>{
+  const drawer = document.querySelector('.filters-drawer');
+  if(drawer && !drawer.contains(e.target)) closeFilters();
+});
 
 // Real-time updates for consultation log - DISABLED TO PREVENT DUPLICATE ROWS
 /*

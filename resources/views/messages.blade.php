@@ -90,7 +90,7 @@
                         <i class='bx bx-paperclip'></i>
                     </label>
                     <input type="file" id="file-input" multiple style="display:none;" accept="image/*,.pdf,.doc,.docx" />
-                    <textarea id="message-input" placeholder="Type a message..." rows="1"></textarea>
+                    <textarea id="message-input" placeholder="Type a message..." rows="1" maxlength="5000"></textarea>
                     <button id="send-btn" onclick="sendMessage()">Send</button>
                   <input type="hidden" id="last-send-ts" value="0" />
                 </div>
@@ -149,6 +149,9 @@
     if(dot){ dot.classList.add('online'); }
   });
   ChatCommon.onMessage(function(data){
+    // any incoming message implies the conversation has content; clear placeholder
+    const emptyEl = document.querySelector('#chat-body .no-conversation');
+    if(emptyEl) emptyEl.remove();
     const openPair = currentProfId && parseInt(data.prof_id) === parseInt(currentProfId) && parseInt(data.stud_id) === parseInt(currentStudentId);
     if(openPair){
       // If this is our own optimistic message, reconcile pending bubble
@@ -202,17 +205,53 @@
     return typingBubbleElStudent;
   }
   function handleIncomingTypingStudent(isTyping){
-    const chatBody=document.getElementById('chat-body');
+    const chatBody = document.getElementById('chat-body');
     if(isTyping){
-      const bub=ensureTypingBubbleStudent();
-      const last=chatBody.lastElementChild;
-      if(!last || last!==bub){ chatBody.appendChild(bub); chatBody.scrollTop=chatBody.scrollHeight; }
-    } else { removeTypingBubbleStudent(); }
+      const bub = ensureTypingBubbleStudent();
+      const last = chatBody.lastElementChild;
+      if(!last || last !== bub){
+        chatBody.appendChild(bub);
+        chatBody.scrollTop = chatBody.scrollHeight;
+      }
+    } else {
+      removeTypingBubbleStudent();
+    }
   }
   function removeTypingBubbleStudent(){ if(typingBubbleElStudent && typingBubbleElStudent.parentNode){ typingBubbleElStudent.parentNode.removeChild(typingBubbleElStudent); } }
 
+    function ensureDateLabelForAppend(createdAtIso){
+      const chatBody = document.getElementById('chat-body');
+      const ts = createdAtIso ? new Date(createdAtIso) : new Date();
+      if(isNaN(ts.getTime())) return;
+      // Find last message with a timestamp
+      const msgs = Array.from(chatBody.querySelectorAll('.message'));
+      let lastTime = null;
+      for(let i = msgs.length-1; i >= 0; i--){
+        const d = msgs[i].dataset && msgs[i].dataset.created ? new Date(msgs[i].dataset.created) : null;
+        if(d && !isNaN(d.getTime())){ lastTime = d; break; }
+      }
+      const needLabel = !lastTime || ((ts - lastTime)/60000 >= 30);
+      if(needLabel){
+        const dateDiv = document.createElement('div');
+        dateDiv.className = 'chat-date-label';
+        // Match same formatting used in renderMessages
+        const today = new Date();
+        const oneWeekAgo = new Date(today.getTime()-7*24*60*60*1000);
+        let label='';
+        if(ts.toDateString()===today.toDateString()){
+          label = ts.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        } else if (ts > oneWeekAgo){
+          label = ts.toLocaleDateString([], {weekday:'short'})+' '+ts.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        } else {
+          label = ts.toLocaleDateString('en-US',{month:'numeric',day:'numeric',year:'2-digit'})+', '+ts.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        }
+        dateDiv.textContent = label;
+        chatBody.appendChild(dateDiv);
+      }
+    }
     function appendMessageToChat(direction, text, filePath=null, fileType=null, originalName=null, createdAtIso=null){
       const chatBody = document.getElementById('chat-body');
+      ensureDateLabelForAppend(createdAtIso);
       const msgDiv = document.createElement('div');
       msgDiv.className = `message ${direction}`;
       if(createdAtIso){ msgDiv.dataset.created = createdAtIso; }
@@ -237,7 +276,7 @@
       const chatBody = document.getElementById('chat-body');
       chatBody.innerHTML = '';
       if(!messages.length){
-        chatBody.innerHTML = '<div class="message">No conversation yet. You can start the conversation anytime.</div>';
+        chatBody.innerHTML = '<div class="message no-conversation">No conversation yet. You can start the conversation anytime.</div>';
         return;
       }
       let lastMsgTime = null;
@@ -412,6 +451,9 @@
       const clientUuid = genUuid();
       // Optimistic append immediately
       if(message){
+        // Remove empty-state placeholder if present
+        const prevEmpty = document.querySelector('#chat-body .no-conversation');
+        if(prevEmpty) prevEmpty.remove();
         const chatBody = document.getElementById('chat-body');
         const msgDiv = document.createElement('div');
         msgDiv.className='message sent pending';
@@ -419,6 +461,10 @@
         msgDiv.textContent = message;
         msgDiv.style.opacity='0.7';
         msgDiv.dataset.created = new Date().toISOString();
+        // Ensure a centered time label appears for the first/next message
+        if(typeof ensureDateLabelForAppend === 'function'){
+          ensureDateLabelForAppend(msgDiv.dataset.created);
+        }
         chatBody.appendChild(msgDiv); chatBody.scrollTop = chatBody.scrollHeight;
         pendingMap[clientUuid]={el:msgDiv,t:Date.now()};
         placeSentStatus(msgDiv);

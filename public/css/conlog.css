@@ -606,6 +606,22 @@ body {
     margin-bottom: 1rem;
 }
 
+/* Filters trigger button (shown on mobile) */
+.filters-btn {
+    display: none;
+    border: none;
+    background: transparent;
+    color: #12372a;
+    font-size: 1.6rem;
+    margin-left: 0.5rem;
+    cursor: pointer;
+}
+.header {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
 .search-container {
     display: flex;
     gap: 1rem;
@@ -718,13 +734,25 @@ body {
     font-weight: 600;
 }
 
-.table-header .table-cell { padding-top: 0.9rem; padding-bottom: 0.9rem; }
+.table-header .table-cell {
+    padding-top: 0.9rem;
+    padding-bottom: 0.9rem;
+}
 
 /* Sortable headers */
-.sort-header { cursor: pointer; user-select: none; }
-.sort-header:hover { background-color: #0e3a2c; }
-.sort-header .sort-icon { opacity: 0.85; }
-.active-sort { background-color: #0e3a2c; }
+.sort-header {
+    cursor: pointer;
+    user-select: none;
+}
+.sort-header:hover {
+    background-color: #0e3a2c;
+}
+.sort-header .sort-icon {
+    opacity: 0.85;
+}
+.active-sort {
+    background-color: #0e3a2c;
+}
 
 .table-cell {
     display: table-cell;
@@ -736,27 +764,138 @@ body {
 .pagination-bar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     gap: 1rem;
     /* align width with .table (centered, constrained) */
     max-width: 1600px;
     margin: 0.5rem auto 1.25rem auto; /* closer to the table */
     padding: 0 8px; /* slight inner padding so buttons/text line up with table borders */
 }
-.page-info { color: #12372a; font-size: 14px; line-height: 1; opacity: 0.85; }
-.pagination { display: flex; gap: 6px; flex-wrap: wrap; }
-.page-btn {
-    padding: 6px 10px;
-    border-radius: 8px;
-    border: 1px solid #c7c7c7;
-    background: #fff;
+.page-info {
     color: #12372a;
-    cursor: pointer;
     font-size: 14px;
+    line-height: 1;
+    opacity: 0.85;
 }
-.page-btn:hover { background: #e5f0ed; }
-.page-btn:disabled { opacity: 0.45; cursor: not-allowed; background: #f3f3f3; }
-.page-btn.active { background: #12372a; color: #fff; border-color: #12372a; }
+.pagination {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.pagination-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.page-size-compact {
+    display: none;
+}
+.page-btn {
+    width: 36px;
+    height: 34px;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid #d6d6d6;
+    background: #fff;
+    color: #666;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.page-btn:hover {
+    background: #f3f3f3;
+}
+.page-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #f7f7f7;
+    color: #b6b6b6;
+    border-color: #e5e5e5;
+}
+.page-btn.active {
+    background: #12372a;
+    color: #fff;
+    border-color: #12372a;
+}
+
+/* Arrow-only style for prev/next chevrons */
+.pagination .page-btn.chev {
+    background: transparent !important;
+    border: none !important;
+    width: auto;
+    height: auto;
+    padding: 0 16px; /* bigger hit area */
+    font-size: 34px; /* larger chevrons */
+    color: #12372a !important; /* theme dark green */
+    box-shadow: none !important;
+}
+.pagination .page-btn.chev:hover {
+    background: transparent !important;
+    color: #0e2a21 !important;
+}
+.pagination .page-btn.chev:disabled {
+    background: transparent !important;
+    border: none !important;
+    color: #12372a !important;
+    opacity: 1;
+}
+
+/* Compact pagination pieces */
+.pagination .page-label,
+.pagination .page-of {
+    color: #333;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+}
+.pagination .page-label {
+    margin: 0 2px 0 4px;
+}
+.pagination .page-of {
+    margin: 0 4px 0 6px;
+}
+.pagination .page-select {
+    height: 34px; /* align with chevrons */
+    padding: 6px 30px 6px 10px; /* extra right space for caret */
+    border: 1px solid #d6d6d6;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1;
+    background-color: #fff;
+    /* two layers: 1) divider, 2) caret */
+    background-image: linear-gradient(
+            to right,
+            transparent calc(100% - 26px),
+            #e6e6e6 calc(100% - 26px),
+            #e6e6e6 calc(100% - 25px),
+            transparent calc(100% - 25px)
+        ),
+        url("data:image/svg+xml,%3Csvg width='12' height='7' viewBox='0 0 12 7' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 2 L6 6 L11 2 Z' fill='%23333'/%3E%3C/svg%3E");
+    background-repeat: no-repeat, no-repeat;
+    background-position:
+        0 0,
+        calc(100% - 9px) calc(50% + 1px); /* lower the caret a touch */
+    background-size:
+        auto auto,
+        12px 7px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    color: #111;
+}
+/* Hide legacy/native arrows on old Edge/IE just in case */
+.pagination .page-select::-ms-expand {
+    display: none;
+}
+.pagination .page-btn {
+    min-width: 34px;
+}
 
 .search-container {
     margin: 1rem 0;
@@ -800,6 +939,12 @@ body {
     margin-left: 2px;
     margin-right: 4px;
     white-space: nowrap;
+}
+/* Spacing for the inline "items per page" label */
+.items-per-page-label {
+    margin-left: 6px;
+    color: #333;
+    opacity: 0.85;
 }
 
 .filter-select {
@@ -884,13 +1029,19 @@ body {
     .header {
         margin-top: 40px; /* Add space for the navbar */
     }
+    /* Show filters button beside the search on mobile only */
+    .filters-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+    }
 
-    /* Use custom dropdown for filter on mobile */
+    /* Use native select for filter on mobile (match items-per-page style) */
     #typeFilter {
-        display: none !important;
+        display: inline-block !important;
     }
     #typeFilterDropdown {
-        display: block !important;
+        display: none !important;
     }
 
     .table {
@@ -898,7 +1049,7 @@ body {
         width: 100%;
     }
     .table-container {
-        padding-bottom: 90px; /* Enough space for the chat button */
+        padding-bottom: 16px; /* was 90px: bring pagination closer to table; chat clearance handled below */
     }
     .table-header {
         display: none !important;
@@ -976,12 +1127,13 @@ body {
         width: 100% !important; /* fill available space without overflow */
         max-width: 100% !important;
     }
-    /* Tablet: search + filter side-by-side (like desktop) */
+    /* Tablet: allow wrapping to avoid overflow */
     .search-container {
         display: flex;
         flex-direction: row;
         align-items: center;
-        gap: 1rem;
+        gap: 0.8rem;
+        flex-wrap: wrap;
     }
     .search-container input {
         flex: 1 1 auto;
@@ -998,13 +1150,8 @@ body {
     #typeFilterDropdown {
         display: none !important;
     }
-
-    /* Use custom dropdown for filter on tablet (like mobile) */
-    #typeFilter {
-        display: none !important;
-    }
-    #typeFilterDropdown {
-        display: block !important;
+    #subjectFilter {
+        display: inline-block !important;
     }
 
     .table {
@@ -1013,7 +1160,7 @@ body {
         max-width: 100% !important;
     }
     .table-container {
-        padding-bottom: 90px; /* Enough space for the chat button */
+        padding-bottom: 20px; /* was 90px: reduce gap above pagination on tablet */
         margin-left: 0;
         margin-right: 0;
         width: 100% !important;
@@ -1076,4 +1223,210 @@ body {
         word-break: break-word;
         background: none;
     }
+}
+
+/* Mobile: stack filters and pagination neatly */
+@media (max-width: 768px) {
+    .search-container {
+        display: grid;
+        grid-template-columns: 1fr 42px; /* fixed button column so search uses the rest */
+        grid-auto-rows: auto;
+        gap: 0.75rem;
+        align-items: center;
+    }
+    /* Ensure search input uses full available width (override desktop max-width) */
+    .search-container input {
+        max-width: none !important;
+        width: 100% !important;
+    }
+    .search-container > #searchInput {
+        grid-column: 1 / 2;
+    }
+    .search-container > .filters-btn {
+        grid-column: 2 / 3;
+        margin-left: 0;
+        width: 42px;
+        height: 42px;
+    }
+    /* Force the subsequent filter rows to span full width under the first row */
+    .search-container > .filter-group-horizontal {
+        grid-column: 1 / -1;
+    }
+    /* Place page-size group on its own row, aligned right under the search input */
+    .search-container > .page-size-group {
+        grid-column: 1 / 2; /* stay in left column */
+        justify-self: end; /* align to the column boundary under the filter icon */
+        display: inline-flex;
+        align-items: center;
+        width: auto !important; /* override generic 100% width */
+        transform: translateX(calc(42px + 0.75rem + 34px)); /* fine-tune: a bit more to the right */
+    }
+    .page-size-group .filter-select {
+        padding: 0.45rem 1.6rem 0.45rem 0.6rem;
+        font-size: 13px;
+        width: 74px !important;
+    }
+    .page-size-group .items-per-page-label {
+        font-size: 12px;
+        opacity: 0.85;
+        margin-left: 2px;
+        white-space: nowrap;
+    }
+    /* First row: search + button inline */
+    .search-container > #searchInput {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .search-container > .filters-btn {
+        flex: 0 0 auto;
+    }
+    .search-container {
+        row-gap: 0.75rem;
+    }
+    .filter-group-horizontal {
+        width: 100%;
+        display: none;
+    } /* hide inline filters; use overlay */
+    #typeFilter {
+        display: inline-block !important;
+    }
+    #typeFilterDropdown {
+        display: none !important;
+    }
+    #subjectFilter {
+        width: 100%;
+    }
+
+    .pagination-bar {
+        flex-direction: column;
+        align-items: center; /* center everything on mobile for consistency */
+        gap: 0.45rem;
+        margin: 0.5rem 0 5.5rem 0; /* leave clearance for chat button */
+        padding: 0 12px;
+        max-width: 100%;
+    }
+    .main-content {
+        padding-bottom: 4.5rem; /* was 8rem: bring content up */
+        padding-bottom: calc(4.5rem + env(safe-area-inset-bottom)); /* add safe-area if available */
+    }
+    .page-info {
+        font-size: 13px;
+        width: 100%;
+        text-align: center;
+    }
+    .pagination-right {
+        width: 100%;
+        justify-content: center;
+        margin-left: 0 !important;
+    }
+    .pagination {
+        gap: 4px;
+        justify-content: center;
+    }
+    .pagination .page-label,
+    .pagination .page-of {
+        font-size: 13px;
+        color: #333;
+    }
+    .pagination .page-select {
+        font-size: 13px;
+        height: 32px;
+        padding: 6px 28px 6px 10px;
+        background-size:
+            auto auto,
+            12px 7px;
+        background-position:
+            0 0,
+            calc(100% - 9px) calc(50% + 1px);
+    }
+    /* Hide bottom page-size on mobile to avoid duplicate controls */
+    .page-size-compact {
+        display: none;
+    }
+    /* Keep page size label compact on mobile */
+    .items-per-page-label {
+        font-size: 13px;
+    }
+}
+
+/* Filters overlay (mobile) */
+.filters-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    display: none;
+    z-index: 2147483646; /* below chat button */
+}
+.filters-overlay.open {
+    display: block;
+}
+.filters-drawer {
+    position: absolute;
+    right: -100%;
+    top: 0;
+    bottom: 0;
+    width: 86%;
+    max-width: 420px;
+    background: #ffffff;
+    border-left: 3px solid #12372a;
+    box-shadow: -2px 0 12px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    transition: right 0.25s ease;
+}
+.filters-overlay.open .filters-drawer {
+    right: 0;
+}
+.filters-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    background: #12372a;
+    border-bottom: 1px solid #0e2a21;
+}
+.filters-drawer-header h2 {
+    font-size: 1.1rem;
+    color: #ffffff;
+    margin: 0;
+}
+.filters-close {
+    border: none;
+    background: transparent;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #ffffff;
+}
+.filters-close:hover {
+    opacity: 0.85;
+}
+.filters-drawer-body {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+.filters-drawer-footer {
+    padding: 0.9rem 1rem 1.1rem;
+    display: flex;
+    gap: 0.6rem;
+    justify-content: flex-end;
+    border-top: 1px solid #e0e0e0;
+}
+.btn-reset {
+    background: #f3f3f3;
+    color: #333;
+    border: 1px solid #d6d6d6;
+    border-radius: 8px;
+    padding: 0.55rem 0.9rem;
+    cursor: pointer;
+}
+.btn-apply {
+    background: #12372a;
+    color: #fff;
+    border: 1px solid #12372a;
+    border-radius: 8px;
+    padding: 0.55rem 0.9rem;
+    cursor: pointer;
 }

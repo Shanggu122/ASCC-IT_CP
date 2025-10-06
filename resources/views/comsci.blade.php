@@ -276,9 +276,9 @@
 
     <div class="search-container">
   <input type="text" id="searchInput" placeholder="Search..." 
-     autocomplete="off" spellcheck="false" inputmode="text" 
-     maxlength="50" aria-label="Search professors by name" 
-     pattern="[A-Za-z0-9 .,@_-]{0,50}">
+    autocomplete="off" spellcheck="false" inputmode="text" 
+    maxlength="100" aria-label="Search professors by name" 
+    pattern="[A-Za-z0-9 .,@_-]{0,100}">
     </div>
 
     <div class="profile-cards-grid">

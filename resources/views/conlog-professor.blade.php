@@ -192,10 +192,13 @@
 
     <div class="search-container">
       <input type="text" id="searchInput" placeholder="Search..." style="flex:1;"
-             autocomplete="off" spellcheck="false" maxlength="50"
-             pattern="[A-Za-z0-9 .,@_-]{0,50}" aria-label="Search consultation">
+        autocomplete="off" spellcheck="false" maxlength="100"
+        pattern="[A-Za-z0-9 .,@_-]{0,100}" aria-label="Search consultation">
+      <button type="button" class="filters-btn" id="openFiltersBtn" aria-label="Open filters" title="Filters">
+        <i class='bx bx-slider-alt'></i>
+      </button>
       <div class="filter-group-horizontal">
-        <select id="typeFilter" class="filter-select">
+        <select id="typeFilter" class="filter-select" aria-label="Type filter">
           <option value="">All Types</option>
           @php
             $fixedTypes = [
@@ -212,25 +215,56 @@
           <option value="Others">Others</option>
         </select>
       </div>
+      <div class="filter-group-horizontal">
+        @php
+          $subjects = collect($bookings ?? [])->pluck('subject')->filter(fn($s)=>filled($s))
+                       ->map(fn($s)=>trim($s))->unique()->sort()->values();
+        @endphp
+        <select id="subjectFilter" class="filter-select" aria-label="Subject filter">
+          <option value="">All Subjects</option>
+          @foreach($subjects as $s)
+            <option value="{{ $s }}">{{ $s }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div class="filter-group-horizontal page-size-group" style="margin-left:auto">
+        <select id="pageSize" class="filter-select" aria-label="Items per page" style="width:92px">
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+        <span class="filter-label-inline items-per-page-label">items per page</span>
+      </div>
     </div>
 
     <div class="table-container">
       <div class="table">
         <!-- Header Row -->
-        <div class="table-row table-header">
-          <div class="table-cell">No.</div> <!-- Add this line -->
-          <div class="table-cell">Student</div>
-          <div class="table-cell">Subject</div>
-          <div class="table-cell">Date</div>
-          <div class="table-cell">Type</div>
-          <div class="table-cell">Mode</div>
-          <div class="table-cell">Status</div>
-           <div class="table-cell " style="width: 180px">Action</div>
+        <div class="table-row table-header" id="profConlogHeader">
+          <div class="table-cell">No.</div>
+          <div class="table-cell sort-header" data-sort="student" role="button" tabindex="0">Student <span class="sort-icon"></span></div>
+          <div class="table-cell sort-header" data-sort="subject" role="button" tabindex="0">Subject <span class="sort-icon"></span></div>
+          <div class="table-cell sort-header" data-sort="date" role="button" tabindex="0">Date <span class="sort-icon"></span></div>
+          <div class="table-cell sort-header" data-sort="type" role="button" tabindex="0">Type <span class="sort-icon"></span></div>
+          <div class="table-cell sort-header" data-sort="mode" role="button" tabindex="0">Mode <span class="sort-icon"></span></div>
+          <div class="table-cell sort-header" data-sort="status" role="button" tabindex="0">Status <span class="sort-icon"></span></div>
+          <div class="table-cell" style="width: 180px">Action</div>
         </div>
     
         <!-- Dynamic Data Rows -->
   @forelse($bookings as $b)
-  <div class="table-row">
+  <div class="table-row"
+    data-student="{{ strtolower($b->student) }}"
+    data-subject="{{ strtolower($b->subject) }}"
+    data-date="{{ \Carbon\Carbon::parse($b->Booking_Date)->format('Y-m-d') }}"
+    data-date-ts="{{ \Carbon\Carbon::parse($b->Booking_Date)->timestamp }}"
+    data-type="{{ strtolower($b->type) }}"
+    data-mode="{{ strtolower($b->Mode) }}"
+    data-status="{{ strtolower($b->Status) }}"
+    data-matched="1"
+  >
     <div class="table-cell" data-label="No." data-booking-id="{{ $b->Booking_ID }}">{{ $loop->iteration }}</div>
           <div class="table-cell" data-label="Student">{{ $b->student }}</div> <!-- Student name -->
           <div class="table-cell" data-label="Subject">{{ $b->subject }}</div>
@@ -279,7 +313,49 @@
             <div class="table-cell" colspan="8">No consultation found.</div>
           </div>
         @endforelse
-      <div style="height: 80px;"></div> <!-- Spacer under the last table row -->
+      <!-- Spacer removed: layout handled by CSS margins -->
+      </div>
+    </div>
+
+    <!-- Pagination controls (no left info) -->
+    <div class="pagination-bar">
+      <div class="pagination-right">
+        <div id="paginationControls" class="pagination"></div>
+      </div>
+    </div>
+
+    <!-- Mobile Filters Overlay -->
+    <div class="filters-overlay" id="filtersOverlay" aria-hidden="true">
+      <div class="filters-drawer" role="dialog" aria-modal="true" aria-labelledby="filtersTitle">
+        <div class="filters-drawer-header">
+          <h2 id="filtersTitle">Filters</h2>
+          <button type="button" class="filters-close" id="closeFiltersBtn" aria-label="Close">×</button>
+        </div>
+        <div class="filters-drawer-body">
+          <div class="filter-group">
+            <label class="filter-label" for="typeFilterMobile">Type</label>
+            <select id="typeFilterMobile" class="filter-select" aria-label="Type (mobile)">
+              <option value="">All Types</option>
+              @foreach($fixedTypes as $type)
+                <option value="{{ $type }}">{{ $type }}</option>
+              @endforeach
+              <option value="Others">Others</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label" for="subjectFilterMobile">Subject</label>
+            <select id="subjectFilterMobile" class="filter-select" aria-label="Subject (mobile)">
+              <option value="">All Subjects</option>
+              @foreach($subjects as $s)
+                <option value="{{ $s }}">{{ $s }}</option>
+              @endforeach
+            </select>
+          </div>
+        </div>
+        <div class="filters-drawer-footer">
+          <button type="button" class="btn-reset" id="resetFiltersBtn">Reset</button>
+          <button type="button" class="btn-apply" id="applyFiltersBtn">Apply</button>
+        </div>
       </div>
     </div>
 
@@ -866,8 +942,9 @@ function closeProfessorModal() {
         });
     }
 
-    document.getElementById('searchInput').addEventListener('input', filterRows);
-    document.getElementById('typeFilter').addEventListener('change', filterRows);
+  document.getElementById('searchInput').addEventListener('input', filterRows);
+  document.getElementById('typeFilter').addEventListener('change', filterRows);
+  document.getElementById('subjectFilter')?.addEventListener('change', filterRows);
 
     // Chat form hardening (local only – actual server still validates)
     (function(){
@@ -897,6 +974,137 @@ function closeProfessorModal() {
         }
       });
     })();
+
+// ===== Sorting + Pagination (mirrors student log) =====
+let sortKey = 'date';
+let sortDir = 'desc';
+let currentPage = 1;
+let pageSize = parseInt(localStorage.getItem('proflog.pageSize')||'10',10);
+if(![5,10,25,50,100].includes(pageSize)) pageSize = 10;
+document.addEventListener('DOMContentLoaded',()=>{ const ps=document.getElementById('pageSize'); if(ps) ps.value=String(pageSize); });
+
+function profGetRows(){
+  return Array.from(document.querySelectorAll('.table .table-row'))
+    .filter(r=>!r.classList.contains('table-header') && !r.classList.contains('no-results-row'));
+}
+
+function profSetSortIndicators(){
+  const headers = document.querySelectorAll('#profConlogHeader .sort-header');
+  headers.forEach(h=>{
+    const icon = h.querySelector('.sort-icon');
+    const key = h.getAttribute('data-sort');
+    if(key===sortKey){ icon.textContent = sortDir==='asc' ? ' ▲' : ' ▼'; h.classList.add('active-sort'); }
+    else { icon.textContent=''; h.classList.remove('active-sort'); }
+  });
+}
+
+function profCompare(a,b){
+  const get=(row,key)=>{
+    if(key==='date') return Number(row.dataset.dateTs||0);
+    return (row.dataset[key]||'')+'';
+  };
+  const va=get(a,sortKey), vb=get(b,sortKey);
+  let cmp = (typeof va==='number' && typeof vb==='number')? (va-vb) : (va.localeCompare(vb));
+  return sortDir==='asc'? cmp : -cmp;
+}
+
+function profApply(){
+  const table=document.querySelector('.table'); if(!table) return;
+  const header=document.getElementById('profConlogHeader');
+  const rows=profGetRows();
+  const matched=rows.filter(r=>r.dataset.matched==='1');
+  const existingNo = document.querySelector('.no-results-row'); if(existingNo) existingNo.remove();
+  if(matched.length===0){
+    rows.forEach(r=>r.style.display='none');
+    const noRow=document.createElement('div'); noRow.className='table-row no-results-row';
+    noRow.innerHTML = `<div class="table-cell" style="text-align:center;padding:20px;color:#666;font-style:italic;grid-column:1 / -1;">No Consultations Found.</div>`;
+    header.insertAdjacentElement('afterend', noRow);
+    const pag=document.getElementById('paginationControls'); if(pag) pag.innerHTML='';
+    profSetSortIndicators(); return;
+  }
+  matched.sort(profCompare);
+  const frag=document.createDocumentFragment(); matched.forEach(r=>frag.appendChild(r)); table.appendChild(frag);
+  const total=matched.length; const totalPages=Math.max(1, Math.ceil(total/pageSize));
+  if(currentPage>totalPages) currentPage=totalPages;
+  const start=(currentPage-1)*pageSize; const end=Math.min(total, start+pageSize)-1;
+  const set=new Set(matched);
+  rows.forEach(r=>{
+    if(!set.has(r)) { r.style.display='none'; return; }
+    const idx=matched.indexOf(r);
+    r.style.display = (idx>=start && idx<=end) ? '' : 'none';
+  });
+  const pag=document.getElementById('paginationControls');
+  if(pag){
+    const makeBtn=(label,target,disabled=false)=>{ const b=document.createElement('button'); b.className='page-btn'; b.textContent=label; b.disabled=disabled; b.addEventListener('click',()=>{ currentPage=target; profApply();}); return b; };
+    pag.innerHTML='';
+    const totalPagesCalc = Math.max(1, Math.ceil(total/pageSize));
+    const prev = makeBtn('‹', Math.max(1,currentPage-1), currentPage===1); prev.classList.add('chev','prev'); pag.appendChild(prev);
+    const lbl=document.createElement('span'); lbl.className='page-label'; lbl.textContent='Page'; pag.appendChild(lbl);
+    const sel=document.createElement('select'); sel.className='page-select'; for(let p=1;p<=totalPagesCalc;p++){ const o=document.createElement('option'); o.value=String(p); o.textContent=String(p); if(p===currentPage) o.selected=true; sel.appendChild(o);} sel.addEventListener('change',(e)=>{ const v=parseInt(e.target.value,10)||1; currentPage=Math.min(Math.max(1,v), totalPagesCalc); profApply();}); pag.appendChild(sel);
+    const of=document.createElement('span'); of.className='page-of'; of.textContent=`of ${totalPagesCalc}`; pag.appendChild(of);
+    const next = makeBtn('›', Math.min(totalPagesCalc,currentPage+1), currentPage===totalPagesCalc); next.classList.add('chev','next'); pag.appendChild(next);
+  }
+  profSetSortIndicators();
+}
+
+// Override filterRows to cooperate with pagination
+function filterRows(){
+  const si=document.getElementById('searchInput');
+  const search=(si.value||'').toLowerCase();
+  const type=(document.getElementById('typeFilter')?.value||'').toLowerCase();
+  const subject=(document.getElementById('subjectFilter')?.value||'').toLowerCase();
+  document.querySelectorAll('.table-row:not(.table-header)').forEach(row=>{
+    if(row.classList.contains('no-results-row')) return;
+    const rowType=(row.dataset.type||'').toLowerCase();
+    const student=(row.dataset.student||'').toLowerCase();
+    const rowSubject=(row.dataset.subject||'').toLowerCase();
+    const isOthers = !['tutoring','grade consultation','missed activities','special quiz or exam','capstone consultation'].includes(rowType) && rowType!=='';
+    const matchesType = !type || (type!=='others' && rowType===type) || (type==='others' && isOthers);
+    const matchesSubject = !subject || rowSubject===subject;
+    const matchesSearch = student.includes(search) || rowSubject.includes(search) || rowType.includes(search);
+    row.dataset.matched = (matchesType && matchesSubject && matchesSearch) ? '1' : '0';
+  });
+  currentPage = 1;
+  profApply();
+}
+
+// listeners
+document.getElementById('pageSize')?.addEventListener('change',(e)=>{
+  pageSize = parseInt(e.target.value,10) || 10;
+  localStorage.setItem('proflog.pageSize', String(pageSize));
+  currentPage = 1;
+  profApply();
+});
+document.querySelectorAll('#profConlogHeader .sort-header').forEach(h=>{
+  const set=()=>{ const key=h.getAttribute('data-sort'); if(sortKey===key){ sortDir=(sortDir==='asc'?'desc':'asc'); } else { sortKey=key; sortDir=(key==='date'?'desc':'asc'); } profApply(); };
+  h.addEventListener('click', set);
+  h.addEventListener('keypress', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); set(); }});
+});
+document.addEventListener('DOMContentLoaded', ()=>{ filterRows(); });
+
+// Mobile filters overlay
+function profSyncOverlay(){
+  const tMain=document.getElementById('typeFilter');
+  const sMain=document.getElementById('subjectFilter');
+  const tMob=document.getElementById('typeFilterMobile');
+  const sMob=document.getElementById('subjectFilterMobile');
+  if(tMain && tMob) tMob.value=tMain.value;
+  if(sMain && sMob) {
+    const seen=new Set();
+    profGetRows().forEach(r=>{ const v=(r.dataset.subject||'').trim(); if(v) seen.add(v); });
+    const arr=Array.from(seen).sort((a,b)=>a.localeCompare(b));
+    sMob.innerHTML = '<option value="">All Subjects</option>' + arr.map(v=>`<option value="${v}">${v}</option>`).join('');
+    sMob.value = sMain.value;
+  }
+}
+function openFilters(){ const ov=document.getElementById('filtersOverlay'); if(!ov) return; profSyncOverlay(); ov.classList.add('open'); ov.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }
+function closeFilters(){ const ov=document.getElementById('filtersOverlay'); if(!ov) return; ov.classList.remove('open'); ov.setAttribute('aria-hidden','true'); document.body.style.overflow=''; }
+function applyFiltersFromOverlay(){ const tMain=document.getElementById('typeFilter'); const sMain=document.getElementById('subjectFilter'); const tMob=document.getElementById('typeFilterMobile'); const sMob=document.getElementById('subjectFilterMobile'); if(tMain&&tMob){ tMain.value=tMob.value; tMain.dispatchEvent(new Event('change')); } if(sMain&&sMob){ sMain.value=sMob.value; sMain.dispatchEvent(new Event('change')); } closeFilters(); }
+function resetFiltersOverlay(){ const tMob=document.getElementById('typeFilterMobile'); const sMob=document.getElementById('subjectFilterMobile'); if(tMob) tMob.value=''; if(sMob) sMob.value=''; }
+document.getElementById('openFiltersBtn')?.addEventListener('click', openFilters);
+document.getElementById('closeFiltersBtn')?.addEventListener('click', closeFilters);
+document.getElementById('applyFiltersBtn')?.addEventListener('click', applyFiltersFromOverlay);
+document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFiltersOverlay);
 
     // Real-time updates for professor consultation log - DISABLED TO PREVENT DUPLICATE ROWS
     /*

@@ -193,7 +193,7 @@
         <ul class="participants" id="participants"></ul>
       </div>
       <div class="msg-input" id="chat-input">
-        <input id="messageBox" type="text" placeholder="Type a message…" />
+  <input id="messageBox" type="text" placeholder="Type a message…" maxlength="5000" />
         <button id="sendBtn"><i class='bx bx-send'></i></button>
       </div>
     </aside>

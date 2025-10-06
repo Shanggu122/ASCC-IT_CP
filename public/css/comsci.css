@@ -52,6 +52,7 @@ body {
     border-radius: 12px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
     max-width: 300px;
+    min-height: 100px; /* match IT&IS card height for consistent boxes */
     cursor: pointer;
 }
 .profile-card img {

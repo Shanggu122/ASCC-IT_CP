@@ -112,7 +112,7 @@
 }
 
 .notification-item.unread::before {
-    content: "";
+    content: '';
     position: absolute;
     left: 8px;
     top: 20px;
