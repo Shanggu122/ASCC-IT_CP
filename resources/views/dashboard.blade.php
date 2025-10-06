@@ -130,18 +130,26 @@
       padding: 6px;
       height: 48px;
       margin: 4px 0;
-      pointer-events: none;
+      pointer-events: auto; /* enable hover tooltips */
+      cursor: default; /* neutral cursor like professor */
       font-size: clamp(0.7rem, 2vw, 1rem);
     }
-    .pika-button:hover, .pika-row.pick-whole-week:hover .pika-button {
+    /* Neutral hover like professor (do not tint on hover) */
+    .pika-button:hover,
+    .pika-row.pick-whole-week:hover .pika-button,
+    .pika-button:focus,
+    .pika-button:active {
       color: #fff;
-      background: #01703c;
+      background: #cac7c7;
       box-shadow: none;
+      outline: none;
       border-radius: 3px;
     }
-    .is-selected .pika-button, .has-event .pika-button {
+    /* Prevent selected state from turning dark green */
+    .is-selected .pika-button,
+    .has-event .pika-button {
       color: #ffffff;
-      background-color: #12372a !important;
+      background-color: #cac7c7 !important;
       box-shadow: none;
     }
     .is-today .pika-button {
@@ -149,6 +157,22 @@
       background-color: #5fb9d4;
       font-weight: bold;
     }
+    /* Keep tinted override states on hover (match professor behavior) */
+    .pika-button.day-online:hover,
+    .pika-button.day-online:focus,
+    .pika-button.day-online:active { background: rgba(255, 105, 180, 0.45) !important; color:#fff !important; }
+    .pika-button.day-force:hover,
+    .pika-button.day-force:focus,
+    .pika-button.day-force:active { background: rgba(37, 99, 235, 0.6) !important; color:#fff !important; }
+    .pika-button.day-holiday:hover,
+    .pika-button.day-holiday:focus,
+    .pika-button.day-holiday:active { background: rgba(155, 89, 182, 0.55) !important; color:#fff !important; }
+    .pika-button.day-blocked:hover,
+    .pika-button.day-blocked:focus,
+    .pika-button.day-blocked:active { background: rgba(55, 65, 81, 0.75) !important; color:#fff !important; }
+    .is-today .pika-button:hover,
+    .is-today .pika-button:focus,
+    .is-today .pika-button:active { background:#5fb9d4 !important; color:#fff !important; }
 
     .has-booking {
       border-radius: 4px;
@@ -290,6 +314,8 @@
         <button type="submit">Send</button>
       </form>
     </div>
+    <!-- Consultation Tooltip (student) -->
+    <div id="consultationTooltip" style="display:none; position:absolute; z-index:9999; background:#fff; border:1px solid #e1e5e9; border-radius:8px; padding:12px; max-width:320px; max-height:400px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,0.15); font-family:'Poppins',sans-serif; line-height:1.4;"></div>
   </div>
 
   <script src="{{ asset('js/dashboard.js') }}"></script>
@@ -422,6 +448,8 @@
         const oldBadge = cell.querySelector('.ov-badge');
         if (oldBadge) oldBadge.remove();
         cell.removeAttribute('data-status');
+        cell.removeAttribute('data-consultation-key');
+        cell.removeAttribute('data-has-consultations');
         
         const day = cell.getAttribute('data-pika-day');
         const month = cell.getAttribute('data-pika-month');
@@ -485,6 +513,9 @@
             cell.classList.add('has-booking');
             cell.classList.add(classMap[status]);
             cell.setAttribute('data-status', status);
+            // Mark for tooltip hover
+            cell.setAttribute('data-consultation-key', key);
+            cell.setAttribute('data-has-consultations', 'true');
           }
         }
       });
@@ -586,6 +617,171 @@
   
   // Real-time refresh booking data every 3 seconds (reduced for smoother updates)
   setInterval(loadBookingData, 3000);
+  
+  // --- Student tooltip: detailed data fetch and hover handlers ---
+  const detailsMap = new Map();
+  let tooltipTimeout = null;
+  let currentHoveredCell = null;
+
+  function loadStudentDetails() {
+    fetch('/api/student/consultation-logs', { headers: { 'Accept': 'application/json' } })
+      .then(r => r.json())
+      .then(entries => {
+        // rebuild details map
+        detailsMap.clear();
+        (entries || []).forEach(entry => {
+          try {
+            const d = new Date(entry.Booking_Date);
+            const key = d.toDateString();
+            if (!detailsMap.has(key)) detailsMap.set(key, []);
+            detailsMap.get(key).push(entry);
+          } catch(_) {}
+        });
+      })
+      .catch(() => {});
+  }
+
+  // initial and periodic refresh
+  loadStudentDetails();
+  setInterval(loadStudentDetails, 5000);
+
+  // Periodically sync data attributes for tooltip based on bookingMap
+  setInterval(() => {
+    try {
+      const cells = document.querySelectorAll('.pika-button');
+      cells.forEach(cell => {
+        const y = cell.getAttribute('data-pika-year');
+        const m = cell.getAttribute('data-pika-month');
+        const d = cell.getAttribute('data-pika-day');
+        if (!y||!m||!d) return;
+        const dateObj = new Date(y, m, d);
+        const key = dateObj.toDateString();
+        if (bookingMap.has(key)) {
+          cell.setAttribute('data-consultation-key', key);
+          cell.setAttribute('data-has-consultations', 'true');
+        } else {
+          cell.removeAttribute('data-consultation-key');
+          cell.removeAttribute('data-has-consultations');
+        }
+      });
+    } catch(_) {}
+  }, 3000);
+
+  function formatTo12Hour(ts) {
+    if (!ts) return '';
+    // Try to parse common formats
+    const parts = String(ts).split(' ');
+    if (parts.length < 2) return String(ts);
+    const datePart = parts[0];
+    const timePart = parts[1];
+    const tPieces = timePart.split(':');
+    if (tPieces.length < 2) return String(ts);
+    let hour = parseInt(tPieces[0], 10);
+    const minute = tPieces[1];
+    const second = tPieces[2] || '00';
+    if (isNaN(hour)) return String(ts);
+    const suffix = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = ((hour + 11) % 12) + 1;
+    const hourStr = hour12.toString().padStart(2, '0');
+    return `${datePart} ${hourStr}:${minute}:${second} ${suffix}`;
+  }
+
+  // Global hover delegation for student tooltip (simplified)
+  document.addEventListener('mouseover', function(e) {
+    const target = e.target;
+    if (tooltipTimeout) { clearTimeout(tooltipTimeout); tooltipTimeout = null; }
+    if (target && target.classList && target.classList.contains('pika-button') && target.hasAttribute('data-consultation-key')) {
+      const key = target.getAttribute('data-consultation-key');
+      const tooltip = document.getElementById('consultationTooltip');
+      if (!tooltip) return;
+      const consultations = detailsMap.get(key) || [];
+      if (consultations.length === 0) return;
+
+      // Build simplified content (no count header)
+      let html = '';
+      consultations.forEach((entry, idx) => {
+        html += `
+          <div class="consultation-entry" style="${idx>0 ? 'border-top:1px solid #eee; padding-top:6px; margin-top:6px;' : ''}">
+            <div class="student-name" style="font-weight:600; color:#2c5f4f; margin-bottom:4px; font-size:14px;">Professor: ${entry.Professor || ''}</div>
+            <div class="detail-row" style="font-size:12px; color:#666;">Subject: ${entry.subject || ''}</div>
+            <div class="detail-row" style="font-size:12px; color:#666;">Type: ${entry.type || entry.Type || ''}</div>
+            <div class="detail-row" style="font-size:12px; color:#666;">Mode: ${entry.Mode || ''}</div>
+            <div class="status-row" style="font-size:12px; font-weight:600; color:#666;">Status: ${entry.Status || ''}</div>
+            <div class="booking-time" style="font-size:11px; color:#999; font-style:italic;">Booked: ${formatTo12Hour(entry.Created_At)}</div>
+          </div>`;
+      });
+      tooltip.innerHTML = html;
+      tooltip.style.display = 'block';
+
+      // Position to the right of the cell with viewport guards
+      const cellRect = target.getBoundingClientRect();
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      const scrollX = window.scrollX || document.documentElement.scrollLeft;
+      const GAP = 12;
+      let left = cellRect.right + GAP + scrollX;
+      let top = cellRect.top + scrollY;
+      if (top + tooltipRect.height > scrollY + viewportHeight - 10) {
+        top = scrollY + viewportHeight - tooltipRect.height - 10;
+      }
+      if (top < scrollY + 10) {
+        top = scrollY + 10;
+      }
+      const maxRight = scrollX + window.innerWidth - 10;
+      if (left + tooltipRect.width > maxRight) {
+        left = Math.min(left, maxRight - tooltipRect.width);
+      }
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+      currentHoveredCell = target;
+    } else {
+      if (currentHoveredCell && !target.closest('#consultationTooltip')) {
+        tooltipTimeout = setTimeout(() => {
+          const tooltip = document.getElementById('consultationTooltip');
+          if (tooltip) tooltip.style.display = 'none';
+          currentHoveredCell = null;
+        }, 250);
+      }
+    }
+  });
+
+  document.addEventListener('mouseout', function(e){
+    const target = e.target;
+    const related = e.relatedTarget;
+    if (target && target.classList && target.classList.contains('pika-button') && target.hasAttribute('data-consultation-key')) {
+      if (!related || !related.closest('#consultationTooltip')) {
+        const tooltip = document.getElementById('consultationTooltip');
+        if (tooltip) tooltip.style.display = 'none';
+        currentHoveredCell = null;
+      }
+    }
+  });
+
+  // Keep tooltip visible on hover; hide after leaving
+  (function bindTooltipHover(){
+    const tip = document.getElementById('consultationTooltip');
+    if (!tip) return;
+    tip.addEventListener('mouseenter', function(){ if (tooltipTimeout) { clearTimeout(tooltipTimeout); tooltipTimeout = null; } });
+    tip.addEventListener('mouseleave', function(){ tooltipTimeout = setTimeout(()=>{ tip.style.display='none'; currentHoveredCell=null; }, 200); });
+  })();
+
+  // Prevent date selection/tinting like professor behavior
+  function preventCalendarClicks(e) {
+    const target = e.target;
+    if (target && target.classList && target.classList.contains('pika-button') && target.closest('.pika-table')) {
+      if (e.type === 'click' || e.type === 'mousedown' || e.type === 'touchstart' || e.type === 'touchend') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+      }
+    }
+  }
+  ['click','mousedown','touchstart','touchend'].forEach(type => {
+    document.addEventListener(type, preventCalendarClicks, { capture:true, passive:false });
+    document.addEventListener(type, preventCalendarClicks, { capture:false, passive:false });
+  });
         
     // Initialize inbox notifications
     loadNotifications();

@@ -380,8 +380,11 @@
             showToast('Video call is only available during your consultation schedule.', 'error');
             return;
           }
-          const channel = encodeURIComponent(currentChatPerson.replace(/\s+/g, ''));
-          window.location.href = `/video-call/${channel}`;
+          const studId = Number(currentStudentId);
+          const profId = Number(currentProfId);
+          if(!studId || !profId){ showToast('Missing IDs for call.', 'error'); return; }
+          const channel = `stud-${studId}-prof-${profId}`;
+          window.location.href = `/video-call/${encodeURIComponent(channel)}`;
         }
 
         let selectedFiles = [];

@@ -330,8 +330,11 @@
         alert('Please select a student to start a video call.');
         return;
       }
-      const channel = encodeURIComponent(currentChatPerson.replace(/\s+/g, ''));
-      window.location.href = `/prof-call/${channel}`;
+  const studId = Number(currentStudentId);
+  const profId = Number(currentProfId);
+  if(!studId || !profId){ alert('Missing IDs for call.'); return; }
+  const channel = `stud-${studId}-prof-${profId}`;
+  window.location.href = `/prof-call/${encodeURIComponent(channel)}`;
     }
 
     let selectedFiles = [];

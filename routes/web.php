@@ -137,6 +137,32 @@ Route::middleware([
 Route::get("/video-call/{user}", [VideoCallController::class, "show"])
     ->name("video.call")
     ->middleware("auth");
+
+// Agora token issuance (student only)
+Route::middleware(["web", "auth"])->group(function () {
+    Route::get("/agora/token/rtc", [
+        \App\Http\Controllers\AgoraTokenController::class,
+        "rtcToken",
+    ])->name("agora.token.rtc");
+    Route::get("/agora/token/rtm", [
+        \App\Http\Controllers\AgoraTokenController::class,
+        "rtmToken",
+    ])->name("agora.token.rtm");
+});
+
+// Agora token issuance (professor only)
+Route::middleware(["web", \App\Http\Middleware\EnsureProfessorAuthenticated::class])->group(
+    function () {
+        Route::get("/agora/token/rtc-prof", [
+            \App\Http\Controllers\AgoraTokenController::class,
+            "rtcTokenProfessor",
+        ])->name("agora.token.rtc.prof");
+        Route::get("/agora/token/rtm-prof", [
+            \App\Http\Controllers\AgoraTokenController::class,
+            "rtmTokenProfessor",
+        ])->name("agora.token.rtm.prof");
+    },
+);
 // Presence limiting endpoints (max 5 students per channel)
 // Route placeholders disabled until CallPresenceController is added
 // (CallPresenceController routes temporarily removed until controller implementation is added)

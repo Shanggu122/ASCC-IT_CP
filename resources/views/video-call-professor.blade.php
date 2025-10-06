@@ -3,51 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Professor Meeting — {{ $channel ?? 'Room' }}</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
+  <title>Professor Meeting</title>
   <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
-  <style>
-    body,html{margin:0;padding:0;height:100%;background:#0B3D3C;color:#fff;font-family:Arial,sans-serif}
-    .layout{display:grid;grid-template-columns:1fr 340px;grid-template-rows:56px 1fr;grid-template-areas:"topbar topbar" "stage sidebar";height:100vh}
-    .topbar{grid-area:topbar;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid rgba(255,255,255,.08);background:#0F4947}
-    .topbar .title{font-weight:600}
-    #stage{grid-area:stage;background:#111;position:relative;overflow:hidden}
-    .video-player{background:#000;border-radius:10px;overflow:hidden;position:absolute}
-    #remote-player.video-player{inset:0;z-index:1;border-radius:0}
-    #local-player.video-player{right:16px;bottom:80px;width:280px;height:158px;box-shadow:0 6px 20px rgba(0,0,0,.4);z-index:3}
-    #controls-panel{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;background:rgba(0,0,0,.88);height:64px;border-top:1px solid rgba(255,255,255,.08);z-index:50}
-    .controls-center{display:flex;align-items:center;justify-content:center;gap:12px}
-    .controls-right{display:flex;justify-content:flex-end;padding-right:16px}
-    #controls-panel .ctrl{display:inline-flex;align-items:center;position:relative}
-    #controls-panel .ctrl-btn{display:flex;flex-direction:column;align-items:center;gap:3px;width:84px;cursor:pointer;border:none;background:transparent;color:#fff;padding-right:24px;position:relative}
-    #controls-panel .ctrl-btn i{font-size:22px}
-    #controls-panel .caret{border:none;background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font-size:16px;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;position:absolute;right:6px;top:6px;z-index:5}
-    #controls-panel .icon-btn{display:flex;flex-direction:column;align-items:center;gap:3px;width:100px;background:transparent;border:none;color:#fff;cursor:pointer}
-    #controls-panel .icon-btn i{font-size:22px}
-    #leave-btn{background:#e63946;padding:8px 16px;border-radius:8px;font-size:14px;border:none;color:#fff;cursor:pointer}
-    .status-icon{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);padding:5px 10px;border-radius:20px;font-size:13px;display:flex;align-items:center;gap:5px}
-    .hidden{display:none}
-    .sidebar{grid-area:sidebar;display:flex;flex-direction:column;background:#0f3432;border-left:1px solid rgba(255,255,255,.08)}
-    .layout.no-sidebar{grid-template-columns:1fr 0}.layout.no-sidebar #sidebar{display:none}
-    .tabs{display:flex}.tab{flex:1;text-align:center;padding:10px;cursor:pointer;background:#11403e}.tab.active{background:#15514e;font-weight:600}
-    .panel{flex:1;overflow:auto;padding:10px}
-    .messages{display:flex;flex-direction:column;gap:8px}.msg{background:#12372a;padding:8px 10px;border-radius:8px}.sys{opacity:.8;font-size:12px}
-    .participants{list-style:none;padding:0;margin:0}.participants li{padding:8px 6px;border-bottom:1px dashed rgba(255,255,255,.08);display:flex;align-items:center;gap:8px}.pill{font-size:11px;padding:2px 6px;border-radius:999px;background:#1f6f69}
-    .msg-input{display:flex;gap:6px;padding:8px;border-top:1px solid rgba(255,255,255,.08)}.msg-input input{flex:1;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:#0d2726;color:#fff}.msg-input button{padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.12);background:#1a5e59;color:#fff;cursor:pointer}
-    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5)}.modal.open{display:flex}
-    .modal .card{width:560px;background:#0f3432;border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:16px}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    select,.modal button{width:100%;padding:8px 10px;border-radius:8px;background:#0d2726;color:#fff;border:1px solid rgba(255,255,255,.15)}
-    .dropdown{display:none;position:absolute;bottom:68px;left:0;background:#0f3432;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px;width:260px;z-index:20}
-    .dropdown.open{display:block}.dropdown label{font-size:12px;opacity:.8;display:block;margin-bottom:4px}
-    .dropdown select{width:100%;padding:6px;border-radius:6px;background:#0d2726;color:#fff;border:1px solid rgba(255,255,255,.15)}
-    .dropdown .link{margin-top:8px;display:inline-block;color:#8dd8d2;cursor:pointer;font-size:12px}
-  </style>
+  <link rel="stylesheet" href="/css/video-call.css" />
   <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
-  <script src="https://download.agora.io/sdk/release/AgoraRTM_N.js"></script>
+  <script src="https://download.agora.io/sdk/release/AgoraRTM.min.js"></script>
 </head>
 <body>
   <div class="layout no-sidebar">
-    <div class="topbar"><div class="title">Professor Meeting — {{ $channel ?? 'Room' }}</div><div></div></div>
+  <div class="topbar"><div class="title">Professor Meeting</div><div></div></div>
     <div id="stage">
       <div id="local-player" class="video-player"><div id="local-status" class="status-icon hidden"><i class='bx bxs-microphone-off'></i> Mic Off</div></div>
       <div id="remote-player" class="video-player"><div id="remote-status" class="status-icon hidden"><i class='bx bxs-video-off'></i> Cam Off</div></div>
@@ -100,10 +65,12 @@
     </div>
   </div>
   <script>
-    const APP_ID = '{{ config('app.agora_app_id', env('AGORA_APP_ID','ab155f23c3fc4ae980b11973d818c460')) }}';
-    const TOKEN  = '007eJxTYBB7sH2B1evi8MNMvhtm+twQlZJ1/Vi8aoGryK1H4grGWt8VGMxNjYyTTVLNjI3NzUzMjQwtUo0tTc3TjA0Mzc0sDIxSf7QczGgIZGSoXabPwsgAgSA+O0NJanGJoZExAwMAMtoeWg==';
-    const CHANNEL = @json($channel ?? 'prof-room');
-    const RTM_TOKEN = TOKEN || null;
+    const APP_ID = @json(config('app.agora_app_id'));
+  const CHANNEL = @json($channel ?? 'prof-room');
+  const COUNTERPART_NAME = @json($counterpartName ?? null);
+    const IS_DEBUG = @json(config('app.debug'));
+    let TOKEN = null;
+    let RTM_TOKEN = null;
     const LEAVE_REDIRECT = "{{ auth('professor')->check() ? route('messages.professor') : route('landing') }}";
     let client, rtmClient, rtmChannel, localUid;
     let localAudioTrack, localVideoTrack, screenVideoTrack;
@@ -143,15 +110,42 @@
     const resQuickSelect=document.getElementById('resQuickSelect');
     const openSettingsFromMic=document.getElementById('openSettingsFromMic');
     const openSettingsFromCam=document.getElementById('openSettingsFromCam');
-    function logMsg(content,isSystem=false){const d=document.createElement('div');d.className='msg'+(isSystem?' sys':'');d.textContent=content;messagesEl.appendChild(d);messagesEl.scrollTop=messagesEl.scrollHeight;}
-    function refreshParticipants(){participantsEl.innerHTML='';const me=document.createElement('li');me.innerHTML=`<i class='bx bxs-user'></i> You <span class="pill">${localUid??''}</span>`;participantsEl.appendChild(me);client.remoteUsers.forEach(u=>{const li=document.createElement('li');const vid=u.hasVideo?'':"<span class='pill'>Cam off</span>";const mic=u.hasAudio?'':"<span class='pill'>Mic muted</span>";li.innerHTML=`<i class='bx bxs-user'></i> User ${u.uid} ${vid} ${mic}`;participantsEl.appendChild(li);});}
+  function showRetryChat(){ /* intentionally hidden from UI to avoid noise */ }
+    // HTTP-polling chat fallback
+    const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+    let pollTimer=null; let seenKeys=new Set();
+    let studId=null, profId=null;
+    try{ const m=/^stud-([^]+)-prof-([^]+)$/.exec(@json($channel ?? '')); if(m){ studId=m[1]; profId=m[2]; } }catch{}
+    const SELF_ROLE='professor';
+  function renderFetched(list){ for(const msg of list){ const key=`${msg.Created_At}|${msg.Sender}|${msg.Message||''}|${msg.file_path||''}`; if(seenKeys.has(key)) continue; seenKeys.add(key); const isSelf = msg.Sender==='professor'; const who = isSelf?'You':(COUNTERPART_NAME || 'Student'); if((msg.Message||'').trim()!==''){ logMsg(`${who}: ${msg.Message}`, false, isSelf); } } }
+    async function pollOnce(){ if(!studId||!profId) return; try{ const res=await fetch(`/load-direct-messages/${encodeURIComponent(studId)}/${encodeURIComponent(profId)}`,{credentials:'include'}); if(!res.ok) return; const list=await res.json(); renderFetched(list);}catch{} }
+    function startPolling(){ if(pollTimer) return; pollTimer=setInterval(pollOnce,2000); pollOnce(); }
+  async function httpSendChat(text){ if(!studId||!profId) return false; try{ const res=await fetch(`/send-message`,{ method:'POST', credentials:'include', headers:{'Content-Type':'application/json','X-CSRF-TOKEN':CSRF,'Accept':'application/json'}, body:JSON.stringify({ stud_id:studId, prof_id:profId, sender:SELF_ROLE, recipient:String(studId), message:text })}); if(res.ok){ setTimeout(pollOnce,200); return true; } }catch{} return false; }
+  function logMsg(content,isSystem=false,isSelf=false){ if(isSystem){ try{console.debug(content);}catch{} return; } const d=document.createElement('div');d.className='msg ' + (isSelf?'me':'other'); d.textContent=content;messagesEl.appendChild(d);messagesEl.scrollTop=messagesEl.scrollHeight;}
+  function refreshParticipants(){participantsEl.innerHTML='';const me=document.createElement('li');me.innerHTML=`<i class='bx bxs-user'></i> You`;participantsEl.appendChild(me);client.remoteUsers.forEach(u=>{const li=document.createElement('li');const vid=u.hasVideo?'':"<span class='pill'>Cam off</span>";const mic=u.hasAudio?'':"<span class='pill'>Mic muted</span>";const name = COUNTERPART_NAME || 'Student'; li.innerHTML=`<i class='bx bxs-user'></i> ${name} ${vid} ${mic}`;participantsEl.appendChild(li);});}
     async function enumerateDevices(){const devices=await navigator.mediaDevices.enumerateDevices();const cams=devices.filter(d=>d.kind==='videoinput');const mics=devices.filter(d=>d.kind==='audioinput');const outs=devices.filter(d=>d.kind==='audiooutput');cameraSelect.innerHTML=cams.map(d=>`<option value="${d.deviceId}">${d.label||'Camera'}</option>`).join('');micSelect.innerHTML=mics.map(d=>`<option value="${d.deviceId}">${d.label||'Microphone'}</option>`).join('');speakerSelect.innerHTML=outs.map(d=>`<option value="${d.deviceId}">${d.label||'Speaker'}</option>`).join('');}
     async function switchCamera(deviceId){const profile=resolutionSelect.value;const encoderConfig=profile==='hd'?'720p':profile==='fhd'?'1080p':undefined;const newVideo=await AgoraRTC.createCameraVideoTrack({cameraId:deviceId,encoderConfig});await client.unpublish(localVideoTrack);localVideoTrack.stop();localVideoTrack.close();localVideoTrack=newVideo;await client.publish(localVideoTrack);localVideoTrack.play(localContainer);camOff=false;camBtn.innerHTML="<i class='bx bxs-video'></i>Video";}
     async function switchMic(deviceId){const newAudio=await AgoraRTC.createMicrophoneAudioTrack({microphoneId:deviceId});await client.unpublish(localAudioTrack);localAudioTrack.stop();localAudioTrack.close();localAudioTrack=newAudio;await client.publish(localAudioTrack);if(micMuted){localAudioTrack.setEnabled(false);}}
     function openSettings(){settingsModal.classList.add('open');}
     function closeSettings(){settingsModal.classList.remove('open');}
     tabEls.forEach(t=>t.addEventListener('click',()=>{tabEls.forEach(el=>el.classList.remove('active'));t.classList.add('active');const tab=t.getAttribute('data-tab');panelChat.classList.toggle('hidden',tab!=='chat');panelPeople.classList.toggle('hidden',tab!=='people');document.getElementById('chat-input').classList.toggle('hidden',tab!=='chat');}));
-    function toggleSidebarFor(tab){const isHidden=layoutEl.classList.contains('no-sidebar');if(isHidden){layoutEl.classList.remove('no-sidebar');}else{const current=document.querySelector('.tab.active')?.getAttribute('data-tab');if(current===tab){layoutEl.classList.add('no-sidebar');return;}}tabEls.forEach(el=>el.classList.remove('active'));document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');panelChat.classList.toggle('hidden',tab!=='chat');panelPeople.classList.toggle('hidden',tab!=='people');}
+    function toggleSidebarFor(tab){
+      const isMobile = window.matchMedia('(max-width: 768px)').matches;
+      if(isMobile){
+        const open = layoutEl.classList.contains('show-sidebar');
+        const current = document.querySelector('.tab.active')?.getAttribute('data-tab');
+        if(open && current === tab){ layoutEl.classList.remove('show-sidebar'); }
+        else { layoutEl.classList.add('show-sidebar'); }
+      } else {
+        const isHidden=layoutEl.classList.contains('no-sidebar');
+        if(isHidden){layoutEl.classList.remove('no-sidebar');}
+        else { const current=document.querySelector('.tab.active')?.getAttribute('data-tab'); if(current===tab){layoutEl.classList.add('no-sidebar');return;} }
+      }
+      tabEls.forEach(el=>el.classList.remove('active'));
+      document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+      panelChat.classList.toggle('hidden',tab!=='chat');
+      panelPeople.classList.toggle('hidden',tab!=='people');
+    }
     participantsBtn.addEventListener('click',()=>toggleSidebarFor('people'));
     chatBtn.addEventListener('click',()=>toggleSidebarFor('chat'));
     function closeDrops(){micDropdown.classList.remove('open');videoDropdown.classList.remove('open');}
@@ -166,16 +160,63 @@
     openSettingsFromCam.addEventListener('click',()=>{enumerateDevices();openSettings();closeDrops();});
     closeSettingsBtn.addEventListener('click',closeSettings);
     applySettingsBtn.addEventListener('click',async()=>{if(cameraSelect.value) await switchCamera(cameraSelect.value);if(micSelect.value) await switchMic(micSelect.value);try{const videos=remoteContainer.querySelectorAll('video');videos.forEach(v=>v.setSinkId && v.setSinkId(speakerSelect.value));}catch{}closeSettings();});
-    window.addEventListener('DOMContentLoaded',async()=>{try{client=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});client.on('user-published',handleUserPublished);client.on('user-unpublished',handleUserUnpublished);client.on('user-joined',refreshParticipants);client.on('user-left',refreshParticipants);localUid=await client.join(APP_ID,CHANNEL,TOKEN,null);[localAudioTrack,localVideoTrack]=await AgoraRTC.createMicrophoneAndCameraTracks();localVideoTrack.play(localContainer);await client.publish([localAudioTrack,localVideoTrack]);refreshParticipants();try{rtmClient=AgoraRTM.createInstance(APP_ID);await rtmClient.login({uid:String(localUid),token:RTM_TOKEN});rtmChannel=await rtmClient.createChannel(CHANNEL);await rtmChannel.join();rtmChannel.on('ChannelMessage',({text},senderId)=>{logMsg(`User ${senderId}: ${text}`);});logMsg('Chat connected',true);}catch(err){logMsg('Chat not available (RTM login failed).',true);} }catch(err){alert('Connection failed. Check APP_ID/TOKEN.');}});
+    async function fetchRtcTokenProf(channel){
+      const res = await fetch(`{{ route('agora.token.rtc.prof') }}?channel=${encodeURIComponent(channel)}`, { credentials: 'include' });
+      if(!res.ok) throw new Error('Failed to fetch RTC token');
+      const data = await res.json();
+      if(!data.token || !data.appId) throw new Error('Invalid RTC token response');
+      return data;
+    }
+    async function fetchRtmTokenProf(){
+      try{
+        const res = await fetch(`{{ route('agora.token.rtm.prof') }}`, { credentials: 'include' });
+        if(!res.ok){ logMsg(`RTM token endpoint status: ${res.status}`, true); return null; }
+        const data = await res.json();
+        if(!data || !data.token) return null; return data;
+      }catch{ return null; }
+    }
+    async function joinCall(){
+      const rtc = await fetchRtcTokenProf(CHANNEL);
+      TOKEN = rtc.token; const appIdFromServer = rtc.appId || APP_ID; const uidFromServer = rtc.uid !== undefined && rtc.uid !== null ? Number(rtc.uid) : null;
+      client=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});
+      client.on('user-published',handleUserPublished); client.on('user-unpublished',handleUserUnpublished); client.on('user-joined',refreshParticipants); client.on('user-left',refreshParticipants);
+      client.on('token-privilege-will-expire', async ()=>{ try{ const fresh = await fetchRtcTokenProf(CHANNEL); TOKEN = fresh.token; await client.renewToken(TOKEN); logMsg('RTC token renewed',true);}catch{ logMsg('RTC token renewal failed',true);} });
+      client.on('token-privilege-did-expire', async ()=>{ try{ const fresh = await fetchRtcTokenProf(CHANNEL); TOKEN = fresh.token; await client.renewToken(TOKEN); logMsg('RTC token reloaded after expiry',true);}catch{ logMsg('RTC token reload failed',true);} });
+      localUid = await client.join(appIdFromServer, CHANNEL, TOKEN, uidFromServer);
+  [localAudioTrack,localVideoTrack]=await AgoraRTC.createMicrophoneAndCameraTracks(); localVideoTrack.play(localContainer); await client.publish([localAudioTrack,localVideoTrack]);
+  try{ rtcDataStream = await client.createDataStream(); logMsg('Chat ready (RTC data stream).', true);}catch{}
+  refreshParticipants();
+      async function connectRTM(){
+        if (typeof AgoraRTM === 'undefined') { logMsg('Chat SDK (AgoraRTM) not loaded; skipping RTM.', true); startPolling(); return; }
+        try{
+          const rtm = await fetchRtmTokenProf();
+          if(rtm && rtm.token){
+            RTM_TOKEN = rtm.token; const rtmUid = String(rtm.uid ?? localUid);
+            logMsg(`RTM: attempting login as ${rtmUid}`, true);
+            logMsg(`RTM: appId ${appIdFromServer}, token length ${RTM_TOKEN?.length||0}`, true);
+            rtmClient = AgoraRTM.createInstance(appIdFromServer);
+            rtmClient.on('ConnectionStateChanged', (state, reason)=>{ logMsg(`RTM state: ${state} (${reason})`, true); });
+            await rtmClient.login({uid: rtmUid, token: RTM_TOKEN});
+            rtmClient.on('TokenPrivilegeWillExpire', async ()=>{ try{ const fresh = await fetchRtmTokenProf(); if(fresh){ await rtmClient.renewToken(fresh.token); logMsg('RTM token renewed',true);} }catch{} });
+            rtmClient.on('TokenPrivilegeDidExpire', async ()=>{ try{ const fresh = await fetchRtmTokenProf(); if(fresh){ await rtmClient.renewToken(fresh.token); logMsg('RTM token reloaded',true);} }catch{} });
+            rtmChannel = await rtmClient.createChannel(CHANNEL); await rtmChannel.join(); rtmChannel.on('ChannelMessage',({text},senderId)=>{ logMsg(`${COUNTERPART_NAME || 'Student'}: ${text}`, false, false); }); logMsg('Chat connected',true);
+          } else { logMsg('Chat not available (no RTM token).',true);} 
+  }catch(err){ console.error('RTM login error', err); const code = err?.code ?? err?.message ?? 'unknown'; logMsg(`Chat not available (RTM login failed: ${code}).`,true); showRetryChat(); } 
+      }
+  await connectRTM();
+  startPolling();
+    }
+    window.addEventListener('DOMContentLoaded', async ()=>{ try{ await joinCall(); }catch(err){ alert('Connection failed. See logs or token endpoint.'); } });
     micBtn.addEventListener('click',()=>{if(!localAudioTrack)return;micMuted=!micMuted;localAudioTrack.setEnabled(!micMuted);micBtn.innerHTML=micMuted?"<i class='bx bxs-microphone-off'></i>Unmute":"<i class='bx bxs-microphone'></i>Mute";localStatus.classList.toggle('hidden',!micMuted);});
     camBtn.addEventListener('click',()=>{if(!localVideoTrack)return;camOff=!camOff;localVideoTrack.setEnabled(!camOff);camBtn.innerHTML=camOff?"<i class='bx bxs-video-off'></i>Show":"<i class='bx bxs-video'></i>Video";});
     const shareBtn=document.getElementById('ctrl-share');
     shareBtn.addEventListener('click',async()=>{if(!isSharing){try{screenVideoTrack=await AgoraRTC.createScreenVideoTrack({withAudio:'auto'});await client.unpublish(localVideoTrack);localVideoTrack.stop();await client.publish(screenVideoTrack);screenVideoTrack.play(localContainer);isSharing=true;shareBtn.innerHTML="<i class='bx bx-desktop'></i><span>Stop</span>";screenVideoTrack.on('track-ended',async()=>{if(isSharing) await stopShare();});}catch(e){logMsg('Share screen failed.',true);}}else{await stopShare();}});
     async function stopShare(){if(!isSharing) return;await client.unpublish(screenVideoTrack);screenVideoTrack.stop();screenVideoTrack.close();await client.publish(localVideoTrack);localVideoTrack.play(localContainer);isSharing=false;shareBtn.innerHTML="<i class='bx bx-desktop'></i><span>Share</span>";}
     sendBtn.addEventListener('click',sendChat);messageBox.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();sendChat();}});
-    async function sendChat(){const text=messageBox.value.trim();if(!text)return;messageBox.value='';if(rtmChannel){try{await rtmChannel.sendMessage({text});logMsg(`You: ${text}`);}catch{logMsg('Failed to send message.',true);} }else{logMsg('Chat unavailable. RTM not connected.',true);} }
+  async function sendChat(){const text=messageBox.value.trim();if(!text)return;messageBox.value='';if(rtmChannel){try{await rtmChannel.sendMessage({text});logMsg(`You: ${text}`, false, true);}catch{logMsg('Failed to send message.',true);} }else if(rtcDataStream){ try{ await rtcDataStream.send(text); logMsg(`You: ${text}`, false, true);}catch{logMsg('Failed to send message (RTC).',true);} } else { const ok = await httpSendChat(text); if(!ok) logMsg('Chat unavailable. RTM not connected.',true);} }
     leaveBtn.addEventListener('click',async()=>{try{if(localAudioTrack)localAudioTrack.close();if(localVideoTrack)localVideoTrack.close();if(screenVideoTrack)screenVideoTrack.close();if(rtmChannel)await rtmChannel.leave();if(rtmClient)await rtmClient.logout();await client.leave();}finally{window.location.href=LEAVE_REDIRECT;}});
-    async function handleUserPublished(user,mediaType){await client.subscribe(user,mediaType);if(mediaType==='video'){user.videoTrack.play(remoteContainer);remoteStatus.classList.add('hidden');}if(mediaType==='audio'){user.audioTrack.play();}refreshParticipants();}
+  async function handleUserPublished(user,mediaType){await client.subscribe(user,mediaType);if(mediaType==='video'){user.videoTrack.play(remoteContainer);remoteStatus.classList.add('hidden');}if(mediaType==='audio'){user.audioTrack.play();}refreshParticipants();}
+  if(client && client.on){ client.on('stream-message', ({uid,streamId,data})=>{ try{ const text=typeof data==='string'?data:(new TextDecoder()).decode(data); const isSelf = String(uid)===String(localUid); const who = isSelf ? 'You' : (COUNTERPART_NAME || 'Student'); logMsg(`${who}: ${text}`, false, isSelf);}catch{} }); }
     function handleUserUnpublished(user){remoteContainer.innerHTML='';remoteContainer.appendChild(remoteStatus);remoteStatus.classList.remove('hidden');refreshParticipants();}
   </script>
 </body>

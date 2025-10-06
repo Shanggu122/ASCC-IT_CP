@@ -193,6 +193,20 @@ class MessageController extends Controller
                 ->route("landing")
                 ->with("error", "You must be logged in as a student to view messages.");
         }
+        // Day-based eligibility (Asia/Manila): allow video call if there is an approved/rescheduled
+        // booking for TODAY (ignore exact time window).
+        $now = now("Asia/Manila");
+        $todayPad = $now->format("D M d Y"); // e.g. Mon Oct 06 2025
+        $todayNoPad = $now->format("D M j Y"); // e.g. Mon Oct 6 2025
+        $todayIso = $now->toDateString(); // YYYY-mm-dd (in case column is DATE)
+        $capacityStatuses = ["approved", "rescheduled"];
+
+        $eligibleToday = DB::table("t_consultation_bookings as b")
+            ->select("b.Prof_ID", DB::raw("1 as can_video_call"))
+            ->where("b.Stud_ID", $user->Stud_ID)
+            ->whereIn("b.Status", $capacityStatuses)
+            ->whereIn("b.Booking_Date", [$todayPad, $todayNoPad, $todayIso])
+            ->groupBy("b.Prof_ID");
         // Direct messaging mode: aggregate latest chat per professor from t_chat_messages using Stud_ID/Prof_ID
         $latest = DB::table("t_chat_messages as m")
             ->where("m.Stud_ID", $user->Stud_ID)
@@ -213,6 +227,9 @@ class MessageController extends Controller
             ->leftJoinSub($latest, "lm", function ($join) {
                 $join->on("lm.Prof_ID", "=", "prof.Prof_ID");
             })
+            ->leftJoinSub($eligibleToday, "elig", function ($join) {
+                $join->on("elig.Prof_ID", "=", "prof.Prof_ID");
+            })
             ->select([
                 "prof.Name as name",
                 "prof.Prof_ID as prof_id",
@@ -221,6 +238,7 @@ class MessageController extends Controller
                 DB::raw("lm.last_message_time"),
                 DB::raw("lm.last_message"),
                 DB::raw("lm.last_sender"),
+                DB::raw("COALESCE(elig.can_video_call, 0) as can_video_call"),
             ])
             ->orderByRaw(
                 "CASE WHEN prof.Dept_ID = 1 THEN 0 WHEN prof.Dept_ID = 2 THEN 1 ELSE 2 END",
@@ -287,14 +305,14 @@ class MessageController extends Controller
         try {
             // Mark messages from counterpart to current viewer as read (only if column exists)
             if ($hasIsRead) {
-                if (Auth::check() && Auth::user()->Stud_ID == $studId) {
+                if (Auth::check() && optional(Auth::user())->Stud_ID == (int) $studId) {
                     ChatMessage::betweenParticipants($studId, $profId)
                         ->where("Sender", "!=", "student")
                         ->where("is_read", 0)
                         ->update(["is_read" => 1]);
                 } elseif (
                     Auth::guard("professor")->check() &&
-                    Auth::guard("professor")->user()->Prof_ID == $profId
+                    optional(Auth::guard("professor")->user())->Prof_ID == (int) $profId
                 ) {
                     ChatMessage::betweenParticipants($studId, $profId)
                         ->where("Sender", "!=", "professor")
@@ -310,6 +328,7 @@ class MessageController extends Controller
             ->orderBy("Created_At", "asc")
             ->get()
             ->map(function ($msg) {
+                // Convert to Asia/Manila and ISO8601
                 $msg->created_at_iso = \Carbon\Carbon::parse($msg->Created_At)
                     ->timezone("Asia/Manila")
                     ->toIso8601String();
