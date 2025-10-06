@@ -19,8 +19,8 @@
     
     <div class="search-container">
       <input type="text" id="searchInput" placeholder="Search..." onkeyup="filterColleagues()"
-             autocomplete="off" spellcheck="false" maxlength="50"
-             pattern="[A-Za-z0-9 .,@_-]{0,50}" aria-label="Search colleagues">
+        autocomplete="off" spellcheck="false" maxlength="100"
+        pattern="[A-Za-z0-9 .,@_-]{0,100}" aria-label="Search colleagues">
     </div>
     
     <div class="profile-cards-grid">
@@ -69,7 +69,7 @@
         .replace(/[;`'"<>]/g,' ')
         .replace(/\s+/g,' ')
         .trim()
-        .slice(0,50);
+        .slice(0,100);
     }
 
     function filterColleagues() {

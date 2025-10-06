@@ -61,7 +61,7 @@
           You can change your ASCC-IT account password here.
         </p>
   
-        <form action="{{ route('changePassword') }}" method="POST">
+  <form id="changePasswordForm" action="{{ route('changePassword') }}" method="POST">
           @csrf <!-- CSRF token to protect from cross-site request forgery -->
           
           <!-- Old Password -->
@@ -74,22 +74,32 @@
         <!-- New Password -->
         <label for="newPassword">New Password</label>
         <div class="password-field">
-          <input type="password" id="newPassword" name="newPassword" placeholder="Enter new password" required>
+          <input type="password" id="newPassword" name="newPassword" placeholder="Enter new password" required
+                 minlength="12" autocomplete="new-password"
+                 pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$%])[A-Za-z\d@#$%]{12,}"
+                 title="At least 12 characters, with at least 1 lowercase, 1 uppercase, 1 number, and 1 of @,#,$,%">
           <i class='bx bx-hide eye-icon' onclick="togglePasswordVisibility('newPassword', this)"></i>
         </div>
-        <small class="password-hint">
-          Password must be at least 8 characters long and different from your current password.
-        </small>
+        <ul class="pw-rules" id="pw-rules" aria-live="polite">
+          <li id="rule-len" class="fail"><span class="icon">✖</span><span>Password must be at least 12 characters long</span></li>
+          <li id="rule-low" class="fail"><span class="icon">✖</span><span>Must include at least one lowercase letter</span></li>
+          <li id="rule-up"  class="fail"><span class="icon">✖</span><span>Must include at least one uppercase letter</span></li>
+          <li id="rule-num" class="fail"><span class="icon">✖</span><span>Must include at least one number</span></li>
+          <li id="rule-spec" class="fail"><span class="icon">✖</span><span>Must include at least one special character (@, #, $, %)</span></li>
+        </ul>
 
         <!-- Confirm New Password -->
         <label for="newPassword_confirmation">Confirm New Password</label>
         <div class="password-field">
-          <input type="password" id="newPassword_confirmation" name="newPassword_confirmation" placeholder="Confirm new password" required>
+          <input type="password" id="newPassword_confirmation" name="newPassword_confirmation" placeholder="Confirm new password" required minlength="12" autocomplete="new-password">
           <i class='bx bx-hide eye-icon' onclick="togglePasswordVisibility('newPassword_confirmation', this)"></i>
         </div>
         <small class="confirm-password-hint">
           Please re-enter your new password to confirm.
         </small>
+        <ul class="pw-rules pw-rules--match" aria-live="polite">
+          <li id="rule-match" class="fail"><span class="icon">✖</span><span>Passwords do not match</span></li>
+        </ul>
 
         <div class="panel-footer">
           <button type="button" class="cancel-btn" id="pw-cancel-btn">Cancel</button>
@@ -169,7 +179,10 @@ function hideNotification() {
 
 function togglePanel(panelId) {
   // Close all panels first
-  document.getElementById('passwordPanel').classList.remove('open');
+  const pwPanel = document.getElementById('passwordPanel');
+  pwPanel.classList.remove('open');
+  // Reset password form and rules whenever panel is closed (switching away)
+  if (typeof resetPasswordForm === 'function') resetPasswordForm();
   document.getElementById('profilePicPanel').classList.remove('open');
   document.getElementById('chatOverlay').classList.remove('open');
   // Open the requested panel
@@ -177,7 +190,12 @@ function togglePanel(panelId) {
 }
 
 function closePanel(panelId) {
-  document.getElementById(panelId).classList.remove('open');
+  const p = document.getElementById(panelId);
+  if (!p) return;
+  p.classList.remove('open');
+  if (panelId === 'passwordPanel' && typeof resetPasswordForm === 'function') {
+    resetPasswordForm();
+  }
 }
 
 // Student profile: Ask for confirmation only if all three password fields are filled
@@ -341,6 +359,87 @@ chatForm.addEventListener("submit", async function (e) {
     bm.innerText = reply;
     chatBody.appendChild(bm);
     chatBody.scrollTop = chatBody.scrollHeight;
+});
+
+// ===== Live password requirements (student profile) =====
+document.addEventListener('DOMContentLoaded', function(){
+  const pw = document.getElementById('newPassword');
+  const pw2 = document.getElementById('newPassword_confirmation');
+  const form = document.getElementById('changePasswordForm');
+  if(!pw || !form) return;
+  const rules = {
+    len: document.getElementById('rule-len'),
+    low: document.getElementById('rule-low'),
+    up:  document.getElementById('rule-up'),
+    num: document.getElementById('rule-num'),
+    spec:document.getElementById('rule-spec'),
+    match:document.getElementById('rule-match')
+  };
+  function setState(el, ok){ if(!el) return; el.classList.toggle('pass', !!ok); el.classList.toggle('fail', !ok); const ic=el.querySelector('.icon'); if(ic) ic.textContent = ok ? '✓' : '✖'; }
+  function evalPw(v){
+    const tests = {
+      len: v.length >= 12,
+      low: /[a-z]/.test(v),
+      up:  /[A-Z]/.test(v),
+      num: /\d/.test(v),
+      spec:/[@#$%]/.test(v)
+    };
+    setState(rules.len, tests.len);
+    setState(rules.low, tests.low);
+    setState(rules.up,  tests.up);
+    setState(rules.num, tests.num);
+    setState(rules.spec,tests.spec);
+    return tests;
+  }
+  function evalMatch(){
+    if(!rules.match) return true;
+    const ok = (pw2?.value?.length||0) > 0 && pw2.value === pw.value;
+    setState(rules.match, ok);
+    const label = rules.match.querySelector('span:not(.icon)');
+    if(label){ label.textContent = ok ? 'Passwords match' : 'Passwords do not match'; }
+    return ok;
+  }
+  function allOk(t){ return t.len && t.low && t.up && t.num && t.spec && evalMatch(); }
+  pw.addEventListener('input', ()=>{ evalPw(pw.value); evalMatch(); });
+  pw2 && pw2.addEventListener('input', ()=> evalMatch());
+  // Initialize on load (in case of autofill)
+  evalPw(pw.value||''); evalMatch();
+  // Block submit if requirements not met or confirmation mismatch
+  form.addEventListener('submit', function(ev){
+    const t = evalPw(pw.value||'');
+    if(!allOk(t)){
+      ev.preventDefault();
+      showNotification('Please meet all password requirements before saving.', true);
+      return false;
+    }
+    if(pw2 && pw2.value !== pw.value){
+      ev.preventDefault();
+      showNotification('New password and confirmation do not match.', true);
+      return false;
+    }
+  });
+
+  // Reset helper to clear inputs and checklist when panel is closed
+  window.resetPasswordForm = function(){
+    try {
+      const formEl = document.getElementById('changePasswordForm');
+      if (formEl) formEl.reset();
+      const ids = ['oldPassword','newPassword','newPassword_confirmation'];
+      ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      const ruleIds = ['rule-len','rule-low','rule-up','rule-num','rule-spec','rule-match'];
+      ruleIds.forEach(rid => {
+        const li = document.getElementById(rid);
+        if (!li) return;
+        li.classList.remove('pass');
+        li.classList.add('fail');
+        const ic = li.querySelector('.icon'); if (ic) ic.textContent = '✖';
+        if (rid === 'rule-match') {
+          const label = li.querySelector('span:not(.icon)');
+          if (label) label.textContent = 'Passwords do not match';
+        }
+      });
+    } catch(_) {}
+  };
 });
 </script>
 @php

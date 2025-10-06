@@ -84,7 +84,7 @@
       <div class="tabs"><div class="tab active" data-tab="chat">Chat</div><div class="tab" data-tab="people">People</div></div>
       <div class="panel" id="panel-chat"><div class="messages" id="messages"></div></div>
       <div class="panel hidden" id="panel-people"><ul class="participants" id="participants"></ul></div>
-      <div class="msg-input" id="chat-input"><input id="messageBox" type="text" placeholder="Type a message…" /><button id="sendBtn"><i class='bx bx-send'></i></button></div>
+  <div class="msg-input" id="chat-input"><input id="messageBox" type="text" placeholder="Type a message…" maxlength="5000" /><button id="sendBtn"><i class='bx bx-send'></i></button></div>
     </aside>
   </div>
   <div class="modal" id="settingsModal" aria-hidden="true">
