@@ -203,11 +203,13 @@
   .ov-blocked { background: #374151; } /* Suspended → Dark Gray (unchanged) */
   .ov-force   { background: #2563eb; } /* Forced Online → Blue (reverted) */
   .ov-online  { background: #FF69B4; } /* Online Day → Pink */
+  .ov-endyear { background: #6366f1; } /* End of School Year → Indigo */
   /* Whole-cell background for overrides */
   .day-holiday  { background-color: rgba(155,89,182,0.55) !important; } /* Violet */
   .day-blocked  { background-color: rgba(55,65,81,0.75) !important; }  /* Suspended */
   .day-force    { background-color: rgba(37,99,235,0.6) !important; }   /* Blue (reverted) */
   .day-online   { background-color: rgba(255,105,180,0.45) !important; }/* Pink */
+  .day-endyear  { background-color: rgba(99,102,241,0.6) !important; }   /* Indigo */
 
     /* Custom scrollbar for webkit browsers */
     #consultationTooltip::-webkit-scrollbar {
@@ -473,6 +475,7 @@
   .swatch-online { background:#FF69B4; }   /* Online Day → Pink */
   .swatch-forced { background:#2563eb; }   /* Forced Online → Blue (reverted) */
   .swatch-holiday { background:#9B59B6; }  /* Holiday → Violet */
+  .swatch-endyear { background:#6366f1; }  /* End of School Year → Indigo */
   .swatch-multiple { background:#FF4500; } /* Multiple Bookings → Orangey-Red */
 
     /* Drawer behavior on small screens */
@@ -537,6 +540,7 @@
                   <div class="legend-item"><span class="legend-swatch swatch-online"></span>Online Day <i class='bx bx-video legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-forced"></span>Forced Online <i class='bx bx-switch legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-holiday"></span>Holiday <i class='bx bx-party legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-endyear"></span>End of School Year <i class='bx bx-calendar-x legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-multiple"></span>Multiple Bookings <i class='bx bx-group legend-icon' aria-hidden="true"></i></div>
                 </div>
               </div>
@@ -770,6 +774,8 @@
                 if (window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[monthKeyForDraw]) return window.__adminOvCacheByMonth[monthKeyForDraw];
                 // legacy single cache fallback
                 if (window.__adminOvCache && typeof window.__adminOvCache === 'object') return window.__adminOvCache;
+                // global cache fallback for instant paint across months
+                if (window.__adminOvGlobalCache && typeof window.__adminOvGlobalCache === 'object') return window.__adminOvGlobalCache;
                 return null;
               })();
               const haveOv = !!ovSource;
@@ -778,7 +784,7 @@
               if (haveOv) {
                 const oldBadge = cell.querySelector('.ov-badge');
                 if (oldBadge) oldBadge.remove();
-                cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
+                cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
               }
 
               // Render overrides badge if present (pulling from chosen source)
@@ -790,14 +796,28 @@
                 if (!chosen) { chosen = items[0]; }
                 const badge = document.createElement('span');
                 const isOnlineDay = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day'));
-                const chosenCls = (chosen.effect === 'holiday' ? 'ov-holiday' : (chosen.effect === 'block_all' ? 'ov-blocked' : (isOnlineDay ? 'ov-online' : 'ov-force')));
+                const isEndYear = (chosen.effect === 'block_all' && (chosen.reason_key === 'end_year'));
+                const chosenCls = (chosen.effect === 'holiday'
+                  ? 'ov-holiday'
+                  : (chosen.effect === 'block_all'
+                    ? (isEndYear ? 'ov-endyear' : 'ov-blocked')
+                    : (isOnlineDay ? 'ov-online' : 'ov-force')));
                 badge.className = 'ov-badge ' + chosenCls;
                 const forceLabel = isOnlineDay ? 'Online Day' : 'Forced Online';
-                badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
-                badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? 'Suspended' : forceLabel);
+                const labelTxt = (chosen.effect === 'holiday')
+                  ? (chosen.reason_text || 'Holiday')
+                  : (chosen.effect === 'block_all'
+                    ? (isEndYear ? 'End Year' : 'Suspended')
+                    : forceLabel);
+                badge.title = chosen.label || chosen.reason_text || labelTxt;
+                badge.textContent = labelTxt;
                 cell.style.position = 'relative';
                 cell.appendChild(badge);
-                const dayCls = (chosen.effect === 'holiday' ? 'day-holiday' : (chosen.effect === 'block_all' ? 'day-blocked' : (isOnlineDay ? 'day-online' : 'day-force')));
+                const dayCls = (chosen.effect === 'holiday'
+                  ? 'day-holiday'
+                  : (chosen.effect === 'block_all'
+                    ? (isEndYear ? 'day-endyear' : 'day-blocked')
+                    : (isOnlineDay ? 'day-online' : 'day-force')));
                 cell.classList.add(dayCls);
               }
 
@@ -832,6 +852,7 @@
               if (window.adminOverrides && typeof window.adminOverrides === 'object') return window.adminOverrides;
               if (window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[monthKey]) return window.__adminOvCacheByMonth[monthKey];
               if (window.__adminOvCache && typeof window.__adminOvCache === 'object') return window.__adminOvCache;
+              if (window.__adminOvGlobalCache && typeof window.__adminOvGlobalCache === 'object') return window.__adminOvGlobalCache;
               return null;
             })();
             if (src) {
@@ -843,9 +864,50 @@
           } catch(_) {}
         }
       });
+      // Prepare overrides BEFORE first draw to avoid visible delay
+      window.adminPicker = picker;
+      try {
+        hydrateCachesFromStorage();
+        const basePre = getVisibleMonthBaseDate();
+        const monthKeyPre = `${basePre.getFullYear()}-${String(basePre.getMonth()+1).padStart(2,'0')}`;
+        // Prefer stored month cache
+        const storedMonth = (typeof loadMonthFromStorage === 'function') ? loadMonthFromStorage(monthKeyPre) : null;
+        if (storedMonth && Object.keys(storedMonth).length > 0) {
+          if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+          window.__adminOvCacheByMonth[monthKeyPre] = storedMonth;
+          window.adminOverrides = storedMonth;
+          window.__adminOvCache = storedMonth;
+        } else {
+          // Compose from global persistent cache
+          const composed = (typeof composeMonthMapFromGlobal === 'function') ? composeMonthMapFromGlobal(basePre) : null;
+          if (composed) {
+            if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+            window.__adminOvCacheByMonth[monthKeyPre] = composed;
+            window.adminOverrides = composed;
+            window.__adminOvCache = composed;
+          }
+        }
+      } catch(_) {}
       picker.show();
       picker.draw();
-      window.adminPicker = picker;
+      // Instant paint from persistent cache and prefetch neighbors on first init
+      try {
+        const baseNow = getVisibleMonthBaseDate();
+        hydrateCachesFromStorage();
+        if (!applyCachedOverridesForMonth(baseNow)) {
+          // Try composing month map from global cache stored in localStorage
+          const map = composeMonthMapFromGlobal(baseNow);
+          if (map) {
+            window.adminOverrides = map;
+            window.__adminOvCache = map;
+            if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+            const keyNow = `${baseNow.getFullYear()}-${String(baseNow.getMonth()+1).padStart(2,'0')}`;
+            window.__adminOvCacheByMonth[keyNow] = map;
+            picker.draw();
+          }
+        }
+        prefetchAdjacentMonths(baseNow);
+      } catch(_) {}
     })();
 
     // Kick off initial background fetches without blocking initial render
@@ -883,7 +945,7 @@
     })();
 
     // Fetch overrides for current visible month and cache on window
-    function fetchAdminOverridesForMonth(dateObj) {
+  function fetchAdminOverridesForMonth(dateObj) {
       try {
         if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
           console.warn('Overrides fetch skipped: invalid base date', dateObj);
@@ -931,6 +993,12 @@
           // Init per-month cache
           if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
           window.__adminOvCacheByMonth[monthKey] = incoming;
+          // Merge into global cache for instant cross-month paint
+          if (!window.__adminOvGlobalCache) window.__adminOvGlobalCache = {};
+          keys.forEach(k=>{ window.__adminOvGlobalCache[k] = incoming[k]; });
+          // Persist to localStorage
+          persistMonthToStorage(monthKey, incoming);
+          persistGlobalToStorage(window.__adminOvGlobalCache);
           // Only update live overrides if the fetched month matches the currently visible month
           const visibleBase = (function(){
             try { return getVisibleMonthBaseDate(); } catch(_) { const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), 1); }
@@ -959,6 +1027,12 @@
               console.debug('[OV/FALLBACK] Public overrides loaded', { monthKey, days: keys.length, sample: keys.slice(0,5) });
               if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
               window.__adminOvCacheByMonth[monthKey] = incoming;
+              if (!window.__adminOvGlobalCache) window.__adminOvGlobalCache = {};
+              Object.keys(incoming).forEach(k=>{
+                if (Array.isArray(incoming[k]) && incoming[k].length>0) window.__adminOvGlobalCache[k] = incoming[k];
+              });
+              persistMonthToStorage(monthKey, incoming);
+              persistGlobalToStorage(window.__adminOvGlobalCache);
               const visibleBase = (function(){
                 try { return getVisibleMonthBaseDate(); } catch(_) { const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), 1); }
               })();
@@ -980,6 +1054,47 @@
       } catch (err) {
         console.error('Admin Error loading calendar data:', err);
       }
+    }
+
+    // Fast path: immediately apply cached overrides for a given month (no network)
+    function applyCachedOverridesForMonth(dateObj) {
+      try {
+        if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) return;
+        const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}`;
+        if (window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[monthKey]) {
+          window.adminOverrides = window.__adminOvCacheByMonth[monthKey];
+          window.__adminOvCache = window.adminOverrides; // legacy single cache
+          if (window.adminPicker) window.adminPicker.draw();
+          console.debug('[OV] Applied cached overrides for', monthKey);
+          return true;
+        }
+        // Try from persistent storage
+        hydrateCachesFromStorage();
+        const map = composeMonthMapFromGlobal(dateObj);
+        if (map) {
+          if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+          window.__adminOvCacheByMonth[monthKey] = map;
+          window.adminOverrides = map;
+          window.__adminOvCache = map;
+          if (window.adminPicker) window.adminPicker.draw();
+          console.debug('[OV] Applied composed overrides from stored global for', monthKey);
+          return true;
+        }
+      } catch(_) {}
+      return false;
+    }
+
+    // Prefetch adjacent months (previous/next) if not cached yet
+    function prefetchAdjacentMonths(baseDate) {
+      try {
+        if (!baseDate || isNaN(baseDate.getTime())) return;
+        const prev = new Date(baseDate.getFullYear(), baseDate.getMonth() - 1, 1);
+        const next = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 1);
+        const needPrev = !(window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[`${prev.getFullYear()}-${String(prev.getMonth()+1).padStart(2,'0')}`]);
+        const needNext = !(window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}`]);
+        if (needPrev) fetchAdminOverridesForMonth(prev);
+        if (needNext) fetchAdminOverridesForMonth(next);
+      } catch(_) {}
     }
 
     // Helper: find the currently visible calendar month as a safe Date (YYYY,MM,1)
@@ -1035,7 +1150,11 @@
       if (!calendarEl) return;
       const run = () => {
         const base = getVisibleMonthBaseDate();
+        // Paint instantly from cache if available, then update via network
+        applyCachedOverridesForMonth(base);
         fetchAdminOverridesForMonth(base);
+        // Proactively fetch neighbors
+        prefetchAdjacentMonths(base);
       };
       // Initial load
       setTimeout(run, 100);
@@ -1046,7 +1165,54 @@
           setTimeout(run, 150);
         }
       });
+      // Also handle month/year dropdown changes
+      document.addEventListener('change', (e)=>{
+        const el = e.target;
+        if (!el) return;
+        if (el.classList && (el.classList.contains('pika-select-month') || el.classList.contains('pika-select-year'))) {
+          setTimeout(run, 80);
+        }
+      });
     })();
+
+    // -------- Persistent storage helpers --------
+    const LS_KEY_GLOBAL = 'ascc_admin_ov_global_v1';
+    const LS_KEY_MONTH_PREFIX = 'ascc_admin_ov_month_v1:';
+    function persistGlobalToStorage(map) {
+      try { localStorage.setItem(LS_KEY_GLOBAL, JSON.stringify(map||{})); } catch(_) {}
+    }
+    function loadGlobalFromStorage() {
+      try { const s = localStorage.getItem(LS_KEY_GLOBAL); return s ? JSON.parse(s) : {}; } catch(_) { return {}; }
+    }
+    function persistMonthToStorage(monthKey, map) {
+      try { localStorage.setItem(LS_KEY_MONTH_PREFIX+monthKey, JSON.stringify(map||{})); } catch(_) {}
+    }
+    function loadMonthFromStorage(monthKey) {
+      try { const s = localStorage.getItem(LS_KEY_MONTH_PREFIX+monthKey); return s ? JSON.parse(s) : null; } catch(_) { return null; }
+    }
+    function hydrateCachesFromStorage() {
+      try {
+        if (!window.__adminOvGlobalCache) window.__adminOvGlobalCache = loadGlobalFromStorage();
+      } catch(_) {}
+    }
+    function composeMonthMapFromGlobal(dateObj) {
+      try {
+        if (!dateObj || isNaN(dateObj.getTime())) return null;
+        hydrateCachesFromStorage();
+        const g = window.__adminOvGlobalCache || {};
+        const y = dateObj.getFullYear();
+        const m = dateObj.getMonth();
+        const first = new Date(y, m, 1);
+        const last = new Date(y, m+1, 0);
+        let any = false;
+        const map = {};
+        for (let d = new Date(first); d <= last; d.setDate(d.getDate()+1)) {
+          const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          if (Array.isArray(g[iso]) && g[iso].length>0) { map[iso] = g[iso]; any = true; }
+        }
+        return any ? map : null;
+      } catch(_) { return null; }
+    }
 
     // ADMIN TOOLTIP HOVER FUNCTIONALITY
     console.log('Setting up ADMIN global hover event delegation...');
@@ -1108,7 +1274,7 @@
             return `${datePart} ${hourStr}:${minute}:${second} ${suffix}`;
           }
 
-          // Build each consultation entry with ONLY a bottom divider like professor dashboard (no additional top borders)
+          // Build each consultation entry (no actions)
           consultations.forEach((entry, index) => {
             html += `
               <div class="consultation-entry">
@@ -1274,10 +1440,11 @@
         <div style="padding:16px 18px;color:#12372a;">
           <div style="margin-bottom:10px;font-size:14px">Date: <span id="adminOverrideDate" style="font-weight:600"></span></div>
           <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">
-            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="online_day" checked> Online Day</label>
+            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="online_day"> Online Day</label>
             <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="force_online"> Forced Online</label>
             <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="block_all"> Suspended</label>
             <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="holiday"> Holiday</label>
+            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="end_year"> End of School Year</label>
           </div>
           <div id="forceModeRow" style="margin-bottom:10px; display:none">
             <label>Allowed Mode:
@@ -1306,6 +1473,16 @@
               <input id="ov_holiday_name" placeholder="e.g., Christmas Day" style="margin-left:8px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;width:calc(100% - 8px)">
               </input>
             </label>
+          </div>
+          <div id="endYearRow" style="display:none;margin:10px 0">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div><strong>Start day:</strong> <span id="ov_start_label">—</span></div>
+              <label>End day
+                <input id="ov_end_date" type="date" style="margin-left:8px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px">
+                </input>
+              </label>
+              <div style="font-size:12px;color:#64748b">All days from Start to End will be disabled (no classes).</div>
+            </div>
           </div>
           <div id="autoReschedRow" style="display:none;margin:4px 0 12px 0">
             <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ov_auto_reschedule"> Auto‑reschedule affected bookings</label>
@@ -1347,7 +1524,12 @@
           );
           if (d.toDateString() === dateStr) {
             if (cell.querySelector('.ov-badge')) return true;
-            if (cell.classList.contains('day-holiday') || cell.classList.contains('day-blocked') || cell.classList.contains('day-force')) return true;
+            if (
+              cell.classList.contains('day-holiday') ||
+              cell.classList.contains('day-blocked') ||
+              cell.classList.contains('day-force') ||
+              cell.classList.contains('day-endyear')
+            ) return true;
             break;
           }
         }
@@ -1361,6 +1543,22 @@
       document.getElementById('adminOverrideDate').textContent = dateStr;
       modal.style.display = 'block';
       backdrop.style.display = 'block';
+      // Clear previous selection/state each time the modal opens
+      try {
+        document.querySelectorAll('input[name="ov_effect"]').forEach(r => r.checked = false);
+        const rk = document.getElementById('ov_reason_key');
+        const rt = document.getElementById('ov_reason_text');
+        const hn = document.getElementById('ov_holiday_name');
+        const ed = document.getElementById('ov_end_date');
+        const sl = document.getElementById('ov_start_label');
+        if (rk) rk.value = '';
+        if (rt) { rt.value = ''; rt.disabled = true; }
+        if (hn) hn.value = '';
+        if (ed) ed.value = '';
+        if (sl) sl.textContent = dateStr || '—';
+        const ar = document.getElementById('ov_auto_reschedule');
+        if (ar) ar.checked = false;
+      } catch(_) {}
       // Toggle Remove button availability based on whether an override exists on that date
       const removeBtn = document.getElementById('ovRemoveBtn');
       if (removeBtn) {
@@ -1372,7 +1570,7 @@
         removeBtn.style.opacity = exists ? '1' : '0.5';
         removeBtn.style.cursor = exists ? 'pointer' : 'not-allowed';
       }
-      // Ensure rows reflect the currently selected option (default Online Day hides reason/notes)
+      // Ensure rows reflect the currently selected option (none by default)
       if (typeof updateOverrideRows === 'function') updateOverrideRows();
     }
     function closeOverrideModal() {
@@ -1397,16 +1595,31 @@
       const autoRow = document.getElementById('autoReschedRow');
       const reasonRow = document.getElementById('reasonRow');
       const holidayRow = document.getElementById('holidayRow');
+  const endYearRow = document.getElementById('endYearRow');
       const reasonKeyEl = document.getElementById('ov_reason_key');
       const reasonTextEl = document.getElementById('ov_reason_text');
 
-  if (forceRow) forceRow.style.display = 'none';
-  // Show auto-reschedule for Suspended and Forced Online
+      // When nothing is selected, hide all conditional rows and disable inputs
+      if (!effect) {
+        if (forceRow) forceRow.style.display = 'none';
+        if (autoRow) autoRow.style.display = 'none';
+        if (reasonRow) reasonRow.style.display = 'none';
+        if (holidayRow) holidayRow.style.display = 'none';
+        if (endYearRow) endYearRow.style.display = 'none';
+        if (reasonKeyEl) { reasonKeyEl.disabled = true; reasonKeyEl.value = ''; }
+        if (reasonTextEl) { reasonTextEl.disabled = true; reasonTextEl.value = ''; reasonTextEl.placeholder = 'Notes (optional)'; }
+        return;
+      }
+
+      if (forceRow) forceRow.style.display = 'none';
+      // Show auto-reschedule for Suspended and Forced Online
   if (autoRow) autoRow.style.display = (effect === 'block_all' || effect === 'force_online') ? 'block' : 'none';
 
-      const hideReasons = (effect === 'online_day' || effect === 'holiday');
+  // End Year uses its own row; hide other conditional inputs
+  if (endYearRow) endYearRow.style.display = (effect === 'end_year') ? 'block' : 'none';
+  const hideReasons = (effect === 'online_day' || effect === 'holiday' || effect === 'end_year');
       if (reasonRow) reasonRow.style.display = hideReasons ? 'none' : 'flex';
-      if (holidayRow) holidayRow.style.display = effect === 'holiday' ? 'block' : 'none';
+  if (holidayRow) holidayRow.style.display = (effect === 'holiday') ? 'block' : 'none';
 
       // Disable and clear reason inputs when hidden
       if (reasonKeyEl) {
@@ -1498,7 +1711,9 @@
 
   const ovPreviewBtn = document.getElementById('ovPreviewBtn');
   if (ovPreviewBtn) ovPreviewBtn.addEventListener('click', function(){
-      const sel = document.querySelector('input[name="ov_effect"]:checked').value;
+    const checkedRadio = document.querySelector('input[name="ov_effect"]:checked');
+    if (!checkedRadio) { showToast('Please select a day type', 'error'); return; }
+    const sel = checkedRadio.value;
       // Map UI selection into API effect/allowed_mode
       let effect = sel;
       let allowed = null;
@@ -1510,6 +1725,10 @@
       } else if (sel === 'online_day') {
         // Online Day: no reason/notes
         reason_key = 'online_day';
+        reason_text = '';
+      } else if (sel === 'end_year') {
+        // End of School Year → block all days in range
+        reason_key = 'end_year';
         reason_text = '';
       } else {
   // Forced Online / Suspended: allow reasons
@@ -1530,8 +1749,21 @@
         return;
       }
       const startIso = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+      // Validate end date when end_year
+      let endIso = null;
+      if (sel === 'end_year') {
+        const endVal = document.getElementById('ov_end_date')?.value;
+        if (!endVal) { showToast('Please pick an end day', 'error'); return; }
+        const end = new Date(endVal + 'T00:00:00');
+        if (!(end instanceof Date) || isNaN(end.getTime()) || end < start) {
+          showToast('End day must be the same or after start day', 'error'); return;
+        }
+        endIso = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
+        effect = 'block_all'; // backend: disable days for the range
+      }
       const payload = {
         start_date: startIso,
+        end_date: endIso,
         effect: effect,
         allowed_mode: effect === 'force_mode' ? allowed : null,
         reason_key, reason_text,
@@ -1541,7 +1773,11 @@
         const box = document.getElementById('ov_preview');
         box.style.display = 'block';
         if (data && data.success) {
-          let html = `<div><strong>Preview</strong></div><div>Affected bookings: ${data.affected_count}</div>`;
+          let html = `<div><strong>Preview</strong></div>`;
+          if (payload.end_date) {
+            html += `<div>Range: ${dateLabel} → ${document.getElementById('ov_end_date')?.value || ''}</div>`;
+          }
+          html += `<div>Affected bookings: ${data.affected_count}</div>`;
           if (typeof data.reschedule_candidate_count !== 'undefined') {
             html += `<div>Rescheduling candidates (exam/quiz): ${data.reschedule_candidate_count}</div>`;
           }
@@ -1558,7 +1794,9 @@
 
   const ovApplyBtn = document.getElementById('ovApplyBtn');
   if (ovApplyBtn) ovApplyBtn.addEventListener('click', async function(){
-      const sel = document.querySelector('input[name="ov_effect"]:checked').value;
+    const checkedRadio = document.querySelector('input[name="ov_effect"]:checked');
+    if (!checkedRadio) { showToast('Please select a day type', 'error'); return; }
+    const sel = checkedRadio.value;
       let effect = sel;
       let allowed = null;
       if (sel === 'force_online' || sel === 'online_day') { effect = 'force_mode'; allowed = 'online'; }
@@ -1568,6 +1806,9 @@
         reason_text = (document.getElementById('ov_holiday_name').value || '').trim();
       } else if (sel === 'online_day') {
         reason_key = 'online_day';
+        reason_text = '';
+      } else if (sel === 'end_year') {
+        reason_key = 'end_year';
         reason_text = '';
       } else {
         reason_key = document.getElementById('ov_reason_key').value;
@@ -1588,15 +1829,32 @@
         return;
       }
 
+      // Validate end date (end_year)
+      let endIso = null; let endLabel = '';
+      if (sel === 'end_year') {
+        const endVal = document.getElementById('ov_end_date')?.value;
+        if (!endVal) { showToast('Please pick an end day', 'error'); return; }
+        const end = new Date(endVal + 'T00:00:00');
+        if (!(end instanceof Date) || isNaN(end.getTime()) || end < start) {
+          showToast('End day must be the same or after start day', 'error'); return;
+        }
+        endIso = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
+        endLabel = end.toDateString();
+        effect = 'block_all';
+      }
+
       // Themed confirmation before applying
-  const labelMap = { online_day: 'Online Day', force_online: 'Forced Online', block_all: 'Suspended', holiday: 'Holiday' };
+  const labelMap = { online_day: 'Online Day', force_online: 'Forced Online', block_all: 'Suspended', holiday: 'Holiday', end_year: 'End of School Year' };
       const humanLabel = labelMap[sel] || 'Change';
-      const proceed = await themedConfirm(`Apply ${humanLabel}`, `Are you sure you want to apply "${humanLabel}" for <strong>${dateLabel}</strong>?`);
+      const proceed = await themedConfirm(`Apply ${humanLabel}`, sel === 'end_year' ?
+        `Disable all classes from <strong>${dateLabel}</strong> to <strong>${endLabel}</strong>?` :
+        `Are you sure you want to apply "${humanLabel}" for <strong>${dateLabel}</strong>?`);
       if (!proceed) return;
 
       const startIso = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
       const payload = {
         start_date: startIso,
+        end_date: endIso,
         effect: effect,
         allowed_mode: effect === 'force_mode' ? allowed : null,
         reason_key, reason_text,
@@ -1617,6 +1875,20 @@
             const immediateDateStr = dateLabel; // e.g., Sun Dec 25 2025
             const ovItem = { effect, reason_text: reason_text, reason_key, allowed_mode: allowed };
             addBadgeForDate(immediateDateStr, ovItem);
+            // If a range (End Year), seed global cache for all days to avoid delays across months
+            if (payload.end_date && reason_key === 'end_year') {
+              if (!window.__adminOvGlobalCache) window.__adminOvGlobalCache = {};
+              const s = new Date(startIso);
+              const e = new Date(payload.end_date);
+              for (let d = new Date(s); d <= e; d.setDate(d.getDate()+1)) {
+                const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                window.__adminOvGlobalCache[iso] = [ { effect: 'block_all', reason_key: 'end_year' } ];
+              }
+              // Persist for instant paint after page reload
+              try { localStorage.setItem('ascc_admin_ov_global_v1', JSON.stringify(window.__adminOvGlobalCache)); } catch(_) {}
+              // Draw immediately with global seed
+              if (window.adminPicker) window.adminPicker.draw();
+            }
           } catch(e) {}
           showToast('Changes applied', 'success');
         } else {
@@ -1637,23 +1909,24 @@
           // Remove any existing badge and override day classes
           const old = cell.querySelector('.ov-badge');
           if (old) old.remove();
-          cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
+          cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
 
           // Create new badge
           const badge = document.createElement('span');
           const isOnline = (item.effect !== 'holiday' && item.effect !== 'block_all' && item.reason_key === 'online_day');
-          const cls = item.effect === 'holiday' ? 'ov-holiday' : (item.effect === 'block_all' ? 'ov-blocked' : (isOnline ? 'ov-online' : 'ov-force'));
+          const isEndYear = (item.effect === 'block_all' && item.reason_key === 'end_year');
+          const cls = item.effect === 'holiday' ? 'ov-holiday' : (item.effect === 'block_all' ? (isEndYear ? 'ov-endyear' : 'ov-blocked') : (isOnline ? 'ov-online' : 'ov-force'));
           badge.className = 'ov-badge ' + cls;
             const text = item.effect === 'holiday'
             ? (item.reason_text || 'Holiday')
             : (item.effect === 'block_all'
-              ? 'Suspended'
+              ? (item.reason_key === 'end_year' ? 'End Year' : 'Suspended')
               : (item.reason_key === 'online_day' ? 'Online Day' : 'Forced Online'));
           badge.textContent = text;
           badge.title = text;
 
           // Apply cell-level background to make it visually obvious immediately
-          const dayCls = item.effect === 'holiday' ? 'day-holiday' : (item.effect === 'block_all' ? 'day-blocked' : (isOnline ? 'day-online' : 'day-force'));
+          const dayCls = item.effect === 'holiday' ? 'day-holiday' : (item.effect === 'block_all' ? (isEndYear ? 'day-endyear' : 'day-blocked') : (isOnline ? 'day-online' : 'day-force'));
           cell.classList.add(dayCls);
 
           cell.style.position = 'relative';
@@ -1672,7 +1945,7 @@
           const b = cell.querySelector('.ov-badge');
           if (b) b.remove();
           // Remove background classes
-          cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
+          cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
         });
         // Clear any selected cells
         document.querySelectorAll('.pika-table td.is-selected').forEach(td => td.classList.remove('is-selected'));
@@ -1724,7 +1997,12 @@
               );
               if (d.toDateString() === dateLabel) {
                 if (cell.querySelector('.ov-badge')) return true;
-                if (cell.classList.contains('day-holiday') || cell.classList.contains('day-blocked') || cell.classList.contains('day-force')) return true;
+                if (
+                  cell.classList.contains('day-holiday') ||
+                  cell.classList.contains('day-blocked') ||
+                  cell.classList.contains('day-force') ||
+                  cell.classList.contains('day-endyear')
+                ) return true;
                 break;
               }
             }
@@ -1757,7 +2035,7 @@
                 if (d.toDateString() === dateLabel) {
                   const old = cell.querySelector('.ov-badge');
                   if (old) old.remove();
-                  cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
+                  cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
                   break;
                 }
               }
@@ -1893,6 +2171,8 @@
           detailsMap.clear(); // Clear details data
           
           data.forEach(entry => {
+            // Exclude cancelled from admin tooltip/booking maps
+            if ((entry.Status || '').toLowerCase() === 'cancelled') return;
             const date = new Date(entry.Booking_Date);
             const key = date.toDateString();
             // For status coloring and modal
@@ -1940,12 +2220,13 @@
                 if (window.adminOverrides && typeof window.adminOverrides === 'object') return window.adminOverrides;
                 if (window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[visKeyNow]) return window.__adminOvCacheByMonth[visKeyNow];
                 if (window.__adminOvCache && typeof window.__adminOvCache === 'object') return window.__adminOvCache;
+                if (window.__adminOvGlobalCache && typeof window.__adminOvGlobalCache === 'object') return window.__adminOvGlobalCache;
                 return null;
               })();
               if (ovSource) {
                 const oldBadge = cell.querySelector('.ov-badge');
                 if (oldBadge) oldBadge.remove();
-                cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
+                cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
               }
               if (ovSource && ovSource[isoKey] && ovSource[isoKey].length > 0) {
                 const items = ovSource[isoKey];
@@ -1956,21 +2237,25 @@
                 const badge = document.createElement('span');
                 // Distinguish Online Day vs Forced Online for clarity
                 const isOnlineDay = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day'));
+                const isEndYear = (chosen.effect === 'block_all' && (chosen.reason_key === 'end_year'));
                 const chosenCls = (chosen.effect === 'holiday'
                   ? 'ov-holiday'
                   : (chosen.effect === 'block_all'
-                    ? 'ov-blocked'
+                    ? (isEndYear ? 'ov-endyear' : 'ov-blocked')
                     : (isOnlineDay ? 'ov-online' : 'ov-force')));
                 badge.className = 'ov-badge ' + chosenCls;
                 const forceLabel2 = isOnlineDay ? 'Online Day' : 'Forced Online';
-                badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel2 : chosen.effect);
-                badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? 'Suspended' : forceLabel2);
+                const labelTxt2 = (chosen.effect === 'holiday')
+                  ? (chosen.reason_text || 'Holiday')
+                  : (chosen.effect === 'block_all' ? (isEndYear ? 'End Year' : 'Suspended') : forceLabel2);
+                badge.title = chosen.label || chosen.reason_text || labelTxt2;
+                badge.textContent = labelTxt2;
                 cell.style.position = 'relative';
                 cell.appendChild(badge);
                 const dayCls = (chosen.effect === 'holiday'
                   ? 'day-holiday'
                   : (chosen.effect === 'block_all'
-                    ? 'day-blocked'
+                    ? (isEndYear ? 'day-endyear' : 'day-blocked')
                     : (isOnlineDay ? 'day-online' : 'day-force')));
                 cell.classList.add(dayCls);
               }
@@ -2013,6 +2298,20 @@
                 }
               }
             });
+            // If current hovered cell now has no consultations, hide tooltip
+            try {
+              const tooltip = document.getElementById('consultationTooltip');
+              if (tooltip && currentHoveredCell) {
+                const c = currentHoveredCell;
+                const d = new Date(c.getAttribute('data-pika-year'), c.getAttribute('data-pika-month'), c.getAttribute('data-pika-day'));
+                const key = d.toDateString();
+                const list = detailsMap.get(key) || [];
+                if (list.length === 0) {
+                  tooltip.style.display = 'none';
+                  currentHoveredCell = null;
+                }
+              }
+            } catch(_) {}
           }
         })
         .catch(error => {

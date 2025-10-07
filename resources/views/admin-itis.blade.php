@@ -99,7 +99,7 @@
         </div>
         
         <div class="schedule-rows">
-          <div class="schedule-label">Schedule 1</div>
+          <div class="schedule-label">Schedule 1 <button type="button" class="schedule-clear-btn" data-scope="add" data-index="1">Remove</button></div>
           <div class="schedule-row">
             <div class="day-selector">
               <label class="field-label">Day</label>
@@ -130,7 +130,7 @@
             </div>
           </div>
           
-          <div class="schedule-label">Schedule 2</div>
+          <div class="schedule-label">Schedule 2 <button type="button" class="schedule-clear-btn" data-scope="add" data-index="2">Remove</button></div>
           <div class="schedule-row">
             <div class="day-selector">
               <label class="field-label">Day</label>
@@ -161,7 +161,7 @@
             </div>
           </div>
           
-          <div class="schedule-label">Schedule 3</div>
+          <div class="schedule-label">Schedule 3 <button type="button" class="schedule-clear-btn" data-scope="add" data-index="3">Remove</button></div>
           <div class="schedule-row">
             <div class="day-selector">
               <label class="field-label">Day</label>
@@ -249,7 +249,7 @@
           </div>
           
           <div class="schedule-rows">
-            <div class="schedule-label">Schedule 1</div>
+            <div class="schedule-label">Schedule 1 <button type="button" class="schedule-clear-btn" data-scope="edit" data-index="1">Remove</button></div>
             <div class="schedule-row">
               <div class="day-selector">
                 <label class="field-label">Day</label>
@@ -280,7 +280,7 @@
               </div>
             </div>
             
-            <div class="schedule-label">Schedule 2</div>
+            <div class="schedule-label">Schedule 2 <button type="button" class="schedule-clear-btn" data-scope="edit" data-index="2">Remove</button></div>
             <div class="schedule-row">
               <div class="day-selector">
                 <label class="field-label">Day</label>
@@ -311,7 +311,7 @@
               </div>
             </div>
             
-            <div class="schedule-label">Schedule 3</div>
+            <div class="schedule-label">Schedule 3 <button type="button" class="schedule-clear-btn" data-scope="edit" data-index="3">Remove</button></div>
             <div class="schedule-row">
               <div class="day-selector">
                 <label class="field-label">Day</label>
@@ -613,6 +613,33 @@
         scheduleRows.appendChild(newRow);
     }
 
+    // Clear a specific schedule slot (add/edit scope)
+    function clearScheduleSlot(scope, idx){
+      try{
+        const prefix = scope === 'edit' ? 'edit_' : '';
+        const daySel = document.querySelector(`select[name="${prefix}day_${idx}"]`);
+        const startInp = document.querySelector(`input[name="${prefix}start_time_${idx}"]`);
+        const endInp = document.querySelector(`input[name="${prefix}end_time_${idx}"]`);
+        if(daySel) daySel.value = '';
+        if(startInp) startInp.value = '';
+        if(endInp) endInp.value = '';
+        // Visually soften the row
+        const label = document.querySelector(`.schedule-label button.schedule-clear-btn[data-scope="${scope}"][data-index="${idx}"]`);
+        const row = label ? label.closest('.schedule-label')?.nextElementSibling : null;
+        if(row && row.classList){ row.classList.add('cleared'); setTimeout(()=>row.classList.remove('cleared'), 800); }
+        try{ showNotification(`Schedule ${idx} cleared${scope==='edit'?' (Edit)':''}`); }catch(_){ }
+      }catch(_){ }
+    }
+
+    // Attach handlers to Remove buttons
+    document.addEventListener('click', function(e){
+      const btn = e.target.closest && e.target.closest('.schedule-clear-btn');
+      if(!btn) return;
+      const scope = btn.getAttribute('data-scope');
+      const idx = btn.getAttribute('data-index');
+      clearScheduleSlot(scope, idx);
+    });
+
     // --- Edit Modal Logic ---
     let currentProfId = null;
     let currentProfData = null;
@@ -852,17 +879,14 @@
         }
       }
       
-      // Add formatted schedule to form if any schedule data exists
-      if (scheduleData.length > 0) {
-        const scheduleInput = document.createElement('input');
-        scheduleInput.type = 'hidden';
-        scheduleInput.name = 'Schedule';
-        scheduleInput.value = scheduleData.join('\n');
-        this.appendChild(scheduleInput);
-        
-        // Debug log
-        console.log('Schedule being sent:', scheduleData.join('\n'));
-      }
+      // Always include Schedule hidden input so clearing all rows will wipe schedule
+      const scheduleInput = document.createElement('input');
+      scheduleInput.type = 'hidden';
+      scheduleInput.name = 'Schedule';
+      scheduleInput.value = scheduleData.length > 0 ? scheduleData.join('\n') : '';
+      this.appendChild(scheduleInput);
+      // Debug log
+      console.log('Schedule being sent:', scheduleInput.value);
       
       // Submit the form via fetch to handle the response
       fetch(this.action, {

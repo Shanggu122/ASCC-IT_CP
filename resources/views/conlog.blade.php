@@ -20,6 +20,10 @@
       'Special Quiz or Exam',
       'Capstone Consultation'
     ];
+    // Filter out cancelled bookings for initial render + subject list
+    $bookingsFiltered = collect($bookings ?? [])->filter(function($b){
+      return strtolower($b->Status ?? '') !== 'cancelled';
+    })->values();
   @endphp
 
   <div class="main-content">
@@ -27,8 +31,8 @@
       <h1>Consultation Log</h1>
     </div>
     @php
-      // Build unique subjects list for subject filter
-      $subjects = collect($bookings ?? [])->pluck('subject')->filter(fn($s)=>filled($s))
+      // Build unique subjects list for subject filter (cancelled excluded)
+      $subjects = collect($bookingsFiltered ?? [])->pluck('subject')->filter(fn($s)=>filled($s))
                    ->map(fn($s)=>trim($s))->unique()->sort()->values();
     @endphp
 
@@ -86,10 +90,11 @@
           <div class="table-cell sort-header" data-sort="mode" role="button" tabindex="0" aria-label="Sort by mode">Mode <span class="sort-icon"></span></div>
           <div class="table-cell sort-header" data-sort="booked" role="button" tabindex="0" aria-label="Sort by booked at">Booked At <span class="sort-icon"></span></div>
           <div class="table-cell sort-header" data-sort="status" role="button" tabindex="0" aria-label="Sort by status">Status <span class="sort-icon"></span></div>
+          <div class="table-cell" aria-hidden="true" style="width:100px">Action</div>
         </div>
     
         <!-- Dynamic Data Rows -->
-        @forelse($bookings as $b)
+  @forelse($bookingsFiltered as $b)
         <div class="table-row"
              data-instructor="{{ strtolower($b->Professor) }}"
              data-subject="{{ strtolower($b->subject) }}"
@@ -110,6 +115,9 @@
           <div class="table-cell" data-label="Mode">{{ ucfirst($b->Mode) }}</div>
           <div class="table-cell" data-label="Booked At">{{ \Carbon\Carbon::parse($b->Created_At)->timezone('Asia/Manila')->format('M d Y h:i A') }}</div>
           <div class="table-cell" data-label="Status">{{ ucfirst($b->Status) }}</div>
+          <div class="table-cell" data-label="Action" style="width: 100px;">
+            <div class="action-btn-group" style="display:flex;gap:8px;"><!-- buttons inserted by JS --></div>
+          </div>
         </div>
 
       @empty
@@ -127,6 +135,15 @@
       <div class="pagination-right">
         <div id="paginationControls" class="pagination"></div>
       </div>
+    </div>
+
+    <!-- Bottom spacer to ensure pagination isn't overlapped by fixed chat button (mobile) -->
+    <div class="bottom-safe-space" aria-hidden="true"></div>
+
+    <!-- ITIS-style notification (injected via JS functions below) -->
+    <div id="notification" class="notification" style="display:none;">
+      <span id="notification-message"></span>
+      <button onclick="hideNotification()" class="close-btn" aria-label="Close">&times;</button>
     </div>
 
     <!-- Mobile Filters Overlay -->
@@ -189,6 +206,23 @@
 
   <script src="{{ asset('js/ccit.js') }}"></script>
   <script src="https://js.pusher.com/7.0/pusher.min.js"></script>
+  
+  <!-- Student Themed Confirm Modal -->
+  <div class="confirm-overlay" id="studentConfirmOverlay" aria-hidden="true" style="display:none;">
+    <div class="confirm-modal student-confirm" role="dialog" aria-modal="true" aria-labelledby="studentConfirmTitle">
+      <div class="confirm-header">
+        <i class='bx bx-help-circle'></i>
+        <div id="studentConfirmTitle">Please confirm</div>
+      </div>
+      <div class="confirm-body">
+        <div id="studentConfirmMessage">Are you sure?</div>
+      </div>
+      <div class="confirm-actions">
+        <button type="button" class="btn-confirm-green" id="studentConfirmOk">OK</button>
+        <button type="button" class="btn-cancel-red" id="studentConfirmCancel">Cancel</button>
+      </div>
+    </div>
+  </div>
   <script>
 const fixedTypes = [
   'tutoring',
@@ -389,6 +423,92 @@ document.querySelectorAll('#conlogHeader .sort-header').forEach(h=>{
 
 document.addEventListener('DOMContentLoaded',()=>{ filterRows(); });
 
+  // Insert Cancel buttons for eligible rows (pending and within 1 hour), else no action.
+  function refreshRowActions(row){
+    if(!row || row.classList.contains('table-header')) return;
+    const nowTs = Date.now() / 1000;
+    const status = (row.dataset.status||'').toLowerCase();
+    const createdTs = Number(row.dataset.bookedTs||'0');
+    const actionGroup = row.querySelector('.action-btn-group');
+    if(!actionGroup) return;
+    actionGroup.innerHTML = '';
+    const withinHour = (nowTs - createdTs) <= 3600; // 1 hour window
+    const isPending = status === 'pending';
+    if(isPending && withinHour){
+      const btn = document.createElement('button');
+      btn.className = 'action-btn btn-cancel';
+      btn.type = 'button';
+      btn.title = 'Cancel';
+      btn.innerHTML = "<i class='bx bx-x-circle'></i>";
+      btn.addEventListener('click', function(){
+        const idCell = row.querySelector('.table-cell[data-label="No."]');
+        const bookingId = idCell ? idCell.getAttribute('data-booking-id') : null;
+        if(!bookingId){ return; }
+        showStudentConfirm('Cancel this consultation request?', function(ok){
+          if(!ok) return;
+          cancelStudentBooking(bookingId, row, btn);
+        });
+      });
+      actionGroup.appendChild(btn);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    document.querySelectorAll('.table .table-row').forEach(refreshRowActions);
+  });
+
+  function cancelStudentBooking(bookingId, row, btn){
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    fetch('/api/student/consultations/cancel',{
+      method:'POST',
+      headers:{ 'Content-Type':'application/json','X-CSRF-TOKEN': csrfToken },
+      body: JSON.stringify({ id: Number(bookingId) })
+    }).then(r=>r.json()).then(data=>{
+      if(data && data.success){
+        // Remove the row entirely from the log and re-apply filters/pagination
+        try { row && row.remove && row.remove(); } catch(e) {}
+        if(typeof filterRows==='function') filterRows();
+        if(typeof rebuildSubjectOptions==='function') rebuildSubjectOptions();
+        showNotification('Your consultation has been successfully cancelled.', false);
+      } else {
+        showNotification((data && data.message) ? data.message : 'Failed to cancel.', true);
+      }
+    }).catch(()=>{
+      showNotification('Network error while cancelling.', true);
+    });
+  }
+
+  // Themed confirm modal for student conlog
+  function showStudentConfirm(message, onConfirm){
+    const overlay = document.getElementById('studentConfirmOverlay');
+    const msg = document.getElementById('studentConfirmMessage');
+    const okBtn = document.getElementById('studentConfirmOk');
+    const cancelBtn = document.getElementById('studentConfirmCancel');
+    if(!overlay || !msg || !okBtn || !cancelBtn){
+      // Fallback if modal is not present
+      const ok = window.confirm(message||'Are you sure?');
+      if(typeof onConfirm==='function') onConfirm(ok);
+      return;
+    }
+    msg.textContent = message || 'Are you sure?';
+    function cleanup(){
+      overlay.style.display='none';
+      document.removeEventListener('keydown', escHandler);
+      overlay.removeEventListener('click', outsideHandler);
+      okBtn.removeEventListener('click', okHandler);
+      cancelBtn.removeEventListener('click', cancelHandler);
+    }
+    function okHandler(){ cleanup(); onConfirm && onConfirm(true); }
+    function cancelHandler(){ cleanup(); onConfirm && onConfirm(false); }
+    function escHandler(e){ if(e.key==='Escape'){ cancelHandler(); } }
+    function outsideHandler(e){ const modal = document.querySelector('#studentConfirmOverlay .confirm-modal'); if(modal && !modal.contains(e.target)) cancelHandler(); }
+    okBtn.addEventListener('click', okHandler);
+    cancelBtn.addEventListener('click', cancelHandler);
+    document.addEventListener('keydown', escHandler);
+    overlay.addEventListener('click', outsideHandler);
+    overlay.style.display='flex';
+  }
+
 // ===== Mobile Filters Overlay =====
 function syncOverlayFromMain(){
   const tMain = document.getElementById('typeFilter');
@@ -534,6 +654,14 @@ setInterval(loadConsultationLogs, 5000);
       const targetId = (data.Booking_ID!==undefined && data.Booking_ID!==null) ? String(data.Booking_ID).trim() : '';
       rows.forEach(r=>{ const idCell=r.querySelector('[data-booking-id]'); const rowId = idCell? String(idCell.getAttribute('data-booking-id')||'').trim():''; if(rowId && targetId && rowId===targetId){ existing=r; } });
 
+      // If this booking is now cancelled, remove its row (if any) and stop.
+      if(String((data.Status||'')).toLowerCase()==='cancelled'){
+        if(existing){ try{ existing.remove(); }catch(e){} }
+        if(typeof filterRows==='function') filterRows();
+        if(typeof rebuildSubjectOptions==='function') rebuildSubjectOptions();
+        return;
+      }
+
       // Helper to merge missing fields from a given row's current cells
       function mergeFromRow(row) {
         if(!row) return;
@@ -562,7 +690,10 @@ setInterval(loadConsultationLogs, 5000);
         <div class="table-cell" data-label="Type">${data.type||''}</div>
         <div class="table-cell" data-label="Mode">${mode}</div>
         <div class="table-cell" data-label="Booked At">${bookedAt}</div>
-        <div class="table-cell" data-label="Status">${status}</div>`;
+          <div class="table-cell" data-label="Status">${status}</div>
+          <div class="table-cell" data-label="Action" style="width: 100px;">
+            <div class="action-btn-group" style="display:flex;gap:8px;"></div>
+          </div>`;
 
       function setDataAttrs(row){
         const d = new Date(data.Booking_Date||'');
@@ -588,6 +719,7 @@ setInterval(loadConsultationLogs, 5000);
         // guarantee the data-booking-id attribute remains for subsequent updates
         const first = existing.querySelector('.table-cell'); if(first){ first.setAttribute('data-booking-id', String(data.Booking_ID)); }
         setDataAttrs(existing);
+        refreshRowActions(existing);
       }
       else {
         // Try to reuse any orphan row (missing data-booking-id) to avoid duplicates from earlier sessions
@@ -598,12 +730,14 @@ setInterval(loadConsultationLogs, 5000);
           orphan.innerHTML = html;
           const first = orphan.querySelector('.table-cell'); if(first){ first.setAttribute('data-booking-id', String(data.Booking_ID)); }
           setDataAttrs(orphan);
+          refreshRowActions(orphan);
         } else {
         const row = document.createElement('div');
         row.className = 'table-row';
         row.innerHTML = html;
         const first = row.querySelector('.table-cell'); if(first){ first.setAttribute('data-booking-id', String(data.Booking_ID)); }
         setDataAttrs(row);
+        refreshRowActions(row);
         table.appendChild(row);
         }
       }
@@ -617,6 +751,25 @@ setInterval(loadConsultationLogs, 5000);
     channel.bind('App\\Events\\BookingUpdatedStudent', renderRow);
   } catch(e){ console.warn('Realtime (student) init failed', e); }
 })();
+
+// ITIS-style notification helpers (top-right banner)
+function showNotification(message, isError = false) {
+  const notif = document.getElementById('notification');
+  const msgEl = document.getElementById('notification-message');
+  if(!notif || !msgEl){
+    // Fallback
+    return alert(String(message||''));
+  }
+  notif.classList.toggle('error', !!isError);
+  msgEl.textContent = String(message||'');
+  notif.style.display = 'flex';
+  clearTimeout(showNotification._t);
+  showNotification._t = setTimeout(hideNotification, 4000);
+}
+function hideNotification(){
+  const notif = document.getElementById('notification');
+  if(notif) notif.style.display = 'none';
+}
 
 // === Chatbot ===
 function toggleChat() {

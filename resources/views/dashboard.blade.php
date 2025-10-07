@@ -38,11 +38,13 @@
     .ov-blocked { background-color: #374151; }   /* Suspended → Dark Gray */
     .ov-force { background-color: #2563eb; }     /* Forced Online → Blue */
     .ov-online { background-color: #FF69B4; }    /* Online Day → Pink */
+    .ov-endyear { background-color: #6366f1; }   /* End of School Year → Indigo */
     /* Whole-cell background for overrides */
   .day-holiday { background: rgba(155, 89, 182, 0.55) !important; } /* Violet */
     .day-blocked { background: rgba(55, 65, 81, 0.75) !important; }   /* Suspended */
     .day-force   { background: rgba(37, 99, 235, 0.6) !important; }   /* Forced Online */
     .day-online  { background: rgba(255, 105, 180, 0.45) !important; }/* Online Day */
+    .day-endyear { background: rgba(99, 102, 241, 0.6) !important; }   /* End of School Year → Indigo */
     /* Unified arrow styling (matches consultation form) */
     .pika-prev, .pika-next {
       background-color: #0d2b20; /* dark fill */
@@ -170,6 +172,9 @@
     .pika-button.day-blocked:hover,
     .pika-button.day-blocked:focus,
     .pika-button.day-blocked:active { background: rgba(55, 65, 81, 0.75) !important; color:#fff !important; }
+  .pika-button.day-endyear:hover,
+  .pika-button.day-endyear:focus,
+  .pika-button.day-endyear:active { background: rgba(99, 102, 241, 0.6) !important; color:#fff !important; }
     .is-today .pika-button:hover,
     .is-today .pika-button:focus,
     .is-today .pika-button:active { background:#5fb9d4 !important; color:#fff !important; }
@@ -255,6 +260,7 @@
                   <div class="legend-item"><span class="legend-swatch swatch-forced"></span>Forced Online <i class='bx bx-switch legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-holiday"></span>Holiday <i class='bx bx-party legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-leave"></span>Leave Day <i class='bx bx-coffee legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-endyear"></span>End of School Year <i class='bx bx-calendar-x legend-icon' aria-hidden="true"></i></div>
                   
                 </div>
               </div>
@@ -376,9 +382,12 @@
         bookingMap.clear(); // Clear existing data
         
         data.forEach(entry => {
+          const statusLower = (entry.Status || '').toLowerCase();
+          // Skip cancelled so student cells don't get marked as having consultations
+          if (statusLower === 'cancelled') return;
           const date = new Date(entry.Booking_Date);
           const key = date.toDateString();
-          bookingMap.set(key, (entry.Status || '').toLowerCase());
+          bookingMap.set(key, statusLower);
         });
         
         // Only update calendar if there are actual changes
@@ -444,7 +453,7 @@
       cells.forEach(cell => {
         // Remove existing status classes and override visuals
         cell.classList.remove('has-booking', 'status-pending', 'status-approved', 'status-completed', 'status-rescheduled');
-        cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
+        cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
         const oldBadge = cell.querySelector('.ov-badge');
         if (oldBadge) oldBadge.remove();
         cell.removeAttribute('data-status');
@@ -472,12 +481,13 @@
             }
             if (!chosen) { return; }
             const badge = document.createElement('span');
-            // Badge class: distinguish Online Day vs Forced Online
+            // Badge class: distinguish Online Day vs Forced Online; End Year distinct from Suspended
             let chosenCls;
             if (chosen.effect === 'holiday') {
               chosenCls = 'ov-holiday';
             } else if (chosen.effect === 'block_all') {
-              chosenCls = 'ov-blocked';
+              const isEndYear = (chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label || '') || /end\s*year/i.test(chosen.reason_text || '');
+              chosenCls = isEndYear ? 'ov-endyear' : 'ov-blocked';
             } else if (chosen.effect === 'force_mode') {
               chosenCls = (chosen.reason_key === 'online_day') ? 'ov-online' : 'ov-force';
             } else {
@@ -486,7 +496,8 @@
             badge.className = 'ov-badge ' + chosenCls;
             const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
             badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
-            badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? 'Suspended' : forceLabel);
+            const isEndYearLbl = (chosen.effect === 'block_all') && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label || '') || /end\s*year/i.test(chosen.reason_text || ''));
+            badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (isEndYearLbl ? 'End Year' : 'Suspended') : forceLabel);
             cell.style.position = 'relative';
             cell.appendChild(badge);
             // Cell background class, with Online Day distinct from Forced Online
@@ -494,7 +505,8 @@
             if (chosen.effect === 'holiday') {
               dayCls = 'day-holiday';
             } else if (chosen.effect === 'block_all') {
-              dayCls = 'day-blocked';
+              const isEndYear = (chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label || '') || /end\s*year/i.test(chosen.reason_text || '');
+              dayCls = isEndYear ? 'day-endyear' : 'day-blocked';
             } else if (chosen.effect === 'force_mode') {
               dayCls = (chosen.reason_key === 'online_day') ? 'day-online' : 'day-force';
             } else {
@@ -574,13 +586,21 @@
       if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) return;
       if (window.__studentOvLoading) return; // prevent overlapping requests
       window.__studentOvLoading = true;
-      const start = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
-      const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 0);
+      // widen range to cover adjacent-month cells that are visible
+      const start = new Date(dateObj.getFullYear(), dateObj.getMonth() - 1, 1);
+      const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 2, 0);
       const toIso = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       const startStr = toIso(start);
       const endStr = toIso(end);
       const bust = Date.now();
-      // Global-only overrides for student dashboard
+      // LocalStorage helpers
+      function lsGetOv(key){ try{ const raw=localStorage.getItem(key); if(!raw) return null; const obj=JSON.parse(raw); if(!obj||!obj.exp||Date.now()>obj.exp){ localStorage.removeItem(key); return null; } return obj.data; }catch(_){ return null; } }
+      function lsSetOv(key, data, ttlMs){ try{ localStorage.setItem(key, JSON.stringify({ exp: Date.now()+(ttlMs||6*3600*1000), data })); }catch(_){ }
+      }
+      const lsKey = `ov:student:${startStr}-${endStr}`;
+      // Instant paint from LS snapshot if present
+      try { const ls = lsGetOv(lsKey); if(ls){ window.studentOverrides = ls; if (window.picker) window.picker.draw(); } } catch(_) {}
+      // Global-only overrides for student dashboard (network refresh)
       fetch(`/api/calendar/overrides?start_date=${startStr}&end_date=${endStr}&_=${bust}`, { headers: { 'Accept':'application/json' } })
         .then(r=>r.json())
         .then(data => {
@@ -590,6 +610,7 @@
             const changed = JSON.stringify(incoming) !== JSON.stringify(prev);
             if (changed) {
               window.studentOverrides = incoming;
+              try{ lsSetOv(lsKey, incoming, 6*3600*1000); }catch(_){ }
               if (window.picker) window.picker.draw();
             }
           }
@@ -631,12 +652,32 @@
         detailsMap.clear();
         (entries || []).forEach(entry => {
           try {
+            // Filter out cancelled entries from tooltip details
+            if ((entry.Status || '').toLowerCase() === 'cancelled') return;
             const d = new Date(entry.Booking_Date);
             const key = d.toDateString();
             if (!detailsMap.has(key)) detailsMap.set(key, []);
             detailsMap.get(key).push(entry);
           } catch(_) {}
         });
+        // If currently hovered cell became empty, hide tooltip
+        try {
+          if (currentHoveredCell) {
+            const y = currentHoveredCell.getAttribute('data-pika-year');
+            const m = currentHoveredCell.getAttribute('data-pika-month');
+            const d = currentHoveredCell.getAttribute('data-pika-day');
+            if (y!=null && m!=null && d!=null) {
+              const dateObj = new Date(y, m, d);
+              const key = dateObj.toDateString();
+              const list = detailsMap.get(key) || [];
+              if (list.length === 0) {
+                const tooltip = document.getElementById('consultationTooltip');
+                if (tooltip) tooltip.style.display = 'none';
+                currentHoveredCell = null;
+              }
+            }
+          }
+        } catch(_) {}
       })
       .catch(() => {});
   }

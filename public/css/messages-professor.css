@@ -35,11 +35,23 @@ body {
     padding: 0 1rem 1.6rem; /* top flush desktop */
 }
 /* Scrollbar hidden unless hover (student parity) */
-.inbox { scrollbar-width: none; }
-.inbox::-webkit-scrollbar { width: 8px; background: transparent; }
-.inbox::-webkit-scrollbar-thumb { background: transparent; }
-.inbox:hover { scrollbar-width: thin; }
-.inbox:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.28); border-radius:4px; }
+.inbox {
+    scrollbar-width: none;
+}
+.inbox::-webkit-scrollbar {
+    width: 8px;
+    background: transparent;
+}
+.inbox::-webkit-scrollbar-thumb {
+    background: transparent;
+}
+.inbox:hover {
+    scrollbar-width: thin;
+}
+.inbox:hover::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.28);
+    border-radius: 4px;
+}
 
 .inbox h2 {
     margin-top: 0;
@@ -128,19 +140,26 @@ body {
 }
 
 .chat-header {
-        background-color: #043927;
-        color: white;
-        padding: 0.65rem 0.9rem; /* tighter */
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
+    background-color: #043927;
+    color: white;
+    padding: 0.65rem 0.9rem; /* tighter */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 /* Desktop specific fine-tune (avoid affecting mobile stacked layout) */
 @media (min-width: 701px) {
-    .messages-wrapper { padding-top: 0; }
-    body .main-content { padding-top: 0; }
-    .inbox h2 { margin: 0 0 0.4rem; font-size: 1.15rem; }
+    .messages-wrapper {
+        padding-top: 0;
+    }
+    body .main-content {
+        padding-top: 0;
+    }
+    .inbox h2 {
+        margin: 0 0 0.4rem;
+        font-size: 1.15rem;
+    }
 }
 
 .video-btn {
@@ -235,10 +254,23 @@ body {
     resize: none;
     border-radius: 18px;
     border: 1px solid #ccc;
-    padding: 8px 12px;
+    padding: 8px 16px 8px 12px; /* extra right padding like student */
     font-size: 1em;
     transition: box-shadow 0.2s;
     outline: none;
+    overflow-y: auto; /* keep internal scrolling for long text */
+    scrollbar-gutter: stable; /* avoid layout shift when scrollbar appears */
+}
+
+/* Hide textarea scrollbar but keep scroll functionality (match student) */
+.chat-input textarea {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.chat-input textarea::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
 }
 
 /* Add to your messages.css */
@@ -380,7 +412,7 @@ body {
         z-index: 10;
         display: none;
         flex-direction: column;
-        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         animation: slideIn 0.2s;
         margin: 0;
         border-radius: 0;
@@ -433,64 +465,143 @@ body {
 
 /* Extra small adjustments <=600px (match student) */
 @media (max-width: 600px) {
-    .messages-wrapper { flex-direction: column; }
-    .inbox { width: 100%; max-height: 100%; height: auto; }
-    .chat-panel { display: none; }
-    .chat-panel.active { display: flex; }
-    .inbox.hidden { display: none; }
-    .chat-header #chat-person { font-size: 0.95rem; }
-    .inbox-item { padding: 10px 6px; }
-    .inbox-avatar { width: 52px; height: 52px; }
-    .name { font-size: 16px; }
+    .messages-wrapper {
+        flex-direction: column;
+    }
+    .inbox {
+        width: 100%;
+        max-height: 100%;
+        height: auto;
+    }
+    .chat-panel {
+        display: none;
+    }
+    .chat-panel.active {
+        display: flex;
+    }
+    .inbox.hidden {
+        display: none;
+    }
+    .chat-header #chat-person {
+        font-size: 0.95rem;
+    }
+    .inbox-item {
+        padding: 10px 6px;
+    }
+    .inbox-avatar {
+        width: 52px;
+        height: 52px;
+    }
+    .name {
+        font-size: 16px;
+    }
 }
 
 /* Mid-width (tablet) adjustments: 701px-950px */
 @media (min-width: 701px) and (max-width: 950px) {
-    .messages-wrapper { flex-direction: row; }
-    .inbox { width:300px; flex:0 0 300px; padding-top:65px; }
-    .messages-wrapper { width:100%; }
-    .chat-panel { margin:0; height:100vh; flex:1 1 auto; width:100%; }
-    body.messages-page { padding-right:0; }
-    .inbox-item { padding:6px 8px; }
-    .inbox .name { font-size:14px; }
-    .chat-header { padding:0.65rem 0.9rem; position:static; }
-    .chat-header #chat-person { font-size:0.95rem; }
-    .chat-body .message { font-size:13px; }
-    .video-btn { padding:6px 10px; font-size:12px; }
-    .inbox { z-index:3; position:relative; }
-    .chat-panel { z-index:1; position:relative; }
+    .messages-wrapper {
+        flex-direction: row;
+    }
+    .inbox {
+        width: 300px;
+        flex: 0 0 300px;
+        padding-top: 65px;
+    }
+    .messages-wrapper {
+        width: 100%;
+    }
+    .chat-panel {
+        margin: 0;
+        height: 100vh;
+        flex: 1 1 auto;
+        width: 100%;
+    }
+    body.messages-page {
+        padding-right: 0;
+    }
+    .inbox-item {
+        padding: 6px 8px;
+    }
+    .inbox .name {
+        font-size: 14px;
+    }
+    .chat-header {
+        padding: 0.65rem 0.9rem;
+        position: static;
+    }
+    .chat-header #chat-person {
+        font-size: 0.95rem;
+    }
+    .chat-body .message {
+        font-size: 13px;
+    }
+    .video-btn {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+    .inbox {
+        z-index: 3;
+        position: relative;
+    }
+    .chat-panel {
+        z-index: 1;
+        position: relative;
+    }
 }
 
 /* 951px-1100px: slight width bump */
 @media (min-width: 951px) and (max-width: 1100px) {
-    .inbox { width:350px; flex:0 0 350px; }
-    .chat-panel { margin:0; height:100vh; flex:1 1 auto; }
+    .inbox {
+        width: 350px;
+        flex: 0 0 350px;
+    }
+    .chat-panel {
+        margin: 0;
+        height: 100vh;
+        flex: 1 1 auto;
+    }
 }
 
 /* >=1101px desktop */
 @media (min-width: 1101px) {
-    .inbox { width:390px; flex:0 0 390px; }
-    .chat-panel { margin:0; height:100vh; flex:1 1 auto; }
+    .inbox {
+        width: 390px;
+        flex: 0 0 390px;
+    }
+    .chat-panel {
+        margin: 0;
+        height: 100vh;
+        flex: 1 1 auto;
+    }
 }
 
 /* Ensure adequate offset for larger widths (none now; flush) */
 @media (min-width: 951px) {
-    .inbox { padding-top:10px; } /* lowered heading slightly */
+    .inbox {
+        padding-top: 10px;
+    } /* lowered heading slightly */
     .inbox h2 {
-        font-size:1.55rem; /* larger */
-        font-weight:700; /* bolder */
-        letter-spacing:0.5px; /* slight differentiation */
-        margin:0 0 0.65rem; /* add a bit more breathing room below */
+        font-size: 1.55rem; /* larger */
+        font-weight: 700; /* bolder */
+        letter-spacing: 0.5px; /* slight differentiation */
+        margin: 0 0 0.65rem; /* add a bit more breathing room below */
     }
 }
 
 /* When inbox hidden let chat expand */
-.inbox.hidden { display:none !important; }
-.inbox.hidden + .chat-panel { width:100% !important; flex:1 1 100% !important; }
+.inbox.hidden {
+    display: none !important;
+}
+.inbox.hidden + .chat-panel {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+}
 
 /* Extra breakpoint parity: allow full width inbox for <=900px if not stacked */
-@media (max-width: 900px){
-    .inbox{ width:100%; }
+@media (max-width: 900px) {
+    .inbox {
+        width: 100%;
+    }
 }
 
 @keyframes slideIn {

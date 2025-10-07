@@ -92,6 +92,16 @@ body {
     background-color: #e5f0ed;
 }
 
+/* Bottom scroll spacer (parity with student conlog) */
+.bottom-safe-space {
+    height: 0;
+}
+@media (max-width: 768px) {
+    .bottom-safe-space {
+        height: 44px; /* tight but clears chat pill */
+    }
+}
+
 .sidebar {
     width: 220px;
     background-color: #12372a;
@@ -1597,7 +1607,7 @@ body {
     .pagination-bar {
         flex-direction: column;
         gap: 0.45rem;
-        margin: 0.5rem 0 5.5rem 0;
+        margin: 0.5rem 0 4.25rem 0; /* match student final */
         padding: 0 12px;
         max-width: 100%;
     }
@@ -1611,7 +1621,9 @@ body {
         margin-left: 0 !important;
     }
     .main-content {
-        padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+        /* provide scrollable space at bottom for fixed chat button */
+        padding-bottom: 4.25rem;
+        padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
     }
 }
 
