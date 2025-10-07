@@ -959,6 +959,23 @@ async function openModal(card) {
       document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
     })();
 
+    // Clear previously selected checkboxes, radios, and Others field
+    (function resetFormSelections(){
+      try{
+        document.querySelectorAll('#bookingForm input[name="types[]"]').forEach(cb=>{ cb.checked = false; });
+        const otherCb = document.getElementById('otherTypeCheckbox');
+        const otherTxt = document.getElementById('otherTypeText');
+        if(otherCb) otherCb.checked = false;
+        if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
+        const radios = document.querySelectorAll('#bookingForm input[name="mode"]');
+        radios.forEach(r=>{ r.checked=false; r.disabled=false; });
+        const cont = document.querySelector('.mode-selection');
+        cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
+        // Clear any remembered user-selected mode to avoid carryover between professors
+        try{ delete window.__userSelectedMode; }catch(_){ window.__userSelectedMode = undefined; }
+      }catch(_){ }
+    })();
+
     const name = card.getAttribute("data-name");
     const img = card.getAttribute("data-img");
     const profId = card.getAttribute("data-prof-id");
@@ -1071,6 +1088,22 @@ function initCustomSubjectDropdown(){
 function closeModal() {
     document.getElementById("consultationModal").style.display = "none";
     document.body.classList.remove("modal-open");
+    // Reset form state so reopening is clean
+    try{
+      const form = document.getElementById('bookingForm');
+      if(form) form.reset();
+      const input = document.getElementById('calendar');
+      if(input) input.value='';
+      try { if(window.picker){ window.picker.setDate(null); } } catch(_){ }
+      document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
+      const otherTxt = document.getElementById('otherTypeText');
+      if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
+      const radios = document.querySelectorAll('#bookingForm input[name="mode"]');
+      radios.forEach(r=>{ r.checked=false; r.disabled=false; });
+      const cont = document.querySelector('.mode-selection');
+      cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
+      try{ delete window.__userSelectedMode; }catch(_){ window.__userSelectedMode = undefined; }
+    }catch(_){ }
 }
 
 // Optional: Close modal when clicking outside modal-content

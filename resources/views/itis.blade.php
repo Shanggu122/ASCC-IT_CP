@@ -1018,6 +1018,26 @@ async function openModal(card) {
       document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
     })();
 
+    // Clear previous form choices (types, mode, Others field)
+    (function resetFormSelections(){
+      try{
+        // Uncheck all consultation type checkboxes
+        document.querySelectorAll('#bookingForm input[name="types[]"]').forEach(cb=>{ cb.checked=false; });
+        // Reset Others text field visibility and value
+        const otherCb = document.getElementById('otherTypeCheckbox');
+        const otherTxt = document.getElementById('otherTypeText');
+        if(otherCb) otherCb.checked = false;
+        if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
+        // Reset mode radios and UI state
+        const radios = document.querySelectorAll('#bookingForm input[name="mode"]');
+        radios.forEach(r=>{ r.checked=false; r.disabled=false; });
+        const cont = document.querySelector('.mode-selection');
+        cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
+        // Clear any remembered user-selected mode so it doesn't bleed into next open
+        try{ delete window.__userSelectedMode; }catch(_){ window.__userSelectedMode = undefined; }
+      }catch(_){ }
+    })();
+
     const name = card.getAttribute("data-name");
     const img = card.getAttribute("data-img");
     const profId = card.getAttribute("data-prof-id");
@@ -1155,6 +1175,25 @@ function initCustomSubjectDropdown(){
 function closeModal() {
     document.getElementById("consultationModal").style.display = "none";
     document.body.classList.remove("modal-open");
+    // Also reset form so reopening starts fresh
+    try{
+      const form = document.getElementById('bookingForm');
+      if(form) form.reset();
+      // Clear calendar selection/value
+      const input = document.getElementById('calendar');
+      if(input) input.value='';
+      try { if(window.picker){ window.picker.setDate(null); } } catch(_){ }
+      document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
+      // Reset Others field visibility
+      const otherTxt = document.getElementById('otherTypeText');
+      if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
+      // Re-enable/uncheck mode radios and clear remembered selection
+      const radios = document.querySelectorAll('#bookingForm input[name="mode"]');
+      radios.forEach(r=>{ r.checked=false; r.disabled=false; });
+      const cont = document.querySelector('.mode-selection');
+      cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
+      try{ delete window.__userSelectedMode; }catch(_){ window.__userSelectedMode = undefined; }
+    }catch(_){ }
 }
 
 // Optional: Close modal when clicking outside modal-content
