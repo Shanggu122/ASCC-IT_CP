@@ -179,6 +179,8 @@
   .auth-loading-text { color:#e9f9f3; font-size:14px; letter-spacing:.08em; font-weight:600; font-family:'Segoe UI', sans-serif; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* LocalStorage cached overrides are used to hydrate shading instantly on open */
+
   /* Notification: top-right corner above modal */
   .notification {
     position: fixed;
@@ -219,15 +221,19 @@
   .ov-blocked { background-color: #374151; }
   .ov-force   { background-color: #2563eb; }
   .ov-online  { background-color: #FF69B4; }
+  .ov-endyear { background-color: #6366f1; } /* End of School Year → Indigo */
+  .ov-leave   { background-color: #0ea5a4; } /* Professor Leave → Teal */
   .day-holiday { background: rgba(155, 89, 182, 0.55) !important; }
   .day-blocked { background: rgba(55, 65, 81, 0.75) !important; }
   .day-force   { background: rgba(37, 99, 235, 0.6) !important; }
   .day-online  { background: rgba(255, 105, 180, 0.45) !important; }
+  .day-endyear { background: rgba(99, 102, 241, 0.6) !important; } /* End Year → Indigo */
 
   /* Persist tint even when disabled for holiday/forced; hard grey for suspended */
   .is-disabled .pika-button.day-holiday { background: rgba(155, 89, 182, 0.55) !important; color:#fff !important; border-color:transparent !important; }
   .is-disabled .pika-button.day-force   { background: rgba(37, 99, 235, 0.6) !important;  color:#fff !important; border-color:transparent !important; }
   .is-disabled .pika-button.day-online  { background: rgba(255, 105, 180, 0.45) !important; color:#fff !important; border-color:transparent !important; }
+  .is-disabled .pika-button.day-endyear { background: rgba(99, 102, 241, 0.6) !important; color:#fff !important; border-color:transparent !important; }
   .is-disabled .pika-button.ov-hard-block { background:#5f6b77 !important; color:#fff !important; border:1px solid transparent !important; }
 
   /* Make override tints win over availability and hover states */
@@ -749,24 +755,30 @@
           if(!items.length) {
             // No override for this date: clear only override visuals; DO NOT touch schedule-disabled state
             const old = btn.querySelector('.ov-badge'); if(old) old.remove();
-            btn.classList.remove('day-holiday','day-blocked','day-force','day-online','ov-hard-block','day-leave');
+            btn.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear','ov-hard-block','day-leave');
             td.classList.remove('day-leave-td');
             return;
           }
           // We have items: clear previous and paint
           const old = btn.querySelector('.ov-badge'); if(old) old.remove();
-          btn.classList.remove('day-holiday','day-blocked','day-force','day-online','ov-hard-block');
+          btn.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear','ov-hard-block');
           let chosen = items.find(x=>x.effect==='holiday') || items.find(x=>x.effect==='block_all') || items[0];
           const badge = document.createElement('span');
           let chosenCls;
           if (chosen.effect === 'holiday') chosenCls = 'ov-holiday';
-          else if (chosen.effect === 'block_all') chosenCls = (chosen.reason_key === 'prof_leave' ? 'ov-leave' : 'ov-blocked');
+          else if (chosen.effect === 'block_all') {
+            const isLeave = (chosen.reason_key === 'prof_leave' || /leave/i.test(chosen.label||''));
+            const isEndYear = (!isLeave) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label||'') || /end\s*year/i.test(chosen.reason_text||''));
+            chosenCls = isLeave ? 'ov-leave' : (isEndYear ? 'ov-endyear' : 'ov-blocked');
+          }
           else if (chosen.effect === 'force_mode') chosenCls = (chosen.reason_key === 'online_day') ? 'ov-online' : 'ov-force';
           else chosenCls = 'ov-force';
           badge.className = 'ov-badge ' + chosenCls;
           const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
           badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
-          badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (chosen.reason_key === 'prof_leave' ? 'Leave' : 'Suspended') : forceLabel);
+          const isLeaveLbl = (chosen.effect === 'block_all') && (chosen.reason_key === 'prof_leave' || /leave/i.test(chosen.label||''));
+          const isEndYearLbl = (chosen.effect === 'block_all') && (!isLeaveLbl) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label||'') || /end\s*year/i.test(chosen.reason_text||''));
+          badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (isLeaveLbl ? 'Leave' : (isEndYearLbl ? 'End Year' : 'Suspended')) : forceLabel);
           btn.style.position = 'relative';
           btn.appendChild(badge);
           if (chosen.effect === 'force_mode') {
@@ -780,11 +792,14 @@
             btn.setAttribute('aria-disabled','true');
             btn.style.pointerEvents='none';
             if (chosen.effect === 'block_all') {
-              if (chosen.reason_key === 'prof_leave') { btn.classList.add('day-leave'); btn.classList.remove('ov-hard-block'); }
+              const isLeave = (chosen.reason_key === 'prof_leave' || /leave/i.test(chosen.label||''));
+              const isEndYear = (!isLeave) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label||'') || /end\s*year/i.test(chosen.reason_text||''));
+              if (isLeave) { btn.classList.add('day-leave'); btn.classList.remove('ov-hard-block'); }
+              else if (isEndYear) { btn.classList.add('day-endyear'); btn.classList.remove('ov-hard-block'); }
               else { btn.classList.add('ov-hard-block'); }
             } else { btn.classList.add('day-holiday'); }
           } else {
-            btn.classList.remove('ov-hard-block','day-holiday','day-leave');
+            btn.classList.remove('ov-hard-block','day-holiday','day-leave','day-endyear');
           }
           if (chosen.effect === 'force_mode'){
             let mode = chosen.allowed_mode || (chosen.reason_key==='online_day'?'online':null) || 'online';
@@ -796,15 +811,18 @@
       function fetchPublicOverridesForMonth(dateObj){
         try{
           if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) return;
-          const start = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
-          const end = new Date(dateObj.getFullYear(), dateObj.getMonth()+1, 0);
+          // Fetch previous, current, and next month to shade adjacent cells
+          const start = new Date(dateObj.getFullYear(), dateObj.getMonth()-1, 1);
+          const end = new Date(dateObj.getFullYear(), dateObj.getMonth()+2, 0);
           const toIso = d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
           const bust = Date.now();
           const profIdInput = document.getElementById('modalProfId');
           const profId = profIdInput ? profIdInput.value : '';
           // Cache-first paint to remove initial delay
           if (profId) {
-            const cacheKey = `${profId}|${toIso(start)}-${toIso(end)}`;
+            const cacheKey = `${profId}|${toIso(start)}-${toIso(end)}`; // expanded range includes prev+next months
+            // Hydrate instantly from LS if present
+            try { const ls = lsGetOv(buildLsKey('public', cacheKey)); if(ls){ window.__publicOverrides = ls; recomputeBlockedSet(); if(window.picker){ window.picker.draw(); try{ applyPublicOverridesToCalendar(); }catch(_){ } } } } catch(_) {}
             if (window.__ovCache && window.__ovCache[cacheKey]) {
               const cached = window.__ovCache[cacheKey];
               const prev = window.__publicOverrides || {};
@@ -832,6 +850,7 @@
                     try { applyPublicOverridesToCalendar(); } catch(_) {}
                     // update cache
                     window.__ovCache = window.__ovCache || {}; window.__ovCache[cacheKey] = window.__publicOverrides;
+                    try{ lsSetOv(buildLsKey('public', cacheKey), window.__publicOverrides, 6*3600*1000); }catch(_){ }
                   }
                 })
                 .catch(()=>{});
@@ -851,6 +870,7 @@
                   const cacheKey = `${profId}|${toIso(start)}-${toIso(end)}`;
                   window.__ovCache = window.__ovCache || {};
                   window.__ovCache[cacheKey] = incoming;
+                  try{ lsSetOv(buildLsKey('public', cacheKey), incoming, 6*3600*1000); }catch(_){ }
                 }
                 const prev = window.__publicOverrides || {};
                 const changed = JSON.stringify(incoming) !== JSON.stringify(prev);
@@ -957,6 +977,23 @@ async function openModal(card) {
       document.querySelector('.calendar-wrapper-container')?.classList.remove('has-error');
       try { if(window.picker){ window.picker.setDate(null); } } catch(e) {}
       document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
+    })();
+
+    // Clear previously selected checkboxes, radios, and Others field
+    (function resetFormSelections(){
+      try{
+        document.querySelectorAll('#bookingForm input[name="types[]"]').forEach(cb=>{ cb.checked = false; });
+        const otherCb = document.getElementById('otherTypeCheckbox');
+        const otherTxt = document.getElementById('otherTypeText');
+        if(otherCb) otherCb.checked = false;
+        if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
+        const radios = document.querySelectorAll('#bookingForm input[name="mode"]');
+        radios.forEach(r=>{ r.checked=false; r.disabled=false; });
+        const cont = document.querySelector('.mode-selection');
+        cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
+        // Clear any remembered user-selected mode to avoid carryover between professors
+        try{ delete window.__userSelectedMode; }catch(_){ window.__userSelectedMode = undefined; }
+      }catch(_){ }
     })();
 
     const name = card.getAttribute("data-name");
@@ -1071,6 +1108,22 @@ function initCustomSubjectDropdown(){
 function closeModal() {
     document.getElementById("consultationModal").style.display = "none";
     document.body.classList.remove("modal-open");
+    // Reset form state so reopening is clean
+    try{
+      const form = document.getElementById('bookingForm');
+      if(form) form.reset();
+      const input = document.getElementById('calendar');
+      if(input) input.value='';
+      try { if(window.picker){ window.picker.setDate(null); } } catch(_){ }
+      document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
+      const otherTxt = document.getElementById('otherTypeText');
+      if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
+      const radios = document.querySelectorAll('#bookingForm input[name="mode"]');
+      radios.forEach(r=>{ r.checked=false; r.disabled=false; });
+      const cont = document.querySelector('.mode-selection');
+      cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
+      try{ delete window.__userSelectedMode; }catch(_){ window.__userSelectedMode = undefined; }
+    }catch(_){ }
 }
 
 // Optional: Close modal when clicking outside modal-content

@@ -330,8 +330,11 @@
         alert('Please select a student to start a video call.');
         return;
       }
-      const channel = encodeURIComponent(currentChatPerson.replace(/\s+/g, ''));
-      window.location.href = `/prof-call/${channel}`;
+  const studId = Number(currentStudentId);
+  const profId = Number(currentProfId);
+  if(!studId || !profId){ alert('Missing IDs for call.'); return; }
+  const channel = `stud-${studId}-prof-${profId}`;
+  window.location.href = `/prof-call/${encodeURIComponent(channel)}`;
     }
 
     let selectedFiles = [];
@@ -384,11 +387,17 @@
 
     // Send message with files (optimistic)
   let sending=false; const pendingMap={}; // client_uuid -> {el,t}
+  const SEND_COOLDOWN_MS = 1200; // anti-spam throttle
+  let sendCooldownUntil = 0;
   function genUuid(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);}); }
   function sendMessage() {
-    if(sending) return; // only lock during file upload
+    const now = Date.now();
+    if (now < sendCooldownUntil || sending) return; // block spam or active upload
     const message = textarea.value.trim();
     if (!message && selectedFiles.length === 0) return;
+    // Start cooldown immediately; disable button
+    sendCooldownUntil = now + SEND_COOLDOWN_MS;
+    const sendBtn = document.getElementById('send-btn'); if(sendBtn) sendBtn.disabled = true;
     const clientUuid = genUuid();
     if(message){
       const prevEmpty = document.querySelector('#chat-body .no-conversation');
@@ -405,7 +414,7 @@
       chatBody.appendChild(msgDiv); chatBody.scrollTop=chatBody.scrollHeight; pendingMap[clientUuid]={el:msgDiv,t:Date.now()};
       placeSentStatusProf(msgDiv);
     }
-    sending = selectedFiles.length>0; if(sending){ document.getElementById('send-btn').disabled=true; }
+  const hasFiles = selectedFiles.length>0; sending = hasFiles; if(hasFiles){ const b=document.getElementById('send-btn'); if(b) b.disabled=true; }
 
         const formData = new FormData();
         formData.append('message', message);
@@ -427,16 +436,16 @@
     .then(data => {
       if (data.status === 'Message sent!') {
         textarea.value=''; textarea.style.height='auto';
-        if(selectedFiles.length){ loadChat(currentChatPerson, currentStudentId); }
+        if(hasFiles){ loadChat(currentChatPerson, currentStudentId); }
         selectedFiles=[]; renderFilePreviews();
         ChatCommon.sendTyping(currentStudentId, currentProfId, 'professor', false);
       } else {
         alert('Error sending: ' + (data.error || data.status));
   if(pendingMap[clientUuid]){ pendingMap[clientUuid].el.classList.add('failed'); pendingMap[clientUuid].el.style.opacity='1'; }
       }
-      sending=false; document.getElementById('send-btn').disabled=false;
+      sending=false; const left=Math.max(0, sendCooldownUntil-Date.now()); setTimeout(()=>{ const b=document.getElementById('send-btn'); if(b) b.disabled=false; }, left);
     })
-    .catch(error => { alert('Error: ' + error); sending=false; document.getElementById('send-btn').disabled=false; });
+    .catch(error => { alert('Error: ' + error); sending=false; const left=Math.max(0, sendCooldownUntil-Date.now()); setTimeout(()=>{ const b=document.getElementById('send-btn'); if(b) b.disabled=false; }, left); });
     }
 
     document.getElementById("attach-btn")?.addEventListener("click", function () {

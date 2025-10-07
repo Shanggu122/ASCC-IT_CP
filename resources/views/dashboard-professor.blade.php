@@ -39,12 +39,14 @@
   .ov-force { background-color: #2563eb; }     /* Forced Online → Blue */
   .ov-online { background-color: #FF69B4; }    /* Online Day → Pink */
   .ov-leave  { background-color: #0ea5a4; }    /* Leave Day → Teal/Cyan */
+  .ov-endyear{ background-color: #6366f1; }    /* End of School Year → Indigo */
     /* Whole-cell background for overrides */
   .day-holiday { background: rgba(155, 89, 182, 0.55) !important; } /* Violet */
     .day-blocked { background: rgba(55, 65, 81, 0.75) !important; }   /* Suspended */
   .day-force   { background: rgba(37, 99, 235, 0.6) !important; }   /* Forced Online */
   .day-online  { background: rgba(255, 105, 180, 0.45) !important; }/* Online Day */
   .day-leave   { background: rgba(14, 165, 164, 0.55) !important; } /* Leave Day */
+  .day-endyear { background: rgba(99, 102, 241, 0.6) !important; }   /* End of School Year → Indigo */
     /* Unified arrow styling */
     .pika-prev, .pika-next {
       background-color: #0d2b20; /* dark fill */
@@ -158,6 +160,9 @@
   .pika-button.day-leave:hover,
   .pika-button.day-leave:focus,
   .pika-button.day-leave:active { background: rgba(14, 165, 164, 0.55) !important; color:#fff !important; }
+  .pika-button.day-endyear:hover,
+  .pika-button.day-endyear:focus,
+  .pika-button.day-endyear:active { background: rgba(99, 102, 241, 0.6) !important; color:#fff !important; }
   .is-today .pika-button:hover,
   .is-today .pika-button:focus,
   .is-today .pika-button:active { background:#5fb9d4 !important; color:#fff !important; }
@@ -331,13 +336,10 @@
 </head>
 <body>
   @include('components.navbarprof')
-
-
   <div class="main-content">
     <div class="header">
       <h1>Consultation Activity</h1>
     </div>
-    <div class="flex-layout">
       <div class="calendar-box">
         <div class="calendar-wrapper-container">
           <input id="calendar" type="text" placeholder="Select Date" name="booking_date" required>
@@ -346,6 +348,7 @@
         <button id="legendToggle" class="legend-toggle" aria-haspopup="dialog" aria-controls="legendBackdrop" aria-label="View Legend" title="View Legend">
           <!-- white info icon (SVG) for consistent color control -->
           <svg viewBox="0 0 24 24" aria-hidden="true">
+              try{ lsSetOv(lsKey, incoming, 6*3600*1000); }catch(_){ }
             <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 4.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5zM13 18h-2v-7h2v7z"/>
           </svg>
         </button>
@@ -374,6 +377,7 @@
                   <div class="legend-item"><span class="legend-swatch swatch-holiday"></span>Holiday <i class='bx bx-party legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-multiple"></span>Multiple Bookings <i class='bx bx-group legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-leave"></span>Leave Day <i class='bx bx-coffee legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-endyear"></span>End of School Year <i class='bx bx-calendar-x legend-icon' aria-hidden="true"></i></div>
                 </div>
               </div>
             </div>
@@ -596,6 +600,8 @@
       console.log('� Initial load - fetched consultation data:', data.length, 'entries');
       
       data.forEach(entry => {
+        // Skip cancelled so they don't pollute counts/colors at first paint
+        if ((entry.Status || '').toLowerCase() === 'cancelled') return;
         const date = new Date(entry.Booking_Date);
         const key = date.toDateString();
         
@@ -637,7 +643,7 @@
           cells.forEach(cell => {
           // clear any previous override visuals
           const oldBadge = cell.querySelector('.ov-badge'); if (oldBadge) oldBadge.remove();
-          cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-leave');
+          cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-leave','day-endyear');
           const day = cell.getAttribute('data-pika-day');
           const month = cell.getAttribute('data-pika-month');
           const year = cell.getAttribute('data-pika-year');
@@ -660,7 +666,8 @@
                 chosenCls = 'ov-holiday';
               } else if (chosen.effect === 'block_all') {
                 const isLeave = (chosen.reason_key === 'prof_leave' || chosen.label === 'Leave');
-                chosenCls = isLeave ? 'ov-leave' : 'ov-blocked';
+                const isEndYear = (!isLeave) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label || '') || /end\s*year/i.test(chosen.reason_text || ''));
+                chosenCls = isLeave ? 'ov-leave' : (isEndYear ? 'ov-endyear' : 'ov-blocked');
               } else if (chosen.effect === 'force_mode') {
                 chosenCls = (chosen.reason_key === 'online_day') ? 'ov-online' : 'ov-force';
               } else {
@@ -670,7 +677,8 @@
               const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
               badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
               const isProfLeave = (chosen.effect === 'block_all' && (chosen.reason_key === 'prof_leave' || chosen.label === 'Leave'));
-              badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (isProfLeave ? 'Leave' : 'Suspended') : forceLabel);
+              const isEndYearLbl = (chosen.effect === 'block_all') && (!isProfLeave) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label || '') || /end\s*year/i.test(chosen.reason_text || ''));
+              badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (isProfLeave ? 'Leave' : (isEndYearLbl ? 'End Year' : 'Suspended')) : forceLabel);
               cell.style.position = 'relative';
               cell.appendChild(badge);
               // Cell background class, with Online Day distinct from Forced Online
@@ -679,7 +687,8 @@
                 dayCls = 'day-holiday';
               } else if (chosen.effect === 'block_all') {
                 const isLeave = (chosen.reason_key === 'prof_leave' || chosen.label === 'Leave');
-                dayCls = isLeave ? 'day-leave' : 'day-blocked';
+                const isEndYear = (!isLeave) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label || '') || /end\s*year/i.test(chosen.reason_text || ''));
+                dayCls = isLeave ? 'day-leave' : (isEndYear ? 'day-endyear' : 'day-blocked');
               } else if (chosen.effect === 'force_mode') {
                 dayCls = (chosen.reason_key === 'online_day') ? 'day-online' : 'day-force';
               } else {
@@ -813,12 +822,21 @@ function fetchProfessorOverridesForMonth(dateObj) {
     if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) return;
     if (window.__profOvLoading) return; // prevent overlapping requests
     window.__profOvLoading = true;
-    const start = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
-    const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 0);
+    // widen range to include adjacent-month cells visible in grid
+    const start = new Date(dateObj.getFullYear(), dateObj.getMonth() - 1, 1);
+    const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 2, 0);
     const toIso = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const startStr = toIso(start);
     const endStr = toIso(end);
     const bust = Date.now();
+    // LocalStorage helpers
+    function lsGetOv(key){ try{ const raw=localStorage.getItem(key); if(!raw) return null; const obj=JSON.parse(raw); if(!obj||!obj.exp||Date.now()>obj.exp){ localStorage.removeItem(key); return null; } return obj.data; }catch(_){ return null; } }
+    function lsSetOv(key, data, ttlMs){ try{ localStorage.setItem(key, JSON.stringify({ exp: Date.now()+(ttlMs||6*3600*1000), data })); }catch(_){ }
+    }
+    const lsKey = `ov:prof:${startStr}-${endStr}`;
+    // Instant paint from cached snapshot if available
+    try { const ls = lsGetOv(lsKey); if (ls) { window.profOverrides = ls; if (window.professorPicker) window.professorPicker.draw(); } } catch(_) {}
+    // Network refresh
     fetch(`/api/professor/calendar/overrides?start_date=${startStr}&end_date=${endStr}&_=${bust}`, { headers: { 'Accept':'application/json' }, credentials:'same-origin' })
       .then(r=>r.json())
       .then(data => {
@@ -828,6 +846,7 @@ function fetchProfessorOverridesForMonth(dateObj) {
           const changed = JSON.stringify(incoming) !== JSON.stringify(prev);
           if (changed) {
             window.profOverrides = incoming;
+            try { lsSetOv(lsKey, incoming, 6*3600*1000); } catch(_) {}
             if (window.professorPicker) window.professorPicker.draw();
           }
         }
@@ -1093,7 +1112,7 @@ document.addEventListener('mouseover', function(e) {
         return;
       }
       
-      tooltip.innerHTML = html;
+  tooltip.innerHTML = html;
       tooltip.style.display = 'block';
 
       // Anchor tooltip to the right of the hovered cell (consistent UI)
@@ -1248,16 +1267,20 @@ function loadProfessorCalendarData() {
     .then(data => {
       console.log('Real-time update - fetched data:', data.length, 'entries');
       
-      // Store previous booking map for comparison
+      // Store previous booking map and counts for comparison
       const previousBookings = new Map();
+      const previousCounts = new Map();
       bookingMap.forEach((value, key) => {
         previousBookings.set(key, value);
       });
+      detailsMap.forEach((arr, key) => { previousCounts.set(key, (arr||[]).length); });
       
       bookingMap.clear(); // Clear existing data
       detailsMap.clear(); // Clear details data
       
       data.forEach(entry => {
+        // Skip cancelled so they don't show in tooltip
+        if ((entry.Status || '').toLowerCase() === 'cancelled') return;
         const date = new Date(entry.Booking_Date);
         const key = date.toDateString();
         // For status coloring and modal
@@ -1289,8 +1312,20 @@ function loadProfessorCalendarData() {
         }
       }
 
+      // Check for consultation count changes (affects multi-booking color)
+      if (!hasChanges) {
+        // Build current counts
+        const currentCounts = new Map();
+        detailsMap.forEach((arr, key) => { currentCounts.set(key, (arr||[]).length); });
+        // Compare previous vs. current counts
+        const allKeys = new Set([...previousCounts.keys(), ...currentCounts.keys()]);
+        for (const k of allKeys) {
+          if ((previousCounts.get(k) || 0) !== (currentCounts.get(k) || 0)) { hasChanges = true; break; }
+        }
+      }
+
       // Only update calendar cells if there are changes
-      if (hasChanges && window.professorPicker) {
+          if (hasChanges && window.professorPicker) {
         const cells = document.querySelectorAll('.pika-button');
         cells.forEach(cell => {
           const cellDate = new Date(cell.getAttribute('data-pika-year'), cell.getAttribute('data-pika-month'), cell.getAttribute('data-pika-day'));
@@ -1311,30 +1346,71 @@ function loadProfessorCalendarData() {
             const newCell = cell.cloneNode(true);
             cell.parentNode.replaceChild(newCell, cell);
             
-            if (booking) {
+              if (booking) {
               newCell.classList.add(`status-${booking.status}`);
               
               // Get the number of consultations for this date and add appropriate classes
               const consultationsForDay = detailsMap.get(dateStr) || [];
               const consultationCount = consultationsForDay.length;
               
-              if (consultationCount >= 2) {
+                if (consultationCount >= 2) {
                 newCell.classList.add('has-multiple-bookings');
               }
               
               // Store consultation count for tooltip or other uses
-              newCell.setAttribute('data-consultation-count', consultationCount);
+                  newCell.setAttribute('data-consultation-count', consultationCount);
               
               // Use data attributes for global event delegation (Pikaday-compatible)
               const key = dateStr;
               newCell.setAttribute('data-consultation-key', key);
               newCell.setAttribute('data-has-consultations', 'true');
               
-              console.log('Updated cell with global hover data:', key, 'Consultations:', consultationCount);
+                  console.log('Updated cell with global hover data:', key, 'Consultations:', consultationCount);
             }
           }
         });
+
+        // If current hovered cell now has no consultations, hide tooltip
+        try {
+          const tooltip = document.getElementById('consultationTooltip');
+          if (tooltip && currentHoveredCell) {
+            const c = currentHoveredCell;
+            const d = new Date(c.getAttribute('data-pika-year'), c.getAttribute('data-pika-month'), c.getAttribute('data-pika-day'));
+            const key = d.toDateString();
+            const list = detailsMap.get(key) || [];
+            if (list.length === 0) {
+              tooltip.style.display = 'none';
+              currentHoveredCell = null;
+            }
+          }
+        } catch(_) {}
       }
+
+        // Always correct the multi-booking indicator and counts based on current data,
+        // even if status/id didn't change (e.g., cancellations reduced the count).
+        try {
+          const cells = document.querySelectorAll('.pika-button');
+          cells.forEach(cell => {
+            const y = parseInt(cell.getAttribute('data-pika-year'), 10);
+            const m = parseInt(cell.getAttribute('data-pika-month'), 10);
+            const d = parseInt(cell.getAttribute('data-pika-day'), 10);
+            if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(d)) return;
+            const dateStr = new Date(y, m, d).toDateString();
+            const list = detailsMap.get(dateStr) || [];
+            const cnt = list.length;
+            if (cnt >= 2) cell.classList.add('has-multiple-bookings');
+            else cell.classList.remove('has-multiple-bookings');
+            cell.setAttribute('data-consultation-count', cnt);
+            // If zero consultations for the day, ensure tooltip flags are cleared
+            if (cnt === 0) {
+              cell.removeAttribute('data-consultation-key');
+              cell.removeAttribute('data-has-consultations');
+            } else {
+              cell.setAttribute('data-consultation-key', dateStr);
+              cell.setAttribute('data-has-consultations', 'true');
+            }
+          });
+        } catch (_) {}
     })
     .catch(error => {
       console.error('Error loading professor calendar data:', error);

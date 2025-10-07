@@ -380,8 +380,11 @@
             showToast('Video call is only available during your consultation schedule.', 'error');
             return;
           }
-          const channel = encodeURIComponent(currentChatPerson.replace(/\s+/g, ''));
-          window.location.href = `/video-call/${channel}`;
+          const studId = Number(currentStudentId);
+          const profId = Number(currentProfId);
+          if(!studId || !profId){ showToast('Missing IDs for call.', 'error'); return; }
+          const channel = `stud-${studId}-prof-${profId}`;
+          window.location.href = `/video-call/${encodeURIComponent(channel)}`;
         }
 
         let selectedFiles = [];
@@ -442,12 +445,20 @@
   // Send message with files
   window.CHAT_LATENCY_LOG = true; // toggle to false to silence latency logs
   let sending = false;
+  const SEND_COOLDOWN_MS = 1200; // anti-spam minimum interval per send
+  let sendCooldownUntil = 0;
   const pendingMap = {}; // client_uuid -> {el,t}
     function genUuid(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0,v=c==='x'?r:(r&0x3|0x8);return v.toString(16);}); }
     function sendMessage() {
-      if(sending) return; // still keep lock for button spam with large files
+      // Anti-spam: block if within cooldown window or currently uploading
+      const now = Date.now();
+      if (now < sendCooldownUntil || sending) { return; }
       const message = textarea.value.trim();
       if(!message && selectedFiles.length===0) return;
+      // Start cooldown immediately (even for plain text) and disable button
+      sendCooldownUntil = now + SEND_COOLDOWN_MS;
+      const sendBtn = document.getElementById('send-btn');
+      if (sendBtn) sendBtn.disabled = true;
       const clientUuid = genUuid();
       // Optimistic append immediately
       if(message){
@@ -469,8 +480,8 @@
         pendingMap[clientUuid]={el:msgDiv,t:Date.now()};
         placeSentStatus(msgDiv);
       }
-      sending = selectedFiles.length>0; // if uploading files, lock; plain text allow rapid next
-      if(sending){ document.getElementById('send-btn').disabled=true; }
+  const hasFiles = selectedFiles.length>0;
+  sending = hasFiles; // if uploading files, keep network lock too
 
             const formData = new FormData();
             formData.append('message', message);
@@ -489,10 +500,10 @@
                 body: formData
             })
             .then(response => response.json())
-            .then(data => {
+      .then(data => {
                 if (data.status === 'Message sent!') {
                     textarea.value=''; textarea.style.height='auto';
-                    if(selectedFiles.length){ loadChat(currentChatPerson, currentProfId); }
+          if(hasFiles){ loadChat(currentChatPerson, currentProfId); }
                     selectedFiles=[]; renderFilePreviews();
                     // Stop typing indicator
                     ChatCommon.sendTyping(currentStudentId, currentProfId, 'student', false);
@@ -501,9 +512,17 @@
                     // On error, mark pending bubble failed
                     if(pendingMap[clientUuid]){ pendingMap[clientUuid].classList.add('failed'); pendingMap[clientUuid].style.opacity='1'; }
                 }
-                sending = false; document.getElementById('send-btn').disabled=false;
+        sending = false;
+        // Release send button after remaining cooldown (or immediately if elapsed)
+        const left = Math.max(0, sendCooldownUntil - Date.now());
+        setTimeout(()=>{ const b=document.getElementById('send-btn'); if(b) b.disabled=false; }, left);
             })
-            .catch(error => { alert('Error: ' + error); sending=false; document.getElementById('send-btn').disabled = false; });
+      .catch(error => {
+        alert('Error: ' + error);
+        sending=false;
+        const left = Math.max(0, sendCooldownUntil - Date.now());
+        setTimeout(()=>{ const b=document.getElementById('send-btn'); if(b) b.disabled=false; }, left);
+      });
         }
 
         document.getElementById("attach-btn")?.addEventListener("click", function () {

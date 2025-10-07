@@ -160,6 +160,9 @@
 .swatch-holiday {
     background: #9b59b6; /* Holiday → Violet */
 }
+.swatch-endyear {
+    background: #6366f1; /* End of School Year → Indigo (matches ov-endyear) */
+}
 .swatch-leave {
     background: #0ea5a4; /* Leave Day → Teal/Cyan (matches professor) */
 }

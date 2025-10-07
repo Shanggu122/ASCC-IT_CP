@@ -217,7 +217,10 @@
       </div>
       <div class="filter-group-horizontal">
         @php
-          $subjects = collect($bookings ?? [])->pluck('subject')->filter(fn($s)=>filled($s))
+          $bookingsFiltered = collect($bookings ?? [])->filter(function($b){
+            return strtolower($b->Status ?? '') !== 'cancelled';
+          })->values();
+          $subjects = collect($bookingsFiltered ?? [])->pluck('subject')->filter(fn($s)=>filled($s))
                        ->map(fn($s)=>trim($s))->unique()->sort()->values();
         @endphp
         <select id="subjectFilter" class="filter-select" aria-label="Subject filter">
@@ -254,7 +257,7 @@
         </div>
     
         <!-- Dynamic Data Rows -->
-  @forelse($bookings as $b)
+  @forelse($bookingsFiltered as $b)
   <div class="table-row"
     data-student="{{ strtolower($b->student) }}"
     data-subject="{{ strtolower($b->subject) }}"
@@ -323,6 +326,9 @@
         <div id="paginationControls" class="pagination"></div>
       </div>
     </div>
+
+    <!-- Bottom scroll spacer for mobile chat overlay clearance -->
+    <div class="bottom-safe-space" aria-hidden="true"></div>
 
     <!-- Mobile Filters Overlay -->
     <div class="filters-overlay" id="filtersOverlay" aria-hidden="true">
@@ -1336,6 +1342,13 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           const rows = Array.from(table.querySelectorAll('.table-row')).filter(r=>!r.classList.contains('table-header'));
           let existing = null; let index = 0;
           rows.forEach((r,i)=>{ const idCell = r.querySelector('[data-booking-id]'); if(idCell && parseInt(idCell.getAttribute('data-booking-id'))===parseInt(data.Booking_ID)){ existing = r; index=i; } });
+
+          // If cancelled, remove the row and refresh UI
+          if(String((data.Status||'')).toLowerCase()==='cancelled'){
+            if(existing){ try{ existing.remove(); }catch(e){} }
+            if(typeof filterRows==='function') filterRows();
+            return;
+          }
 
           // If updating and some fields are missing, read them from the existing row
           if(existing){

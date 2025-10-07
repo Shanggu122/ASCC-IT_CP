@@ -32,6 +32,7 @@ use App\Models\Notification;
 use App\Http\Controllers\AdminAuthController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfessorConsultationPdfController;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon; // added for availability endpoint
 use Carbon\CarbonPeriod;
 
@@ -137,6 +138,32 @@ Route::middleware([
 Route::get("/video-call/{user}", [VideoCallController::class, "show"])
     ->name("video.call")
     ->middleware("auth");
+
+// Agora token issuance (student only)
+Route::middleware(["web", "auth"])->group(function () {
+    Route::get("/agora/token/rtc", [
+        \App\Http\Controllers\AgoraTokenController::class,
+        "rtcToken",
+    ])->name("agora.token.rtc");
+    Route::get("/agora/token/rtm", [
+        \App\Http\Controllers\AgoraTokenController::class,
+        "rtmToken",
+    ])->name("agora.token.rtm");
+});
+
+// Agora token issuance (professor only)
+Route::middleware(["web", \App\Http\Middleware\EnsureProfessorAuthenticated::class])->group(
+    function () {
+        Route::get("/agora/token/rtc-prof", [
+            \App\Http\Controllers\AgoraTokenController::class,
+            "rtcTokenProfessor",
+        ])->name("agora.token.rtc.prof");
+        Route::get("/agora/token/rtm-prof", [
+            \App\Http\Controllers\AgoraTokenController::class,
+            "rtmTokenProfessor",
+        ])->name("agora.token.rtm.prof");
+    },
+);
 // Presence limiting endpoints (max 5 students per channel)
 // Route placeholders disabled until CallPresenceController is added
 // (CallPresenceController routes temporarily removed until controller implementation is added)
@@ -608,6 +635,102 @@ Route::post("/api/consultations/update-status", function (Request $request) {
         ]);
     }
 });
+
+// Student cancel booking within 1 hour (pending only)
+Route::post("/api/student/consultations/cancel", function (Request $request) {
+    try {
+        $user = Auth::user();
+        if (!$user || !isset($user->Stud_ID)) {
+            return response()->json(["success" => false, "message" => "Unauthorized"], 401);
+        }
+        $id = (int) $request->input("id");
+        if (!$id) {
+            return response()->json(
+                ["success" => false, "message" => "Booking ID is required."],
+                422,
+            );
+        }
+        $booking = DB::table("t_consultation_bookings")->where("Booking_ID", $id)->first();
+        if (!$booking) {
+            return response()->json(["success" => false, "message" => "Booking not found."], 404);
+        }
+        if ((int) $booking->Stud_ID !== (int) $user->Stud_ID) {
+            return response()->json(
+                ["success" => false, "message" => "You can only cancel your own booking."],
+                403,
+            );
+        }
+        $status = strtolower((string) $booking->Status);
+        if ($status !== "pending") {
+            return response()->json(
+                [
+                    "success" => false,
+                    "message" => "Only pending bookings can be cancelled by the student.",
+                ],
+                422,
+            );
+        }
+        // Time window: within 1 hour from creation
+        try {
+            $created = \Carbon\Carbon::parse($booking->Created_At, "Asia/Manila");
+        } catch (\Throwable $e) {
+            $created = \Carbon\Carbon::now("Asia/Manila")->subYears(1);
+        }
+        $now = \Carbon\Carbon::now("Asia/Manila");
+        if ($now->diffInSeconds($created) > 3600) {
+            return response()->json(
+                ["success" => false, "message" => "Cancellation window has expired (1 hour)."],
+                422,
+            );
+        }
+
+        $updated = DB::table("t_consultation_bookings")
+            ->where("Booking_ID", $id)
+            ->update(["Status" => "cancelled"]);
+        if ($updated <= 0) {
+            return response()->json(["success" => false, "message" => "Failed to cancel booking."]);
+        }
+
+        // Delete notifications for this booking for both professor and student
+        try {
+            \App\Models\Notification::where("booking_id", $id)->delete();
+        } catch (\Throwable $e) {
+        }
+
+        // Broadcast to professor and student channels to update UI
+        try {
+            $profId = (int) $booking->Prof_ID;
+            event(
+                new \App\Events\BookingUpdated($profId, [
+                    "event" => "BookingUpdated",
+                    "Booking_ID" => (int) $booking->Booking_ID,
+                    "Status" => "cancelled",
+                ]),
+            );
+        } catch (\Throwable $e) {
+        }
+        try {
+            $studId = (int) $booking->Stud_ID;
+            if ($studId > 0) {
+                event(
+                    new \App\Events\BookingUpdatedStudent($studId, [
+                        "event" => "BookingUpdated",
+                        "Booking_ID" => (int) $booking->Booking_ID,
+                        "Status" => "cancelled",
+                    ]),
+                );
+            }
+        } catch (\Throwable $e) {
+        }
+
+        return response()->json(["success" => true, "message" => "Booking cancelled."]);
+    } catch (\Throwable $e) {
+        return response()->json(
+            ["success" => false, "message" => "Server error: " . $e->getMessage()],
+            500,
+        );
+    }
+})->middleware(["auth"]);
 
 // Professor notifications (existing student routes above) - ensure professor guard usage
 Route::get("/api/professor/notifications", [

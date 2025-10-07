@@ -265,10 +265,13 @@
   .ov-blocked { background-color: #374151; }
   .ov-force { background-color: #2563eb; }
   .ov-online { background-color: #FF69B4; }
+  .ov-endyear { background-color: #6366f1; } /* End of School Year → Indigo */
+  .ov-leave   { background-color: #0ea5a4; } /* Professor Leave → Teal */
   .day-holiday { background: rgba(155, 89, 182, 0.55) !important; }
   .day-blocked { background: rgba(55, 65, 81, 0.75) !important; }
   .day-force   { background: rgba(37, 99, 235, 0.6) !important; }
   .day-online  { background: rgba(255, 105, 180, 0.45) !important; }
+  .day-endyear { background: rgba(99, 102, 241, 0.6) !important; } /* End Year → Indigo */
 
   /* Ensure holiday stays violet even when disabled */
   .is-disabled .pika-button.day-holiday {
@@ -286,6 +289,12 @@
   /* Keep Online Day pink even when disabled (if ever disabled by other logic) */
   .is-disabled .pika-button.day-online {
     background: rgba(255, 105, 180, 0.45) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+  }
+  /* Ensure End Year stays indigo even when disabled */
+  .is-disabled .pika-button.day-endyear {
+    background: rgba(99, 102, 241, 0.6) !important;
     color: #ffffff !important;
     border-color: transparent !important;
   }
@@ -466,6 +475,21 @@
   document.addEventListener("DOMContentLoaded", function() {
       // Will be updated whenever modal opened
       let allowedWeekdays = new Set(); // numeric 1-5 (Mon-Fri) allowed for selected professor
+
+      // Instant hydration via localStorage (removes initial shading delay)
+      function lsGetOv(key){
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) return null;
+          const obj = JSON.parse(raw);
+          if (!obj || !obj.exp || Date.now() > obj.exp) { localStorage.removeItem(key); return null; }
+          return obj.data || null;
+        } catch(_) { return null; }
+      }
+      function lsSetOv(key, data, ttlMs){
+        try { localStorage.setItem(key, JSON.stringify({ exp: Date.now() + (ttlMs || 6*3600*1000), data })); } catch(_) {}
+      }
+      function buildLsKey(scope, cacheKey){ return `ov:${scope}:${cacheKey}`; }
 
       // Public overrides cache and helpers
       window.__publicOverrides = window.__publicOverrides || {}; // { 'YYYY-MM-DD': [ {effect, reason_key, allowed_mode, ...} ] }
@@ -692,7 +716,7 @@
           if(!btn) return;
           // Clear previous override visuals
           const old = btn.querySelector('.ov-badge'); if(old) old.remove();
-          btn.classList.remove('day-holiday','day-blocked','day-force','day-online');
+          btn.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear','ov-hard-block','day-leave');
           // IMPORTANT: Do NOT clear is-disabled or disabled attributes; schedule-based rules must persist
           // Compute ISO key
           const y = parseInt(btn.getAttribute('data-pika-year'),10);
@@ -708,15 +732,21 @@
           const badge = document.createElement('span');
           let chosenCls;
           if (chosen.effect === 'holiday') chosenCls = 'ov-holiday';
-          else if (chosen.effect === 'block_all') chosenCls = (chosen.reason_key === 'prof_leave' ? 'ov-leave' : 'ov-blocked');
+          else if (chosen.effect === 'block_all') {
+            const isLeave = (chosen.reason_key === 'prof_leave' || /leave/i.test(chosen.label||''));
+            const isEndYear = (!isLeave) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label||'') || /end\s*year/i.test(chosen.reason_text||''));
+            chosenCls = isLeave ? 'ov-leave' : (isEndYear ? 'ov-endyear' : 'ov-blocked');
+          }
           else if (chosen.effect === 'force_mode') chosenCls = (chosen.reason_key === 'online_day') ? 'ov-online' : 'ov-force';
           else chosenCls = 'ov-force';
           badge.className = 'ov-badge ' + chosenCls;
           const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
           badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
+          const isLeaveLbl = (chosen.effect === 'block_all') && (chosen.reason_key === 'prof_leave' || /leave/i.test(chosen.label||''));
+          const isEndYearLbl = (chosen.effect === 'block_all') && (!isLeaveLbl) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label||'') || /end\s*year/i.test(chosen.reason_text||''));
           badge.textContent = chosen.effect === 'holiday'
             ? (chosen.reason_text || 'Holiday')
-            : (chosen.effect === 'block_all' ? (chosen.reason_key === 'prof_leave' ? 'Leave' : 'Suspended') : forceLabel);
+            : (chosen.effect === 'block_all' ? (isLeaveLbl ? 'Leave' : (isEndYearLbl ? 'End Year' : 'Suspended')) : forceLabel);
           btn.style.position = 'relative';
           btn.appendChild(badge);
           // Apply tint for force_mode/online-day; and for holiday we want violet tile even if disabled.
@@ -734,11 +764,17 @@
             btn.style.pointerEvents='none';
             // For Suspended (block_all): dark-grey tile; for Holiday: violet tile
             if (chosen.effect === 'block_all') {
-              if (chosen.reason_key === 'prof_leave') {
+              const isLeave = (chosen.reason_key === 'prof_leave' || /leave/i.test(chosen.label||''));
+              const isEndYear = (!isLeave) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label||'') || /end\s*year/i.test(chosen.reason_text||''));
+              if (isLeave) {
                 btn.classList.add('day-leave');
                 btn.classList.remove('ov-hard-block');
+              } else if (isEndYear) {
+                btn.classList.add('day-endyear');
+                btn.classList.remove('ov-hard-block');
+              } else {
+                btn.classList.add('ov-hard-block');
               }
-              else { btn.classList.add('ov-hard-block'); }
             } else {
               btn.classList.remove('ov-hard-block');
               btn.classList.add('day-holiday');
@@ -746,7 +782,7 @@
           }
           else {
             // Ensure we don't leave the hard-block or leave classes on normal days
-            btn.classList.remove('ov-hard-block','day-holiday','day-leave');
+            btn.classList.remove('ov-hard-block','day-holiday','day-leave','day-endyear');
           }
           // Enforce mode if forced
           if (chosen.effect === 'force_mode') {
@@ -813,17 +849,27 @@
           if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) return;
           if (window.__studentOvLoading) return;
           window.__studentOvLoading = true;
-          const start = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
-          const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 0);
+          // Fetch a wider window: previous, current, and next month
+          const start = new Date(dateObj.getFullYear(), dateObj.getMonth() - 1, 1);
+          const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 2, 0);
           const toIso = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
           const startStr = toIso(start);
           const endStr = toIso(end);
           const bust = Date.now();
           const profIdInput = document.getElementById('modalProfId');
           const profId = profIdInput ? profIdInput.value : '';
-          const cacheKey = `${profId||'all'}|${startStr}-${endStr}`;
+          const cacheKey = `${profId||'all'}|${startStr}-${endStr}`; // includes prev+current+next month
           const url = profId ? `/api/calendar/overrides/professor?prof_id=${encodeURIComponent(profId)}&start_date=${startStr}&end_date=${endStr}&_=${bust}`
                               : `/api/calendar/overrides?start_date=${startStr}&end_date=${endStr}&_=${bust}`;
+          // Hydrate immediately from localStorage (instant paint)
+          try {
+            const ls = lsGetOv(buildLsKey('public', cacheKey));
+            if (ls) {
+              window.__publicOverrides = ls;
+              recomputeBlockedSet();
+              if (window.picker) { window.picker.draw(); try{ applyPublicOverridesToCalendar(); }catch(_){ } }
+            }
+          } catch(_) {}
           // If we already have cached overrides for this range, paint immediately
           try {
             const cached = window.__ovCache[cacheKey];
@@ -842,6 +888,7 @@
                 const prev = window.__publicOverrides || {};
                 const changed = JSON.stringify(incoming) !== JSON.stringify(prev);
                 try { window.__ovCache[cacheKey] = incoming; } catch(_){ }
+                try { lsSetOv(buildLsKey('public', cacheKey), incoming, 6*3600*1000); } catch(_) {}
                 if(changed){
                   window.__publicOverrides = incoming;
                   recomputeBlockedSet();
@@ -1018,6 +1065,26 @@ async function openModal(card) {
       document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
     })();
 
+    // Clear previous form choices (types, mode, Others field)
+    (function resetFormSelections(){
+      try{
+        // Uncheck all consultation type checkboxes
+        document.querySelectorAll('#bookingForm input[name="types[]"]').forEach(cb=>{ cb.checked=false; });
+        // Reset Others text field visibility and value
+        const otherCb = document.getElementById('otherTypeCheckbox');
+        const otherTxt = document.getElementById('otherTypeText');
+        if(otherCb) otherCb.checked = false;
+        if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
+        // Reset mode radios and UI state
+        const radios = document.querySelectorAll('#bookingForm input[name="mode"]');
+        radios.forEach(r=>{ r.checked=false; r.disabled=false; });
+        const cont = document.querySelector('.mode-selection');
+        cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
+        // Clear any remembered user-selected mode so it doesn't bleed into next open
+        try{ delete window.__userSelectedMode; }catch(_){ window.__userSelectedMode = undefined; }
+      }catch(_){ }
+    })();
+
     const name = card.getAttribute("data-name");
     const img = card.getAttribute("data-img");
     const profId = card.getAttribute("data-prof-id");
@@ -1055,9 +1122,15 @@ async function openModal(card) {
   try {
     const base = getVisibleMonthBaseDate();
     const toIso = (d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    const start = new Date(base.getFullYear(), base.getMonth(), 1);
-    const end = new Date(base.getFullYear(), base.getMonth()+1, 0);
+  // Use expanded window to cover adjacent-month cells
+  const start = new Date(base.getFullYear(), base.getMonth()-1, 1);
+  const end = new Date(base.getFullYear(), base.getMonth()+2, 0);
     const cacheKey = `${profId||'all'}|${toIso(start)}-${toIso(end)}`;
+    // Instant paint from localStorage snapshot if available
+    try {
+      const ls = lsGetOv(buildLsKey('public', cacheKey));
+      if (ls) { window.__publicOverrides = ls; recomputeBlockedSet(); if(window.picker){ window.picker.draw(); try{ applyPublicOverridesToCalendar(); }catch(_){ } } }
+    } catch(_) {}
     // If a prefetch promise exists for this window, await it briefly (up to ~180ms)
     try{
       const p = (window.__ovPending||{})[cacheKey];
@@ -1071,8 +1144,8 @@ async function openModal(card) {
     }
     // Fetch fresh data and apply immediately on resolve
     try {
-      const start = new Date(base.getFullYear(), base.getMonth(), 1);
-      const end = new Date(base.getFullYear(), base.getMonth()+1, 0);
+  const start = new Date(base.getFullYear(), base.getMonth()-1, 1);
+  const end = new Date(base.getFullYear(), base.getMonth()+2, 0);
       const toIso = (d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       const url = `/api/calendar/overrides/professor?prof_id=${encodeURIComponent(profId)}&start_date=${toIso(start)}&end_date=${toIso(end)}&_=${Date.now()}`;
       fetch(url, { headers:{ 'Accept':'application/json' } })
@@ -1155,6 +1228,25 @@ function initCustomSubjectDropdown(){
 function closeModal() {
     document.getElementById("consultationModal").style.display = "none";
     document.body.classList.remove("modal-open");
+    // Also reset form so reopening starts fresh
+    try{
+      const form = document.getElementById('bookingForm');
+      if(form) form.reset();
+      // Clear calendar selection/value
+      const input = document.getElementById('calendar');
+      if(input) input.value='';
+      try { if(window.picker){ window.picker.setDate(null); } } catch(_){ }
+      document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
+      // Reset Others field visibility
+      const otherTxt = document.getElementById('otherTypeText');
+      if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
+      // Re-enable/uncheck mode radios and clear remembered selection
+      const radios = document.querySelectorAll('#bookingForm input[name="mode"]');
+      radios.forEach(r=>{ r.checked=false; r.disabled=false; });
+      const cont = document.querySelector('.mode-selection');
+      cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
+      try{ delete window.__userSelectedMode; }catch(_){ window.__userSelectedMode = undefined; }
+    }catch(_){ }
 }
 
 // Optional: Close modal when clicking outside modal-content

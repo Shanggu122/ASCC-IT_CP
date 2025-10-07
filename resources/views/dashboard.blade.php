@@ -38,11 +38,13 @@
     .ov-blocked { background-color: #374151; }   /* Suspended → Dark Gray */
     .ov-force { background-color: #2563eb; }     /* Forced Online → Blue */
     .ov-online { background-color: #FF69B4; }    /* Online Day → Pink */
+    .ov-endyear { background-color: #6366f1; }   /* End of School Year → Indigo */
     /* Whole-cell background for overrides */
   .day-holiday { background: rgba(155, 89, 182, 0.55) !important; } /* Violet */
     .day-blocked { background: rgba(55, 65, 81, 0.75) !important; }   /* Suspended */
     .day-force   { background: rgba(37, 99, 235, 0.6) !important; }   /* Forced Online */
     .day-online  { background: rgba(255, 105, 180, 0.45) !important; }/* Online Day */
+    .day-endyear { background: rgba(99, 102, 241, 0.6) !important; }   /* End of School Year → Indigo */
     /* Unified arrow styling (matches consultation form) */
     .pika-prev, .pika-next {
       background-color: #0d2b20; /* dark fill */
@@ -130,18 +132,26 @@
       padding: 6px;
       height: 48px;
       margin: 4px 0;
-      pointer-events: none;
+      pointer-events: auto; /* enable hover tooltips */
+      cursor: default; /* neutral cursor like professor */
       font-size: clamp(0.7rem, 2vw, 1rem);
     }
-    .pika-button:hover, .pika-row.pick-whole-week:hover .pika-button {
+    /* Neutral hover like professor (do not tint on hover) */
+    .pika-button:hover,
+    .pika-row.pick-whole-week:hover .pika-button,
+    .pika-button:focus,
+    .pika-button:active {
       color: #fff;
-      background: #01703c;
+      background: #cac7c7;
       box-shadow: none;
+      outline: none;
       border-radius: 3px;
     }
-    .is-selected .pika-button, .has-event .pika-button {
+    /* Prevent selected state from turning dark green */
+    .is-selected .pika-button,
+    .has-event .pika-button {
       color: #ffffff;
-      background-color: #12372a !important;
+      background-color: #cac7c7 !important;
       box-shadow: none;
     }
     .is-today .pika-button {
@@ -149,6 +159,25 @@
       background-color: #5fb9d4;
       font-weight: bold;
     }
+    /* Keep tinted override states on hover (match professor behavior) */
+    .pika-button.day-online:hover,
+    .pika-button.day-online:focus,
+    .pika-button.day-online:active { background: rgba(255, 105, 180, 0.45) !important; color:#fff !important; }
+    .pika-button.day-force:hover,
+    .pika-button.day-force:focus,
+    .pika-button.day-force:active { background: rgba(37, 99, 235, 0.6) !important; color:#fff !important; }
+    .pika-button.day-holiday:hover,
+    .pika-button.day-holiday:focus,
+    .pika-button.day-holiday:active { background: rgba(155, 89, 182, 0.55) !important; color:#fff !important; }
+    .pika-button.day-blocked:hover,
+    .pika-button.day-blocked:focus,
+    .pika-button.day-blocked:active { background: rgba(55, 65, 81, 0.75) !important; color:#fff !important; }
+  .pika-button.day-endyear:hover,
+  .pika-button.day-endyear:focus,
+  .pika-button.day-endyear:active { background: rgba(99, 102, 241, 0.6) !important; color:#fff !important; }
+    .is-today .pika-button:hover,
+    .is-today .pika-button:focus,
+    .is-today .pika-button:active { background:#5fb9d4 !important; color:#fff !important; }
 
     .has-booking {
       border-radius: 4px;
@@ -231,6 +260,7 @@
                   <div class="legend-item"><span class="legend-swatch swatch-forced"></span>Forced Online <i class='bx bx-switch legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-holiday"></span>Holiday <i class='bx bx-party legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-leave"></span>Leave Day <i class='bx bx-coffee legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-endyear"></span>End of School Year <i class='bx bx-calendar-x legend-icon' aria-hidden="true"></i></div>
                   
                 </div>
               </div>
@@ -290,6 +320,8 @@
         <button type="submit">Send</button>
       </form>
     </div>
+    <!-- Consultation Tooltip (student) -->
+    <div id="consultationTooltip" style="display:none; position:absolute; z-index:9999; background:#fff; border:1px solid #e1e5e9; border-radius:8px; padding:12px; max-width:320px; max-height:400px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,0.15); font-family:'Poppins',sans-serif; line-height:1.4;"></div>
   </div>
 
   <script src="{{ asset('js/dashboard.js') }}"></script>
@@ -350,9 +382,12 @@
         bookingMap.clear(); // Clear existing data
         
         data.forEach(entry => {
+          const statusLower = (entry.Status || '').toLowerCase();
+          // Skip cancelled so student cells don't get marked as having consultations
+          if (statusLower === 'cancelled') return;
           const date = new Date(entry.Booking_Date);
           const key = date.toDateString();
-          bookingMap.set(key, (entry.Status || '').toLowerCase());
+          bookingMap.set(key, statusLower);
         });
         
         // Only update calendar if there are actual changes
@@ -418,10 +453,12 @@
       cells.forEach(cell => {
         // Remove existing status classes and override visuals
         cell.classList.remove('has-booking', 'status-pending', 'status-approved', 'status-completed', 'status-rescheduled');
-        cell.classList.remove('day-holiday','day-blocked','day-force','day-online');
+        cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
         const oldBadge = cell.querySelector('.ov-badge');
         if (oldBadge) oldBadge.remove();
         cell.removeAttribute('data-status');
+        cell.removeAttribute('data-consultation-key');
+        cell.removeAttribute('data-has-consultations');
         
         const day = cell.getAttribute('data-pika-day');
         const month = cell.getAttribute('data-pika-month');
@@ -444,12 +481,13 @@
             }
             if (!chosen) { return; }
             const badge = document.createElement('span');
-            // Badge class: distinguish Online Day vs Forced Online
+            // Badge class: distinguish Online Day vs Forced Online; End Year distinct from Suspended
             let chosenCls;
             if (chosen.effect === 'holiday') {
               chosenCls = 'ov-holiday';
             } else if (chosen.effect === 'block_all') {
-              chosenCls = 'ov-blocked';
+              const isEndYear = (chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label || '') || /end\s*year/i.test(chosen.reason_text || '');
+              chosenCls = isEndYear ? 'ov-endyear' : 'ov-blocked';
             } else if (chosen.effect === 'force_mode') {
               chosenCls = (chosen.reason_key === 'online_day') ? 'ov-online' : 'ov-force';
             } else {
@@ -458,7 +496,8 @@
             badge.className = 'ov-badge ' + chosenCls;
             const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
             badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
-            badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? 'Suspended' : forceLabel);
+            const isEndYearLbl = (chosen.effect === 'block_all') && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label || '') || /end\s*year/i.test(chosen.reason_text || ''));
+            badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (isEndYearLbl ? 'End Year' : 'Suspended') : forceLabel);
             cell.style.position = 'relative';
             cell.appendChild(badge);
             // Cell background class, with Online Day distinct from Forced Online
@@ -466,7 +505,8 @@
             if (chosen.effect === 'holiday') {
               dayCls = 'day-holiday';
             } else if (chosen.effect === 'block_all') {
-              dayCls = 'day-blocked';
+              const isEndYear = (chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label || '') || /end\s*year/i.test(chosen.reason_text || '');
+              dayCls = isEndYear ? 'day-endyear' : 'day-blocked';
             } else if (chosen.effect === 'force_mode') {
               dayCls = (chosen.reason_key === 'online_day') ? 'day-online' : 'day-force';
             } else {
@@ -485,6 +525,9 @@
             cell.classList.add('has-booking');
             cell.classList.add(classMap[status]);
             cell.setAttribute('data-status', status);
+            // Mark for tooltip hover
+            cell.setAttribute('data-consultation-key', key);
+            cell.setAttribute('data-has-consultations', 'true');
           }
         }
       });
@@ -543,13 +586,21 @@
       if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) return;
       if (window.__studentOvLoading) return; // prevent overlapping requests
       window.__studentOvLoading = true;
-      const start = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
-      const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 0);
+      // widen range to cover adjacent-month cells that are visible
+      const start = new Date(dateObj.getFullYear(), dateObj.getMonth() - 1, 1);
+      const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 2, 0);
       const toIso = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       const startStr = toIso(start);
       const endStr = toIso(end);
       const bust = Date.now();
-      // Global-only overrides for student dashboard
+      // LocalStorage helpers
+      function lsGetOv(key){ try{ const raw=localStorage.getItem(key); if(!raw) return null; const obj=JSON.parse(raw); if(!obj||!obj.exp||Date.now()>obj.exp){ localStorage.removeItem(key); return null; } return obj.data; }catch(_){ return null; } }
+      function lsSetOv(key, data, ttlMs){ try{ localStorage.setItem(key, JSON.stringify({ exp: Date.now()+(ttlMs||6*3600*1000), data })); }catch(_){ }
+      }
+      const lsKey = `ov:student:${startStr}-${endStr}`;
+      // Instant paint from LS snapshot if present
+      try { const ls = lsGetOv(lsKey); if(ls){ window.studentOverrides = ls; if (window.picker) window.picker.draw(); } } catch(_) {}
+      // Global-only overrides for student dashboard (network refresh)
       fetch(`/api/calendar/overrides?start_date=${startStr}&end_date=${endStr}&_=${bust}`, { headers: { 'Accept':'application/json' } })
         .then(r=>r.json())
         .then(data => {
@@ -559,6 +610,7 @@
             const changed = JSON.stringify(incoming) !== JSON.stringify(prev);
             if (changed) {
               window.studentOverrides = incoming;
+              try{ lsSetOv(lsKey, incoming, 6*3600*1000); }catch(_){ }
               if (window.picker) window.picker.draw();
             }
           }
@@ -586,6 +638,191 @@
   
   // Real-time refresh booking data every 3 seconds (reduced for smoother updates)
   setInterval(loadBookingData, 3000);
+  
+  // --- Student tooltip: detailed data fetch and hover handlers ---
+  const detailsMap = new Map();
+  let tooltipTimeout = null;
+  let currentHoveredCell = null;
+
+  function loadStudentDetails() {
+    fetch('/api/student/consultation-logs', { headers: { 'Accept': 'application/json' } })
+      .then(r => r.json())
+      .then(entries => {
+        // rebuild details map
+        detailsMap.clear();
+        (entries || []).forEach(entry => {
+          try {
+            // Filter out cancelled entries from tooltip details
+            if ((entry.Status || '').toLowerCase() === 'cancelled') return;
+            const d = new Date(entry.Booking_Date);
+            const key = d.toDateString();
+            if (!detailsMap.has(key)) detailsMap.set(key, []);
+            detailsMap.get(key).push(entry);
+          } catch(_) {}
+        });
+        // If currently hovered cell became empty, hide tooltip
+        try {
+          if (currentHoveredCell) {
+            const y = currentHoveredCell.getAttribute('data-pika-year');
+            const m = currentHoveredCell.getAttribute('data-pika-month');
+            const d = currentHoveredCell.getAttribute('data-pika-day');
+            if (y!=null && m!=null && d!=null) {
+              const dateObj = new Date(y, m, d);
+              const key = dateObj.toDateString();
+              const list = detailsMap.get(key) || [];
+              if (list.length === 0) {
+                const tooltip = document.getElementById('consultationTooltip');
+                if (tooltip) tooltip.style.display = 'none';
+                currentHoveredCell = null;
+              }
+            }
+          }
+        } catch(_) {}
+      })
+      .catch(() => {});
+  }
+
+  // initial and periodic refresh
+  loadStudentDetails();
+  setInterval(loadStudentDetails, 5000);
+
+  // Periodically sync data attributes for tooltip based on bookingMap
+  setInterval(() => {
+    try {
+      const cells = document.querySelectorAll('.pika-button');
+      cells.forEach(cell => {
+        const y = cell.getAttribute('data-pika-year');
+        const m = cell.getAttribute('data-pika-month');
+        const d = cell.getAttribute('data-pika-day');
+        if (!y||!m||!d) return;
+        const dateObj = new Date(y, m, d);
+        const key = dateObj.toDateString();
+        if (bookingMap.has(key)) {
+          cell.setAttribute('data-consultation-key', key);
+          cell.setAttribute('data-has-consultations', 'true');
+        } else {
+          cell.removeAttribute('data-consultation-key');
+          cell.removeAttribute('data-has-consultations');
+        }
+      });
+    } catch(_) {}
+  }, 3000);
+
+  function formatTo12Hour(ts) {
+    if (!ts) return '';
+    // Try to parse common formats
+    const parts = String(ts).split(' ');
+    if (parts.length < 2) return String(ts);
+    const datePart = parts[0];
+    const timePart = parts[1];
+    const tPieces = timePart.split(':');
+    if (tPieces.length < 2) return String(ts);
+    let hour = parseInt(tPieces[0], 10);
+    const minute = tPieces[1];
+    const second = tPieces[2] || '00';
+    if (isNaN(hour)) return String(ts);
+    const suffix = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = ((hour + 11) % 12) + 1;
+    const hourStr = hour12.toString().padStart(2, '0');
+    return `${datePart} ${hourStr}:${minute}:${second} ${suffix}`;
+  }
+
+  // Global hover delegation for student tooltip (simplified)
+  document.addEventListener('mouseover', function(e) {
+    const target = e.target;
+    if (tooltipTimeout) { clearTimeout(tooltipTimeout); tooltipTimeout = null; }
+    if (target && target.classList && target.classList.contains('pika-button') && target.hasAttribute('data-consultation-key')) {
+      const key = target.getAttribute('data-consultation-key');
+      const tooltip = document.getElementById('consultationTooltip');
+      if (!tooltip) return;
+      const consultations = detailsMap.get(key) || [];
+      if (consultations.length === 0) return;
+
+      // Build simplified content (no count header)
+      let html = '';
+      consultations.forEach((entry, idx) => {
+        html += `
+          <div class="consultation-entry" style="${idx>0 ? 'border-top:1px solid #eee; padding-top:6px; margin-top:6px;' : ''}">
+            <div class="student-name" style="font-weight:600; color:#2c5f4f; margin-bottom:4px; font-size:14px;">Professor: ${entry.Professor || ''}</div>
+            <div class="detail-row" style="font-size:12px; color:#666;">Subject: ${entry.subject || ''}</div>
+            <div class="detail-row" style="font-size:12px; color:#666;">Type: ${entry.type || entry.Type || ''}</div>
+            <div class="detail-row" style="font-size:12px; color:#666;">Mode: ${entry.Mode || ''}</div>
+            <div class="status-row" style="font-size:12px; font-weight:600; color:#666;">Status: ${entry.Status || ''}</div>
+            <div class="booking-time" style="font-size:11px; color:#999; font-style:italic;">Booked: ${formatTo12Hour(entry.Created_At)}</div>
+          </div>`;
+      });
+      tooltip.innerHTML = html;
+      tooltip.style.display = 'block';
+
+      // Position to the right of the cell with viewport guards
+      const cellRect = target.getBoundingClientRect();
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      const scrollX = window.scrollX || document.documentElement.scrollLeft;
+      const GAP = 12;
+      let left = cellRect.right + GAP + scrollX;
+      let top = cellRect.top + scrollY;
+      if (top + tooltipRect.height > scrollY + viewportHeight - 10) {
+        top = scrollY + viewportHeight - tooltipRect.height - 10;
+      }
+      if (top < scrollY + 10) {
+        top = scrollY + 10;
+      }
+      const maxRight = scrollX + window.innerWidth - 10;
+      if (left + tooltipRect.width > maxRight) {
+        left = Math.min(left, maxRight - tooltipRect.width);
+      }
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+      currentHoveredCell = target;
+    } else {
+      if (currentHoveredCell && !target.closest('#consultationTooltip')) {
+        tooltipTimeout = setTimeout(() => {
+          const tooltip = document.getElementById('consultationTooltip');
+          if (tooltip) tooltip.style.display = 'none';
+          currentHoveredCell = null;
+        }, 250);
+      }
+    }
+  });
+
+  document.addEventListener('mouseout', function(e){
+    const target = e.target;
+    const related = e.relatedTarget;
+    if (target && target.classList && target.classList.contains('pika-button') && target.hasAttribute('data-consultation-key')) {
+      if (!related || !related.closest('#consultationTooltip')) {
+        const tooltip = document.getElementById('consultationTooltip');
+        if (tooltip) tooltip.style.display = 'none';
+        currentHoveredCell = null;
+      }
+    }
+  });
+
+  // Keep tooltip visible on hover; hide after leaving
+  (function bindTooltipHover(){
+    const tip = document.getElementById('consultationTooltip');
+    if (!tip) return;
+    tip.addEventListener('mouseenter', function(){ if (tooltipTimeout) { clearTimeout(tooltipTimeout); tooltipTimeout = null; } });
+    tip.addEventListener('mouseleave', function(){ tooltipTimeout = setTimeout(()=>{ tip.style.display='none'; currentHoveredCell=null; }, 200); });
+  })();
+
+  // Prevent date selection/tinting like professor behavior
+  function preventCalendarClicks(e) {
+    const target = e.target;
+    if (target && target.classList && target.classList.contains('pika-button') && target.closest('.pika-table')) {
+      if (e.type === 'click' || e.type === 'mousedown' || e.type === 'touchstart' || e.type === 'touchend') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return false;
+      }
+    }
+  }
+  ['click','mousedown','touchstart','touchend'].forEach(type => {
+    document.addEventListener(type, preventCalendarClicks, { capture:true, passive:false });
+    document.addEventListener(type, preventCalendarClicks, { capture:false, passive:false });
+  });
         
     // Initialize inbox notifications
     loadNotifications();
