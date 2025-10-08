@@ -335,9 +335,10 @@ body {
     .box { flex: 1 1 38%; }
 }
 @media (max-width: 1250px) and (min-width: 769px) {
-    .box { display: none !important; }
-    .flex-layout { justify-content: center; }
+    /* Stack notifications below calendar for tablet widths instead of hiding */
+    .flex-layout { flex-direction: column; justify-content: flex-start; }
     .calendar-box { flex: 1 1 100%; max-width: 100%; }
+    .box { flex: 1 1 100%; max-width: 100%; }
     .legend { margin-top: 85px; }
 }
 @media (max-width: 992px) {

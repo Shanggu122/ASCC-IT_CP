@@ -340,6 +340,8 @@
     <div class="header">
       <h1>Consultation Activity</h1>
     </div>
+      <!-- Two-column layout: calendar + notifications -->
+      <div class="flex-layout">
       <div class="calendar-box">
         <div class="calendar-wrapper-container">
           <input id="calendar" type="text" placeholder="Select Date" name="booking_date" required>
@@ -403,7 +405,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </div> <!-- /.flex-layout -->
 
 
     <button class="chat-button" onclick="toggleChat()">
@@ -450,22 +452,21 @@
   {{-- <script src="{{ asset('js/dashboard.js') }}"></script> --}}
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
   <script>
-    // Responsive notification visibility: hide panel between 769-1450px (bell only)
+    // Responsive notification visibility: show on tablets/desktops, use bell on small mobile only
     (function(){
       function applyProfessorNotifMode(){
         const w = window.innerWidth;
         const panel = document.querySelector('.inbox-notifications');
         const bell = document.getElementById('mobileNotificationBell');
         if(!panel) return; // bail if markup missing
-        if(w <= 1450 && w >= 769){
+        if (w < 769) {
+          // Small mobile: hide panel, show bell dropdown
           panel.style.display = 'none';
           if(bell){ bell.style.display = 'block'; bell.style.opacity = '1'; }
-        } else if (w >= 1451){
+        } else {
+          // Tablet and up: show panel inline, hide bell badge
           panel.style.display = '';
           if(bell){ bell.style.display = 'none'; }
-        } else { // mobile (<769)
-          panel.style.display = 'none';
-          if(bell){ bell.style.display = 'block'; }
         }
       }
       window.addEventListener('resize', applyProfessorNotifMode);
