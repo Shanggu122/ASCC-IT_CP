@@ -476,6 +476,7 @@
   .swatch-forced { background:#2563eb; }   /* Forced Online → Blue (reverted) */
   .swatch-holiday { background:#9B59B6; }  /* Holiday → Violet */
   .swatch-endyear { background:#6366f1; }  /* End of School Year → Indigo */
+  .swatch-today { background:#5fb9d4; }    /* Today highlight */
   .swatch-multiple { background:#FF4500; } /* Multiple Bookings → Orangey-Red */
 
     /* Drawer behavior on small screens */
@@ -531,12 +532,13 @@
                   <div class="legend-item"><span class="legend-swatch swatch-approved"></span>Approved <i class='bx bx-check-circle legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-completed"></span>Completed <i class='bx bx-badge-check legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-rescheduled"></span>Rescheduled <i class='bx bx-calendar-edit legend-icon' aria-hidden="true"></i></div>
-                  <div class="legend-item"><span class="legend-swatch swatch-suspended"></span>Suspended <i class='bx bx-block legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-suspended"></span>Suspention of class <i class='bx bx-block legend-icon' aria-hidden="true"></i></div>
                 </div>
               </div>
               <div class="legend-section">
                 <div class="legend-section-title">Day Types</div>
                 <div class="legend-grid">
+                  <div class="legend-item"><span class="legend-swatch swatch-today"></span>Today <i class='bx bx-sun legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-online"></span>Online Day <i class='bx bx-video legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-forced"></span>Forced Online <i class='bx bx-switch legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-holiday"></span>Holiday <i class='bx bx-party legend-icon' aria-hidden="true"></i></div>
@@ -807,7 +809,7 @@
                 const labelTxt = (chosen.effect === 'holiday')
                   ? (chosen.reason_text || 'Holiday')
                   : (chosen.effect === 'block_all'
-                    ? (isEndYear ? 'End Year' : 'Suspended')
+                    ? (isEndYear ? 'End Year' : 'Suspention')
                     : forceLabel);
                 badge.title = chosen.label || chosen.reason_text || labelTxt;
                 badge.textContent = labelTxt;
@@ -1442,7 +1444,7 @@
           <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">
             <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="online_day"> Online Day</label>
             <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="force_online"> Forced Online</label>
-            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="block_all"> Suspended</label>
+            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="block_all"> Suspention</label>
             <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="holiday"> Holiday</label>
             <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="end_year"> End of School Year</label>
           </div>
@@ -1466,7 +1468,7 @@
                 <option value="others">Others</option>
               </select>
             </label>
-            <input id="ov_reason_text" placeholder="Notes (optional)" style="flex:1;min-width:200px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px"></input>
+            <input id="ov_reason_text" placeholder="Enter reason" style="display:none;flex:1;min-width:200px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px"></input>
           </div>
           <div id="holidayRow" style="display:none;margin:10px 0">
             <label>Holiday Name
@@ -1477,7 +1479,7 @@
           <div id="endYearRow" style="display:none;margin:10px 0">
             <div style="display:flex;flex-direction:column;gap:8px">
               <div><strong>Start day:</strong> <span id="ov_start_label">—</span></div>
-              <label>End day
+              <label><strong>End day:</strong>
                 <input id="ov_end_date" type="date" style="margin-left:8px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px">
                 </input>
               </label>
@@ -1551,10 +1553,20 @@
         const hn = document.getElementById('ov_holiday_name');
         const ed = document.getElementById('ov_end_date');
         const sl = document.getElementById('ov_start_label');
-        if (rk) rk.value = '';
-        if (rt) { rt.value = ''; rt.disabled = true; }
+  if (rk) rk.value = '';
+  if (rt) { rt.value = ''; rt.disabled = true; rt.style.display = 'none'; rt.placeholder = 'Enter reason'; }
         if (hn) hn.value = '';
-        if (ed) ed.value = '';
+        if (ed) {
+          ed.value = '';
+          // Ensure min is updated each time the modal opens
+          try {
+            const today = new Date();
+            const start = new Date(dateStr);
+            const base = (isNaN(start) ? today : (start > today ? start : today));
+            const iso = `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
+            ed.min = iso;
+          } catch(_) {}
+        }
         if (sl) sl.textContent = dateStr || '—';
         const ar = document.getElementById('ov_auto_reschedule');
         if (ar) ar.checked = false;
@@ -1616,7 +1628,22 @@
   if (autoRow) autoRow.style.display = (effect === 'block_all' || effect === 'force_online') ? 'block' : 'none';
 
   // End Year uses its own row; hide other conditional inputs
-  if (endYearRow) endYearRow.style.display = (effect === 'end_year') ? 'block' : 'none';
+  if (endYearRow) {
+    endYearRow.style.display = (effect === 'end_year') ? 'block' : 'none';
+    // Update the min selectable date for end day: cannot be in the past, and cannot be before start day
+    try {
+      const ed = document.getElementById('ov_end_date');
+      const startLabel = document.getElementById('ov_start_label')?.textContent || '';
+      const start = new Date(startLabel);
+      const today = new Date();
+      const base = (!isNaN(start) && start > today) ? start : today;
+      const iso = `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
+      if (ed) {
+        ed.min = iso;
+        if (ed.value && ed.value < iso) ed.value = '';
+      }
+    } catch(_) {}
+  }
   const hideReasons = (effect === 'online_day' || effect === 'holiday' || effect === 'end_year');
       if (reasonRow) reasonRow.style.display = hideReasons ? 'none' : 'flex';
   if (holidayRow) holidayRow.style.display = (effect === 'holiday') ? 'block' : 'none';
@@ -1630,14 +1657,13 @@
         reasonTextEl.disabled = hideReasons;
         if (hideReasons) {
           reasonTextEl.value = '';
+          reasonTextEl.style.display = 'none';
         } else {
-          // Dynamic placeholder: if Others selected, prompt to enter the reason
-          const rk = reasonKeyEl ? reasonKeyEl.value : '';
-          if (rk === 'others') {
-            reasonTextEl.placeholder = 'Enter reason';
-          } else {
-            reasonTextEl.placeholder = 'Notes (optional)';
-          }
+          const rkVal = reasonKeyEl ? reasonKeyEl.value : '';
+          const showText = rkVal === 'others';
+          reasonTextEl.style.display = showText ? 'inline-block' : 'none';
+          if (!showText) reasonTextEl.value = '';
+          reasonTextEl.placeholder = 'Enter reason';
         }
       }
     }
@@ -1647,9 +1673,11 @@
         const reasonTextEl = document.getElementById('ov_reason_text');
         const val = e.target.value;
         if (reasonTextEl) {
-          reasonTextEl.placeholder = (val === 'others') ? 'Enter reason' : 'Notes (optional)';
-          // Ensure enabled for Others
-          if (val === 'others') reasonTextEl.disabled = false;
+          const showText = (val === 'others');
+          reasonTextEl.style.display = showText ? 'inline-block' : 'none';
+          reasonTextEl.disabled = !showText;
+          if (!showText) reasonTextEl.value = '';
+          reasonTextEl.placeholder = 'Enter reason';
         }
       }
     });
@@ -1660,6 +1688,44 @@
         updateOverrideRows();
       }
     });
+
+    // Helper to (re-)compute and set min for end date field
+    function setEndDateMin() {
+      try {
+        const ed = document.getElementById('ov_end_date');
+        if (!ed) return;
+        const startLabel = document.getElementById('ov_start_label')?.textContent || '';
+        const start = new Date(startLabel);
+        const today = new Date();
+        const base = (!isNaN(start) && start > today) ? start : today;
+        const iso = `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
+        ed.min = iso;
+      } catch(_) {}
+    }
+
+    // Enforce min on value change
+    function enforceEndDateMin() {
+      const ed = document.getElementById('ov_end_date');
+      if (!ed) return;
+      if (ed.min && ed.value && ed.value < ed.min) {
+        ed.value = ed.min;
+        try { if (typeof showToast === 'function') showToast('End day cannot be in the past.', 'error'); } catch(_) {}
+      }
+    }
+
+    // Apply min when the input is focused or clicked, and verify on change
+    document.addEventListener('focusin', function(e){ if (e.target && e.target.id === 'ov_end_date') setEndDateMin(); });
+    document.addEventListener('click', function(e){ if (e.target && e.target.id === 'ov_end_date') setEndDateMin(); });
+    document.addEventListener('change', function(e){ if (e.target && e.target.id === 'ov_end_date') enforceEndDateMin(); });
+
+    // Helper: is a JS Date before today (local)?
+    function isPastDay(d) {
+      if (!(d instanceof Date) || isNaN(d.getTime())) return false;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const cmp = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      return cmp < today;
+    }
 
     // Click handler on date cells to open modal (robust delegation)
     document.addEventListener('click', function(e){
@@ -1673,6 +1739,8 @@
       const day = btn.getAttribute('data-pika-day');
       if (year && month && day) {
         const d = new Date(year, month, day);
+        // Do not allow editing past days
+        if (isPastDay(d)) { try { if (typeof showToast === 'function') showToast('Cannot edit a past day.', 'error'); } catch(_) {} return; }
         const dateStr = d.toDateString();
         openOverrideModal(dateStr);
       }
@@ -1691,6 +1759,7 @@
         e.preventDefault();
         e.stopPropagation();
         const d = new Date(year, month, day);
+        if (isPastDay(d)) { return; }
         const dateStr = d.toDateString();
         openOverrideModal(dateStr);
       }
@@ -1731,12 +1800,13 @@
         reason_key = 'end_year';
         reason_text = '';
       } else {
-  // Forced Online / Suspended: allow reasons
+        // Forced Online / Suspended: allow reasons
         reason_key = document.getElementById('ov_reason_key').value;
-        reason_text = document.getElementById('ov_reason_text').value;
+        const rtVal = (document.getElementById('ov_reason_text').value || '').trim();
+        reason_text = (reason_key === 'others') ? rtVal : '';
         // If Others is selected, require a typed reason
         if ((sel === 'block_all' || sel === 'force_online') && reason_key === 'others') {
-          if (!reason_text || !reason_text.trim()) {
+          if (!reason_text) {
             showToast('Please enter a reason for Others', 'error');
             return;
           }
@@ -1812,10 +1882,10 @@
         reason_text = '';
       } else {
         reason_key = document.getElementById('ov_reason_key').value;
-        reason_text = document.getElementById('ov_reason_text').value;
-        // If Others is selected, require a typed reason
+        const rtVal2 = (document.getElementById('ov_reason_text').value || '').trim();
+        reason_text = (reason_key === 'others') ? rtVal2 : '';
         if ((sel === 'block_all' || sel === 'force_online') && reason_key === 'others') {
-          if (!reason_text || !reason_text.trim()) {
+          if (!reason_text) {
             showToast('Please enter a reason for Others', 'error');
             return;
           }
@@ -1844,7 +1914,7 @@
       }
 
       // Themed confirmation before applying
-  const labelMap = { online_day: 'Online Day', force_online: 'Forced Online', block_all: 'Suspended', holiday: 'Holiday', end_year: 'End of School Year' };
+  const labelMap = { online_day: 'Online Day', force_online: 'Forced Online', block_all: 'Suspention', holiday: 'Holiday', end_year: 'End of School Year' };
       const humanLabel = labelMap[sel] || 'Change';
       const proceed = await themedConfirm(`Apply ${humanLabel}`, sel === 'end_year' ?
         `Disable all classes from <strong>${dateLabel}</strong> to <strong>${endLabel}</strong>?` :
@@ -1920,7 +1990,7 @@
             const text = item.effect === 'holiday'
             ? (item.reason_text || 'Holiday')
             : (item.effect === 'block_all'
-              ? (item.reason_key === 'end_year' ? 'End Year' : 'Suspended')
+              ? (item.reason_key === 'end_year' ? 'End Year' : 'Suspention')
               : (item.reason_key === 'online_day' ? 'Online Day' : 'Forced Online'));
           badge.textContent = text;
           badge.title = text;
@@ -2069,17 +2139,25 @@
       return wrap;
     }
 
+    // Always spawn a new toast; no dedupe or stacking limits
     function showToast(message, type='info', timeout=2200) {
       const wrap = ensureToastWrapper();
       const toast = document.createElement('div');
       toast.className = `ascc-toast ${type==='success'?'ascc-toast-success': type==='error'?'ascc-toast-error':'ascc-toast-info'}`;
-      toast.innerHTML = `<div>${message}</div><button class="ascc-toast-close" aria-label="Close">×</button>`;
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      toast.innerHTML = `<div>${message}</div><button class=\"ascc-toast-close\" aria-label=\"Close\">×</button>`;
       wrap.appendChild(toast);
       const closer = toast.querySelector('.ascc-toast-close');
-      let hid = false;
-      const hide = () => { if (hid) return; hid = true; toast.classList.add('hide'); setTimeout(()=> toast.remove(), 250); };
-      closer.addEventListener('click', hide);
-      setTimeout(hide, timeout);
+      const onClose = () => safeHideToast(toast);
+      closer.addEventListener('click', onClose);
+      setTimeout(onClose, timeout);
+    }
+
+    function safeHideToast(el) {
+      if (!el) return;
+      el.classList.add('hide');
+      setTimeout(() => { if (el && el.parentNode) el.parentNode.removeChild(el); }, 250);
     }
 
     function themedConfirm(title, htmlMessage) {
@@ -2247,7 +2325,7 @@
                 const forceLabel2 = isOnlineDay ? 'Online Day' : 'Forced Online';
                 const labelTxt2 = (chosen.effect === 'holiday')
                   ? (chosen.reason_text || 'Holiday')
-                  : (chosen.effect === 'block_all' ? (isEndYear ? 'End Year' : 'Suspended') : forceLabel2);
+                  : (chosen.effect === 'block_all' ? (isEndYear ? 'End Year' : 'Suspention') : forceLabel2);
                 badge.title = chosen.label || chosen.reason_text || labelTxt2;
                 badge.textContent = labelTxt2;
                 cell.style.position = 'relative';

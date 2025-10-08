@@ -243,16 +243,52 @@ document.addEventListener('DOMContentLoaded', function(){
 const sidePanelInputFile = document.getElementById('sidePanelInputFile');
 const sidePanelProfilePic = document.getElementById('sidePanelProfilePic');
 const sidePanelSaveBtn = document.getElementById('sidePanelSaveBtn');
+const profilePicForm = document.getElementById('profilePicForm');
+
+// Validate file client-side (type and size) before previewing or submitting
+function isValidProfileImage(file){
+  if(!file) return false;
+  const allowedTypes = ['image/jpeg','image/png','image/jpg'];
+  const maxBytes = 2 * 1024 * 1024; // 2MB
+  if(!allowedTypes.includes(file.type)){
+    showNotification('Invalid file. Please select a JPG or PNG image only.', true);
+    return false;
+  }
+  if(file.size > maxBytes){
+    showNotification('File too large. Max size is 2 MB.', true);
+    return false;
+  }
+  return true;
+}
 
 if (sidePanelInputFile) {
-  sidePanelInputFile.onchange = function() {
-    if (sidePanelInputFile.files && sidePanelInputFile.files[0]) {
-      sidePanelProfilePic.src = URL.createObjectURL(sidePanelInputFile.files[0]);
-      sidePanelSaveBtn.style.display = "inline-block";
+  sidePanelInputFile.addEventListener('change', function(){
+    const file = sidePanelInputFile.files && sidePanelInputFile.files[0];
+    if(file && isValidProfileImage(file)){
+      sidePanelProfilePic.src = URL.createObjectURL(file);
+      sidePanelSaveBtn.style.display = 'inline-block';
     } else {
-      sidePanelSaveBtn.style.display = "none";
+      // Reset invalid selection and keep current preview
+      sidePanelInputFile.value = '';
+      sidePanelSaveBtn.style.display = 'none';
     }
-  };
+  });
+}
+
+// Guard form submit in case of manual trigger
+if (profilePicForm) {
+  profilePicForm.addEventListener('submit', function(e){
+    const file = sidePanelInputFile && sidePanelInputFile.files && sidePanelInputFile.files[0];
+    if(!file){
+      e.preventDefault();
+      showNotification('Please choose an image file to upload.', true);
+      return;
+    }
+    if(!isValidProfileImage(file)){
+      e.preventDefault();
+      return;
+    }
+  });
 }
 
 function deleteProfilePicture() {
@@ -467,10 +503,32 @@ document.addEventListener('DOMContentLoaded', function(){
 @if (session('password_status'))
   <script>
     document.addEventListener('DOMContentLoaded', function() {
+      // Close the password panel first
       closePanel('passwordPanel');
-      setTimeout(function() {
-        showNotification(@json(session('password_status')), false);
-      }, 300); // Wait for panel to close before showing notification
+      // Build confirmation modal (reuse confirm-overlay styles)
+      let overlay = document.getElementById('pwChangedConfirmStud');
+      if(!overlay){
+        overlay = document.createElement('div');
+        overlay.id = 'pwChangedConfirmStud';
+        overlay.className = 'confirm-overlay';
+        overlay.innerHTML = `
+          <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="pwChangedTitleStud">
+            <div class="confirm-header" id="pwChangedTitleStud"><i class='bx bx-check-circle'></i> Password changed</div>
+            <div class="confirm-body">Your password was changed successfully. Do you want to log out now?</div>
+            <div class="confirm-actions">
+              <button type="button" class="btn-cancel-red" id="pwStayStud">Stay signed in</button>
+              <button type="button" class="btn-confirm-green" id="pwLogoutStud">Log out</button>
+            </div>
+          </div>`;
+        document.body.appendChild(overlay);
+      }
+      const close = ()=> overlay.classList.remove('active');
+      overlay.classList.add('active');
+      // Wire buttons
+      overlay.querySelector('#pwStayStud').onclick = close;
+      overlay.querySelector('#pwLogoutStud').onclick = function(){ window.location.href = @json(route('logout')); };
+      // Click outside closes
+      overlay.addEventListener('click', (e)=>{ const m = overlay.querySelector('.confirm-modal'); if(m && !m.contains(e.target)) close(); }, { once:true });
     });
   </script>
 @endif

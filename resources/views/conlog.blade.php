@@ -34,6 +34,9 @@
       // Build unique subjects list for subject filter (cancelled excluded)
       $subjects = collect($bookingsFiltered ?? [])->pluck('subject')->filter(fn($s)=>filled($s))
                    ->map(fn($s)=>trim($s))->unique()->sort()->values();
+      // Build unique types list for type filter based on actual records (cancelled excluded already)
+      $types = collect($bookingsFiltered ?? [])->pluck('type')->filter(fn($t)=>filled($t))
+                 ->map(fn($t)=>trim($t))->unique()->sort()->values();
     @endphp
 
     <div class="search-container">
@@ -45,13 +48,15 @@
         <i class='bx bx-slider-alt'></i>
       </button>
       <div class="filter-group-horizontal">
-    <select id="typeFilter" class="filter-select">
-            <option value="">All Types</option>
-            @foreach($fixedTypes as $type)
-              <option value="{{ $type }}">{{ $type }}</option>
-            @endforeach
+        <select id="typeFilter" class="filter-select" aria-label="Type filter">
+          <option value="">All Types</option>
+          @foreach($types as $t)
+            <option value="{{ $t }}">{{ $t }}</option>
+          @endforeach
+          @if(!in_array('Others', $types->toArray()))
             <option value="Others">Others</option>
-          </select>
+          @endif
+        </select>
           <!-- Custom filter dropdown (mobile) -->
     <div id="typeFilterDropdown" class="cs-dd" style="display:none;">
             <button type="button" class="cs-dd-trigger" id="typeFilterTrigger">All Types</button>
@@ -121,8 +126,8 @@
         </div>
 
       @empty
-        <div class="table-row">
-          <div class="table-cell" colspan="8">No consultation found.</div>
+        <div class="table-row no-results-row">
+          <div class="table-cell" style="text-align:center;color:#666;font-style:italic;">No Consultations Found.</div>
         </div>
       @endforelse
   <!-- Spacer removed: use CSS margins for layout spacing -->
@@ -158,10 +163,12 @@
             <label class="filter-label" for="typeFilterMobile">Type</label>
             <select id="typeFilterMobile" class="filter-select" aria-label="Type (mobile)">
               <option value="">All Types</option>
-              @foreach($fixedTypes as $type)
-                <option value="{{ $type }}">{{ $type }}</option>
+              @foreach($types as $t)
+                <option value="{{ $t }}">{{ $t }}</option>
               @endforeach
-              <option value="Others">Others</option>
+              @if(!in_array('Others', $types->toArray()))
+                <option value="Others">Others</option>
+              @endif
             </select>
           </div>
           <div class="filter-group">
@@ -292,6 +299,25 @@ function sanitize(raw){
     if(arr.includes(cur)) sel.value = cur;
   }
 
+  // Build the Type dropdown from the table's "Type" values (no duplicates)
+  function rebuildTypeOptions(){
+    const sel = document.getElementById('typeFilter'); if(!sel) return;
+    const map = new Map(); // lower -> first-seen case label
+    getDataRows().forEach(r=>{
+      const cell = r.querySelector('.table-cell[data-label="Type"]');
+      const label = (cell ? cell.textContent : (r.dataset.type||'')).trim();
+      if(!label) return; const lower = label.toLowerCase(); if(!map.has(lower)) map.set(lower, label);
+    });
+    const cur = sel.value;
+    const arr = Array.from(map.values()).sort((a,b)=>a.localeCompare(b));
+    const hasOthers = map.has('others');
+    sel.innerHTML = '<option value="">All Types</option>' +
+      arr.map(v=>`<option value="${v}">${v}</option>`).join('') +
+      (!hasOthers ? '<option value="Others">Others</option>' : '');
+    if(arr.includes(cur) || cur==='') sel.value = cur; else sel.value = '';
+    if(typeof buildTypeFilterDropdown==='function') buildTypeFilterDropdown();
+  }
+
   function applySortAndPaginate(){
     const table = document.querySelector('.table'); if(!table) return;
     const header = document.querySelector('.table-header');
@@ -397,7 +423,7 @@ function filterRows() {
     function updateTrigger(){ const sel=native.options[native.selectedIndex]; trigger.textContent= sel? sel.textContent : 'All Types'; }
   }
 
-  document.addEventListener('DOMContentLoaded',function(){ buildTypeFilterDropdown(); });
+  document.addEventListener('DOMContentLoaded',function(){ buildTypeFilterDropdown(); rebuildTypeOptions(); });
 
 document.getElementById('searchInput').addEventListener('input', filterRows);
 document.getElementById('typeFilter').addEventListener('change', filterRows);
@@ -467,8 +493,9 @@ document.addEventListener('DOMContentLoaded',()=>{ filterRows(); });
       if(data && data.success){
         // Remove the row entirely from the log and re-apply filters/pagination
         try { row && row.remove && row.remove(); } catch(e) {}
-        if(typeof filterRows==='function') filterRows();
-        if(typeof rebuildSubjectOptions==='function') rebuildSubjectOptions();
+  if(typeof filterRows==='function') filterRows();
+  if(typeof rebuildSubjectOptions==='function') rebuildSubjectOptions();
+  if(typeof rebuildTypeOptions==='function') rebuildTypeOptions();
         showNotification('Your consultation has been successfully cancelled.', false);
       } else {
         showNotification((data && data.message) ? data.message : 'Failed to cancel.', true);
@@ -517,7 +544,15 @@ function syncOverlayFromMain(){
   const tMob = document.getElementById('typeFilterMobile');
   const sMob = document.getElementById('subjectFilterMobile');
   const pMob = null;
-  if(tMain && tMob) tMob.value = tMain.value;
+  if(tMain && tMob){
+    // Mirror dynamic type options
+    const map = new Map(); const opts = ['<option value="">All Types</option>'];
+    getDataRows().forEach(r=>{ const c=r.querySelector('.table-cell[data-label="Type"]'); const lbl=(c?c.textContent:(r.dataset.type||'')).trim(); if(!lbl) return; const k=lbl.toLowerCase(); if(!map.has(k)) map.set(k,lbl); });
+    const arr=Array.from(map.values()).sort((a,b)=>a.localeCompare(b));
+    const hasOthers = map.has('others');
+    tMob.innerHTML = opts.concat(arr.map(v=>`<option value="${v}">${v}</option>`)).join('') + (hasOthers? '' : '<option value="Others">Others</option>');
+    tMob.value = tMain.value;
+  }
   if(sMain && sMob) {
     // Ensure mobile subject options include any dynamic subjects
     const seen = new Set();
@@ -742,8 +777,9 @@ setInterval(loadConsultationLogs, 5000);
         }
       }
 
-      if(typeof filterRows==='function') filterRows();
-      rebuildSubjectOptions();
+  if(typeof filterRows==='function') filterRows();
+  rebuildSubjectOptions();
+  if(typeof rebuildTypeOptions==='function') rebuildTypeOptions();
     }
 
     // Bind to the explicit alias and FQCN fallback to be safe across drivers

@@ -8,6 +8,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/itis.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/confirm.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/confirm-modal.css') }}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
 
   <style>
@@ -369,7 +371,7 @@
       @endforeach
     </div>
     <div id="noResults" style="display:none; margin-top:12px; color:#b00020; font-weight:600; font-style: italic;">
-      No PROFESSOR FOUND
+      NO PROFESSOR FOUND
     </div>
 
     <button class="chat-button" onclick="toggleChat()">
@@ -418,7 +420,7 @@
           {{-- Options will be filled by JS --}}
         </select>
         <div id="csSubjectDropdown" class="cs-dd" style="display:none;">
-          <button type="button" class="cs-dd-trigger" id="csDdTrigger">Select Subject</button>
+          <button type="button" class="cs-dd-trigger" id="csDdTrigger">Select a Subject</button>
           <ul class="cs-dd-list" id="csDdList"></ul>
         </div>
       </div>
@@ -746,7 +748,7 @@
           const isEndYearLbl = (chosen.effect === 'block_all') && (!isLeaveLbl) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label||'') || /end\s*year/i.test(chosen.reason_text||''));
           badge.textContent = chosen.effect === 'holiday'
             ? (chosen.reason_text || 'Holiday')
-            : (chosen.effect === 'block_all' ? (isLeaveLbl ? 'Leave' : (isEndYearLbl ? 'End Year' : 'Suspended')) : forceLabel);
+            : (chosen.effect === 'block_all' ? (isLeaveLbl ? 'Leave' : (isEndYearLbl ? 'End Year' : 'Suspention')) : forceLabel);
           btn.style.position = 'relative';
           btn.appendChild(badge);
           // Apply tint for force_mode/online-day; and for holiday we want violet tile even if disabled.
@@ -762,7 +764,7 @@
             btn.setAttribute('disabled','disabled');
             btn.setAttribute('aria-disabled','true');
             btn.style.pointerEvents='none';
-            // For Suspended (block_all): dark-grey tile; for Holiday: violet tile
+            // For Suspention (block_all): dark-grey tile; for Holiday: violet tile
             if (chosen.effect === 'block_all') {
               const isLeave = (chosen.reason_key === 'prof_leave' || /leave/i.test(chosen.label||''));
               const isEndYear = (!isLeave) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label||'') || /end\s*year/i.test(chosen.reason_text||''));
@@ -786,7 +788,9 @@
           }
           // Enforce mode if forced
           if (chosen.effect === 'force_mode') {
+          opt.selected = true;
             let mode = chosen.allowed_mode || (chosen.reason_key==='online_day'?'online':null) || 'online';
+          try{ select.classList.add('placeholder'); }catch(_){ }
             btn.dataset.mode = mode;
           }
         });
@@ -1092,10 +1096,17 @@ async function openModal(card) {
     
     // Find professor in JS (pass professors data as JSON to the page)
     const prof = window.professors.find(p => p.Prof_ID == profId);
-    const select = document.getElementById("modalSubjectSelect");
-    select.innerHTML = "";
+  const select = document.getElementById("modalSubjectSelect");
+  select.innerHTML = "";
     
-    if (prof && prof.subjects && prof.subjects.length > 0) {
+  if (prof && prof.subjects && prof.subjects.length > 0) {
+    // Placeholder option (no default subject selected)
+    const ph = document.createElement("option");
+    ph.value = "";
+  ph.textContent = "Select a Subject";
+    ph.disabled = true;
+    ph.selected = true;
+    select.appendChild(ph);
         prof.subjects.forEach(subj => {
             const opt = document.createElement("option");
             opt.value = subj.Subject_ID;
@@ -1105,9 +1116,10 @@ async function openModal(card) {
     } else {
         // If professor has no subjects assigned, show a default message
         const opt = document.createElement("option");
-        opt.value = "";
-        opt.textContent = "No subjects assigned to this professor";
-        opt.disabled = true;
+    opt.value = "";
+    opt.textContent = "No subjects assigned to this professor";
+    opt.disabled = true;
+    opt.selected = true;
         select.appendChild(opt);
     }
 
@@ -1221,7 +1233,10 @@ function initCustomSubjectDropdown(){
   updateCsTrigger();
   trigger.onclick=()=>{ wrap.classList.toggle('open'); };
   document.addEventListener('click',e=>{ if(!wrap.contains(e.target)) wrap.classList.remove('open'); });
-  function updateCsTrigger(){ const sel=native.options[native.selectedIndex]; trigger.textContent=(sel?sel.text:'Select Subject'); }
+  function updateCsTrigger(){ 
+    const sel=native.options[native.selectedIndex]; 
+    trigger.textContent=(sel?sel.text:'Select a Subject'); 
+  }
 }
 
 // Close modal function
@@ -1271,6 +1286,24 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Ensure only one consultation type can be selected at a time
+    try {
+      const typeInputs = document.querySelectorAll('#bookingForm input[name="types[]"]');
+      function onTypeChange(e){
+        typeInputs.forEach(cb => { if (cb !== e.target) cb.checked = false; });
+        // Keep Others text visibility in sync if user switches away from Others
+        const otherCb = document.getElementById('otherTypeCheckbox');
+        const otherTxt = document.getElementById('otherTypeText');
+        if (otherCb && otherTxt) {
+          const show = !!otherCb.checked;
+          otherTxt.style.display = show ? 'inline-block' : 'none';
+          if (show) { otherTxt.setAttribute('required','required'); }
+          else { otherTxt.removeAttribute('required'); otherTxt.value=''; }
+        }
+      }
+      typeInputs.forEach(cb => cb.addEventListener('change', onTypeChange));
+    } catch(_) { /* no-op */ }
 });
 
 // Client-side validation to keep modal open (prevent submit if invalid)
@@ -1314,6 +1347,13 @@ if(bookingForm){
     e.preventDefault();
     const err = validateBooking();
     if(err){ showNotification(err, true); return; }
+
+    // Confirm details before final submission
+    const ok = await studentConfirm(
+      'Confirm Booking',
+      'Are you sure the details are correct? You have 1 hour to cancel; after that, it will reflect on the professor’s end.'
+    );
+    if(!ok) return;
     const submitBtn = bookingForm.querySelector('.submit-btn');
     if(submitBtn){ submitBtn.disabled = true; }
     const overlay = document.getElementById('submitOverlay');
@@ -1560,5 +1600,48 @@ chatForm.addEventListener("submit", async function (e) {
       if(card) card.remove();
     });
   })();
+</script>
+
+<script>
+// Student confirmation matching consultation log UI (confirm-modal.css)
+function studentConfirm(title, message){
+  return new Promise(resolve=>{
+    const overlay=document.createElement('div'); overlay.className='confirm-overlay'; overlay.id = 'studentConfirmOverlayInline';
+    const dlg=document.createElement('div'); dlg.className='confirm-modal student-confirm'; dlg.setAttribute('role','dialog'); dlg.setAttribute('aria-modal','true'); dlg.setAttribute('aria-labelledby','studentConfirmTitleInline');
+    dlg.innerHTML = `
+      <div class="confirm-header">
+        <i class='bx bx-help-circle'></i>
+        <div id="studentConfirmTitleInline">Please confirm</div>
+      </div>
+      <div class="confirm-body">${message}</div>
+      <div class="confirm-actions">
+        <button id="dlgOk" class="btn-confirm-green">OK</button>
+        <button id="dlgCancel" class="btn-cancel-red">Cancel</button>
+      </div>`;
+    overlay.appendChild(dlg);
+    document.body.appendChild(overlay);
+    requestAnimationFrame(()=> overlay.classList.add('active'));
+    const onKey=(e)=>{
+      if(e.key==='Escape'){ e.preventDefault(); close(false); }
+      if(e.key==='Tab'){
+        const focusables=dlg.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])');
+        if(focusables.length){
+          const first=focusables[0]; const last=focusables[focusables.length-1];
+          if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+          else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+        } else { e.preventDefault(); }
+      }
+    };
+    const cleanup=()=>{ document.removeEventListener('keydown', onKey); overlay.classList.remove('active'); setTimeout(()=> overlay.remove(), 150); };
+    const close=(v)=>{ cleanup(); resolve(v); };
+    document.addEventListener('keydown', onKey);
+    const okBtn = dlg.querySelector('#dlgOk');
+    const cancelBtn = dlg.querySelector('#dlgCancel');
+    okBtn.onclick   =()=> close(true);
+    cancelBtn.onclick =()=> close(false);
+    overlay.addEventListener('click', (e)=>{ const m = dlg; if(m && !m.contains(e.target)) close(false); });
+    setTimeout(()=> okBtn.focus(), 0);
+  });
+}
 </script>
 </html>

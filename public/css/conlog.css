@@ -919,6 +919,21 @@ body {
     border: 1px solid #ccc;
 }
 
+/* Empty state: center message and remove border (place below header) */
+.table .no-results-row {
+    display: block !important;
+    width: 100% !important;
+}
+.table .no-results-row .table-cell {
+    display: flex !important;
+    width: 100% !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 28px 0 !important;
+    border: none !important;
+    background: transparent !important;
+}
+
 /* Pagination bar */
 .pagination-bar {
     display: flex;

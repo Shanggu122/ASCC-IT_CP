@@ -32,7 +32,7 @@
           $displayMessage = $youPrefix . $lastMessage;
           $relTime = $student->last_message_time ? \Carbon\Carbon::parse($student->last_message_time)->timezone('Asia/Manila')->diffForHumans(['short'=>true]) : '';
         @endphp
-        <div class="inbox-item" data-stud-id="{{ $student->stud_id }}" onclick="loadChat('{{ $student->name }}', {{ $student->stud_id }})">
+  <div class="inbox-item" data-stud-id="{{ $student->stud_id }}" data-can-video="{{ isset($student->can_video_call) && $student->can_video_call ? '1':'0' }}" onclick="loadChat('{{ $student->name }}', {{ $student->stud_id }})">
           <img class="inbox-avatar" src="{{ $picUrl }}" alt="{{ $student->name }}">
           <div class="inbox-meta">
             <div class="name"><span class="presence-dot" data-presence="stud-{{ $student->stud_id }}"></span>{{ $student->name }} <span class="unread-badge hidden" data-unread="stud-{{ $student->stud_id }}"></span></div>
@@ -55,7 +55,7 @@
         <button class="back-btn" id="back-btn" style="display:none;"><i class='bx bx-arrow-back'></i></button>
         <span id="chat-person">Select a student</span>
         <span id="typing-indicator" class="typing-indicator" style="display:none;">Typing...</span>
-        <button class="video-btn" onclick="startVideoCall()">Video Call</button>
+  <button class="video-btn is-blocked" id="video-call-btn" onclick="startVideoCall()" disabled>Video Call</button>
         
       </div>
       <div class="chat-body" id="chat-body">
@@ -66,13 +66,13 @@
       </div>
       <div class="chat-input" id="chat-input">
         <div id="file-preview-container" class="file-preview-container"></div>
-        <label for="file-input" class="attach-btn" title="Upload file">
+        <label for="file-input" id="attach-btn" class="attach-btn" title="Upload file">
             <i class='bx bx-paperclip'></i>
         </label>
-        <input type="file" id="file-input" multiple style="display:none;" accept="image/*,.pdf,.doc,.docx" />
-  <textarea id="message-input" placeholder="Type a message..." rows="1" maxlength="5000"></textarea>
-        <button id="send-btn" onclick="sendMessage()">Send</button>
-  <input type="hidden" id="last-send-ts" value="0" />
+        <input type="file" id="file-input" multiple style="display:none;" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" disabled />
+        <textarea id="message-input" placeholder="Type a message..." rows="1" maxlength="5000" disabled></textarea>
+        <button id="send-btn" onclick="sendMessage()" disabled>Send</button>
+        <input type="hidden" id="last-send-ts" value="0" />
       </div>
     </div>
   </div>
@@ -81,9 +81,59 @@
   <script src="{{ asset('js/chat-common.js') }}"></script>
   <script src="https://js.pusher.com/7.0/pusher.min.js"></script>
   <script>
+  // Themed toast helper (professor side) for consistent UI feedback
+  function showToast(message, variant = 'error', timeout = 2800){
+    let root = document.getElementById('toast-root');
+    if(!root){
+      root = document.createElement('div');
+      root.id = 'toast-root';
+      root.className = 'toast-root';
+      document.body.appendChild(root);
+    }
+    const existing = Array.from(root.querySelectorAll('.toast')).find(el => el.dataset.msg === message);
+    if(existing){
+      clearTimeout(existing._hideTimer);
+      existing.style.animation = 'toast-in 180ms ease-out forwards';
+      existing._hideTimer = setTimeout(()=>{
+        existing.style.animation = 'toast-out 160ms ease-in forwards';
+        setTimeout(()=>{ existing.remove(); }, 190);
+      }, timeout);
+      return;
+    }
+    const t = document.createElement('div');
+    t.className = 'toast ' + (variant === 'error' ? 'toast--error' : 'toast--ok');
+    t.setAttribute('data-msg', message);
+    t.innerHTML = "<i class='bx bxs-info-circle toast__icon'></i><div class='toast__text'></div>";
+    t.querySelector('.toast__text').textContent = message;
+    root.appendChild(t);
+    t._hideTimer = setTimeout(()=>{
+      t.style.animation = 'toast-out 160ms ease-in forwards';
+      setTimeout(()=>{ t.remove(); }, 190);
+    }, timeout);
+  }
   let currentChatPerson = '';
   let currentStudentId = null; // direct messaging target
   const currentProfId = {{ auth()->guard('professor')->user()->Prof_ID ?? 0 }};
+
+  // Helper: enable/disable attachment control based on chat selection
+  function setAttachmentEnabled(enabled){
+    const label = document.getElementById('attach-btn');
+    const input = document.getElementById('file-input');
+    if(!label || !input) return;
+    if(enabled){
+      label.style.pointerEvents='';
+      label.style.opacity='';
+      input.disabled = false;
+    } else {
+      label.style.pointerEvents='none';
+      label.style.opacity='0.45';
+      input.disabled = true;
+      // clear any selected (optimistic) files if user navigated away
+      if(window.selectedFiles && window.selectedFiles.length){
+        window.selectedFiles = []; renderFilePreviews && renderFilePreviews();
+      }
+    }
+  }
 
   ChatCommon.initPusher('00e7e382ce019a1fa987','ap1', null, currentProfId);
   // Real-time presence updates
@@ -145,6 +195,7 @@
                   <span class="rel-time">now</span>
                 </div>
               </div>`;
+            el.setAttribute('data-can-video','0');
             // Insert at top after the header (h2)
             const afterHeader = wrapper.querySelector('h2')?.nextElementSibling;
             if(afterHeader){ wrapper.insertBefore(el, afterHeader); } else { wrapper.appendChild(el); }
@@ -314,6 +365,22 @@
 
     function loadChat(person, studId){
       currentChatPerson = person; currentStudentId = studId; document.getElementById('chat-person').textContent = person;
+      // Enable chat input when a student is selected
+      document.getElementById('message-input').disabled = false;
+      document.getElementById('send-btn').disabled = false;
+      setAttachmentEnabled(true);
+      const vbtn=document.getElementById('video-call-btn');
+      if(vbtn){
+        const activeItem = document.querySelector(`.inbox-item[data-stud-id="${studId}"]`);
+        const canVideo = activeItem && activeItem.getAttribute('data-can-video')==='1';
+        if(canVideo){ vbtn.disabled=false; vbtn.classList.remove('is-blocked'); vbtn.title='Start video call'; }
+        else { vbtn.disabled=true; vbtn.classList.add('is-blocked'); vbtn.title='Video call available only on scheduled consultation day'; }
+      }
+    // On page load, ensure chat input is disabled until a student is selected
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('message-input').disabled = true;
+      document.getElementById('send-btn').disabled = true;
+    });
       try { localStorage.setItem('chat_last_student_id', String(studId)); } catch(e){}
       // Highlight active inbox item (needed so avatar restore can find image)
       document.querySelectorAll('.inbox-item').forEach(it=>it.classList.remove('active'));
@@ -326,8 +393,10 @@
     }
 
     function startVideoCall() {
-      if (!currentChatPerson) {
-        alert('Please select a student to start a video call.');
+      if (!currentChatPerson || !currentStudentId) { showToast('Select a student first to start a video call.','error'); return; }
+      const active = document.querySelector(`.inbox-item.active`);
+      if(!active || active.getAttribute('data-can-video')!=='1'){
+        showToast('Video call is only allowed on your scheduled consultation day.','error');
         return;
       }
   const studId = Number(currentStudentId);
@@ -340,8 +409,41 @@
     let selectedFiles = [];
 
     document.getElementById("file-input").addEventListener("change", function (e) {
+        if(!currentStudentId){
+          // Guard: should not allow selecting files when no student chosen
+          showToast('Select a student first before attaching a file.', 'error');
+          e.target.value='';
+          return;
+        }
         const files = Array.from(e.target.files);
-        selectedFiles = selectedFiles.concat(files);
+        const ALLOWED_EXT = ['pdf','doc','docx','xls','xlsx','ppt','pptx'];
+        const MAX_MB = 25;
+        const MAX_BYTES = MAX_MB * 1024 * 1024;
+        const MAX_FILES = 10; // arbitrary sensible limit to prevent overload
+        const rejected = [];
+        const accepted = [];
+        if(selectedFiles.length + files.length > MAX_FILES){
+          showToast(`You can attach up to ${MAX_FILES} files at once.`, 'error');
+          e.target.value='';
+          return;
+        }
+        files.forEach(f=>{
+          const name=(f.name||'').toLowerCase();
+          const ext=name.split('.').pop();
+          const isAllowed = ALLOWED_EXT.includes(ext);
+          const within = f.size <= MAX_BYTES;
+          if(isAllowed && within){ accepted.push(f); }
+          else { rejected.push({name:f.name, reason: !isAllowed ? 'type' : 'size'}); }
+        });
+        if(rejected.length){
+          const hasType = rejected.some(r=>r.reason==='type');
+          const hasSize = rejected.some(r=>r.reason==='size');
+          let msg = 'Invalid attachment. ';
+          if(hasType){ msg += 'Only PDF, Word, Excel, or PowerPoint files are allowed. '; }
+          if(hasSize){ msg += `Each file must be 25 MB or smaller.`; }
+          showToast(msg.trim(), 'error');
+        }
+        if(accepted.length){ selectedFiles = selectedFiles.concat(accepted); }
         renderFilePreviews();
         e.target.value = ''; // Reset file input for next selection
     });
@@ -428,11 +530,18 @@
             formData.append('files[]', file);
         });
 
-  fetch('/send-message', {
-            method: 'POST',
-            body: formData
-        })
-    .then(response => response.json())
+  fetch('/send-message', { method: 'POST', body: formData })
+    .then(async response => {
+      let data=null; let text='';
+      try { text = await response.text(); data = JSON.parse(text); }
+      catch(parseErr){
+        // Non-JSON (likely HTML error page / 500). Provide friendly message.
+        const hint = response.status === 413 ? 'Attachments too large.' : 'Server returned an unexpected response.';
+        throw { status: 'Error', error: hint + ` (HTTP ${response.status})` };
+      }
+      if(!response.ok){ throw data; }
+      return data;
+    })
     .then(data => {
       if (data.status === 'Message sent!') {
         textarea.value=''; textarea.style.height='auto';
@@ -440,12 +549,24 @@
         selectedFiles=[]; renderFilePreviews();
         ChatCommon.sendTyping(currentStudentId, currentProfId, 'professor', false);
       } else {
-        alert('Error sending: ' + (data.error || data.status));
+        showToast('Invalid attachment. Only PDF, Word, Excel, or PowerPoint up to 25 MB each.', 'error');
   if(pendingMap[clientUuid]){ pendingMap[clientUuid].el.classList.add('failed'); pendingMap[clientUuid].el.style.opacity='1'; }
       }
       sending=false; const left=Math.max(0, sendCooldownUntil-Date.now()); setTimeout(()=>{ const b=document.getElementById('send-btn'); if(b) b.disabled=false; }, left);
     })
-    .catch(error => { alert('Error: ' + error); sending=false; const left=Math.max(0, sendCooldownUntil-Date.now()); setTimeout(()=>{ const b=document.getElementById('send-btn'); if(b) b.disabled=false; }, left); });
+    .catch(error => {
+      let msg = 'Failed to send.';
+      if(error){
+        if(error.details && Array.isArray(error.details) && error.details.length){ msg = error.details[0]; }
+        else if(error.error){ msg = error.error; }
+        else if(error.status){ msg = error.status; }
+      }
+      // Provide additional hints for size / validation
+      if(/25 MB/i.test(msg)){ msg = 'Each file must be 25 MB or smaller.'; }
+      showToast(msg,'error');
+      if(pendingMap[clientUuid]){ pendingMap[clientUuid].el.classList.add('failed'); pendingMap[clientUuid].el.style.opacity='1'; }
+      sending=false; const left=Math.max(0, sendCooldownUntil-Date.now()); setTimeout(()=>{ const b=document.getElementById('send-btn'); if(b) b.disabled=false; }, left);
+    });
     }
 
     document.getElementById("attach-btn")?.addEventListener("click", function () {
@@ -499,6 +620,9 @@
   </script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
+      // Disable attachment control until a student is picked
+      setAttachmentEnabled(false);
+      const vbtn=document.getElementById('video-call-btn'); if(vbtn){ vbtn.disabled=true; vbtn.classList.add('is-blocked'); }
       // Desktop: show chat panel and try to restore last opened student; Mobile: don't auto-load any chat
       if (!isMobile()) {
         document.getElementById('chat-panel').classList.add('active');

@@ -204,16 +204,42 @@ function closePanel(panelId) {
 const sidePanelInputFile = document.getElementById('sidePanelInputFile');
 const sidePanelProfilePic = document.getElementById('sidePanelProfilePic');
 const sidePanelSaveBtn = document.getElementById('sidePanelSaveBtn');
+const profilePicForm = document.getElementById('profilePicForm');
+
+function isValidProfileImage(file){
+  if(!file) return false;
+  const allowedTypes = ['image/jpeg','image/png','image/jpg'];
+  const maxBytes = 2 * 1024 * 1024; // 2MB
+  if(!allowedTypes.includes(file.type)){
+    showNotification('Invalid file. Please select a JPG or PNG image only.', true);
+    return false;
+  }
+  if(file.size > maxBytes){
+    showNotification('File too large. Max size is 2 MB.', true);
+    return false;
+  }
+  return true;
+}
 
 if (sidePanelInputFile) {
-  sidePanelInputFile.onchange = function() {
-    if (sidePanelInputFile.files && sidePanelInputFile.files[0]) {
-      sidePanelProfilePic.src = URL.createObjectURL(sidePanelInputFile.files[0]);
-      if (sidePanelSaveBtn) sidePanelSaveBtn.style.display = "inline-block";
+  sidePanelInputFile.addEventListener('change', function(){
+    const file = sidePanelInputFile.files && sidePanelInputFile.files[0];
+    if(file && isValidProfileImage(file)){
+      sidePanelProfilePic.src = URL.createObjectURL(file);
+      if (sidePanelSaveBtn) sidePanelSaveBtn.style.display = 'inline-block';
     } else {
-      if (sidePanelSaveBtn) sidePanelSaveBtn.style.display = "none";
+      sidePanelInputFile.value = '';
+      if (sidePanelSaveBtn) sidePanelSaveBtn.style.display = 'none';
     }
-  };
+  });
+}
+
+if (profilePicForm) {
+  profilePicForm.addEventListener('submit', function(e){
+    const file = sidePanelInputFile && sidePanelInputFile.files && sidePanelInputFile.files[0];
+    if(!file){ e.preventDefault(); showNotification('Please choose an image file to upload.', true); return; }
+    if(!isValidProfileImage(file)) { e.preventDefault(); return; }
+  });
 }
 
 function deleteProfilePicture() {
@@ -470,9 +496,28 @@ document.addEventListener('DOMContentLoaded', function() {
     <script>
       document.addEventListener('DOMContentLoaded', function() {
         closePanel('passwordPanel');
-        setTimeout(function() {
-          showNotification(@json(session('password_status')), false);
-        }, 300);
+        // Build confirmation modal asking to logout or stay
+        let overlay = document.getElementById('pwChangedConfirmProf');
+        if(!overlay){
+          overlay = document.createElement('div');
+          overlay.id = 'pwChangedConfirmProf';
+          overlay.className = 'confirm-overlay';
+          overlay.innerHTML = `
+            <div class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="pwChangedTitleProf">
+              <div class="confirm-header" id="pwChangedTitleProf"><i class='bx bx-check-circle'></i> Password changed</div>
+              <div class="confirm-body">Your password was changed successfully. Do you want to log out now?</div>
+              <div class="confirm-actions">
+                <button type="button" class="btn-cancel-red" id="pwStayProf">Stay signed in</button>
+                <button type="button" class="btn-confirm-green" id="pwLogoutProf">Log out</button>
+              </div>
+            </div>`;
+          document.body.appendChild(overlay);
+        }
+        const close = ()=> overlay.classList.remove('active');
+        overlay.classList.add('active');
+        overlay.querySelector('#pwStayProf').onclick = close;
+        overlay.querySelector('#pwLogoutProf').onclick = function(){ window.location.href = @json(route('logout-professor')); };
+        overlay.addEventListener('click', (e)=>{ const m = overlay.querySelector('.confirm-modal'); if(m && !m.contains(e.target)) close(); }, { once:true });
       });
     </script>
   @endif

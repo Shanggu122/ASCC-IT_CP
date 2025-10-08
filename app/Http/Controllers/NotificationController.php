@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Models\Notification;
+use App\Models\CalendarOverride;
+use Carbon\Carbon;
 
 class NotificationController extends Controller
 {
@@ -17,16 +19,127 @@ class NotificationController extends Controller
             return response()->json(["notifications" => []]);
         }
 
-        // Get most recent notification per booking (student view) ordered by latest update
-        $notifications = Notification::where("user_id", $userId)
-            ->select("*")
-            ->orderBy("updated_at", "desc")
-            ->get()
-            ->unique("booking_id")
-            ->take(10)
-            ->values();
+        // Ensure global suspension notifications exist for this student (idempotent)
+        try {
+            $today = Carbon::today("Asia/Manila")->toDateString();
+            $upcoming = CalendarOverride::query()
+                ->where("effect", "block_all")
+                ->where("end_date", ">=", $today)
+                ->orderBy("start_date", "asc")
+                ->limit(10)
+                ->get();
+            foreach ($upcoming as $ov) {
+                $startHuman = Carbon::parse($ov->start_date)->format("M d, Y");
+                $endHuman = Carbon::parse($ov->end_date)->format("M d, Y");
+                $rangeText =
+                    $ov->start_date === $ov->end_date
+                        ? "on {$startHuman}"
+                        : "from {$startHuman} to {$endHuman}";
+                $rk = $ov->reason_key;
+                $reasonTxt = trim((string) ($ov->reason_text ?? ""));
+                if ($reasonTxt === "" && $rk) {
+                    $map = [
+                        "weather" => "Inclement weather",
+                        "prof_leave" => "Professor leave",
+                        "health" => "Health advisory",
+                        "emergency" => "Emergency advisory",
+                    ];
+                    $reasonTxt = $map[$rk] ?? ucfirst(str_replace("_", " ", (string) $rk));
+                }
+                if ($reasonTxt === "") {
+                    $reasonTxt = "administrative reasons";
+                }
+                $title = "Suspention of Class";
+                $message = "No classes {$rangeText} due to {$reasonTxt}.";
+                // Idempotent check by (user_id, type, message)
+                $exists = Notification::where("user_id", $userId)
+                    ->where("type", "suspention_day")
+                    ->where("message", $message)
+                    ->exists();
+                if (!$exists) {
+                    Notification::createSystem($userId, $title, $message, "suspention_day");
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
 
-        return response()->json(["notifications" => $notifications]);
+        // Fetch all notifications for this student, then reduce to latest per booking/group
+        $all = Notification::where("user_id", $userId)
+            ->orderBy("updated_at", "desc")
+            ->orderBy("created_at", "desc")
+            ->get();
+
+        // Group by booking id, treating system (null booking_id) as their own unique item via id
+        $latestPerGroup = $all
+            ->groupBy(function ($n) {
+                return $n->booking_id ? "b_" . $n->booking_id : "solo_" . $n->id;
+            })
+            ->map(function ($items) {
+                return $items->sortByDesc("updated_at")->first();
+            });
+
+        $ordered = $latestPerGroup
+            ->sortByDesc(function ($n) {
+                return $n->updated_at ?? $n->created_at;
+            })
+            ->values()
+            ->take(10);
+
+        // Append synthesized suspension notices (in case DB creation lags)
+        try {
+            $today = Carbon::today("Asia/Manila")->toDateString();
+            $upcoming = CalendarOverride::query()
+                ->where("effect", "block_all")
+                ->where("end_date", ">=", $today)
+                ->orderBy("start_date", "asc")
+                ->limit(3)
+                ->get();
+            foreach ($upcoming as $ov) {
+                $startHuman = Carbon::parse($ov->start_date)->format("M d, Y");
+                $endHuman = Carbon::parse($ov->end_date)->format("M d, Y");
+                $rangeText =
+                    $ov->start_date === $ov->end_date
+                        ? "on {$startHuman}"
+                        : "from {$startHuman} to {$endHuman}";
+                $rk = $ov->reason_key;
+                $reasonTxt = trim((string) ($ov->reason_text ?? ""));
+                if ($reasonTxt === "" && $rk) {
+                    $map = [
+                        "weather" => "Inclement weather",
+                        "prof_leave" => "Professor leave",
+                        "health" => "Health advisory",
+                        "emergency" => "Emergency advisory",
+                    ];
+                    $reasonTxt = $map[$rk] ?? ucfirst(str_replace("_", " ", (string) $rk));
+                }
+                if ($reasonTxt === "") {
+                    $reasonTxt = "administrative reasons";
+                }
+                $msg = "No classes {$rangeText} due to {$reasonTxt}.";
+                $existsInList = $ordered->contains(function ($n) use ($msg) {
+                    return ($n->type ?? "") === "suspention_day" && ($n->message ?? "") === $msg;
+                });
+                if (!$existsInList) {
+                    $ordered->prepend(
+                        (object) [
+                            "id" => null,
+                            "user_id" => $userId,
+                            "booking_id" => null,
+                            "type" => "suspention_day",
+                            "title" => "Suspention of Class",
+                            "message" => $msg,
+                            "is_read" => false,
+                            "created_at" => now(),
+                            "updated_at" => now(),
+                        ],
+                    );
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        return response()->json(["notifications" => $ordered->take(10)->values()]);
     }
 
     public function markAsRead(Request $request)
@@ -79,6 +192,50 @@ class NotificationController extends Controller
         if (!$professorId) {
             return response()->json(["notifications" => []]);
         }
+        // Ensure global suspension notifications exist for this professor (idempotent)
+        try {
+            $today = Carbon::today("Asia/Manila")->toDateString();
+            $upcoming = CalendarOverride::query()
+                ->where("effect", "block_all")
+                ->where("end_date", ">=", $today)
+                ->orderBy("start_date", "asc")
+                ->limit(10)
+                ->get();
+            foreach ($upcoming as $ov) {
+                $startHuman = Carbon::parse($ov->start_date)->format("M d, Y");
+                $endHuman = Carbon::parse($ov->end_date)->format("M d, Y");
+                $rangeText =
+                    $ov->start_date === $ov->end_date
+                        ? "on {$startHuman}"
+                        : "from {$startHuman} to {$endHuman}";
+                $rk = $ov->reason_key;
+                $reasonTxt = trim((string) ($ov->reason_text ?? ""));
+                if ($reasonTxt === "" && $rk) {
+                    $map = [
+                        "weather" => "Inclement weather",
+                        "prof_leave" => "Professor leave",
+                        "health" => "Health advisory",
+                        "emergency" => "Emergency advisory",
+                    ];
+                    $reasonTxt = $map[$rk] ?? ucfirst(str_replace("_", " ", (string) $rk));
+                }
+                if ($reasonTxt === "") {
+                    $reasonTxt = "administrative reasons";
+                }
+                $title = "Suspention of Class";
+                $message = "No classes {$rangeText} due to {$reasonTxt}.";
+                // Idempotent check by (user_id, type, message)
+                $exists = Notification::where("user_id", $professorId)
+                    ->where("type", "suspention_day")
+                    ->where("message", $message)
+                    ->exists();
+                if (!$exists) {
+                    Notification::createSystem($professorId, $title, $message, "suspention_day");
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
         // Fetch all relevant notifications first (limit to recent range for performance if needed)
         $all = Notification::where("user_id", $professorId)
             // Exclude system notifications not meant for professors
@@ -104,7 +261,60 @@ class NotificationController extends Controller
             ->values()
             ->take(10);
 
-        return response()->json(["notifications" => $ordered]);
+        // Append synthesized suspension notices (in case DB creation lags)
+        try {
+            $today = Carbon::today("Asia/Manila")->toDateString();
+            $upcoming = CalendarOverride::query()
+                ->where("effect", "block_all")
+                ->where("end_date", ">=", $today)
+                ->orderBy("start_date", "asc")
+                ->limit(3)
+                ->get();
+            foreach ($upcoming as $ov) {
+                $startHuman = Carbon::parse($ov->start_date)->format("M d, Y");
+                $endHuman = Carbon::parse($ov->end_date)->format("M d, Y");
+                $rangeText =
+                    $ov->start_date === $ov->end_date
+                        ? "on {$startHuman}"
+                        : "from {$startHuman} to {$endHuman}";
+                $rk = $ov->reason_key;
+                $reasonTxt = trim((string) ($ov->reason_text ?? ""));
+                if ($reasonTxt === "" && $rk) {
+                    $map = [
+                        "weather" => "Inclement weather",
+                        "prof_leave" => "Professor leave",
+                        "health" => "Health advisory",
+                        "emergency" => "Emergency advisory",
+                    ];
+                    $reasonTxt = $map[$rk] ?? ucfirst(str_replace("_", " ", (string) $rk));
+                }
+                if ($reasonTxt === "") {
+                    $reasonTxt = "administrative reasons";
+                }
+                $msg = "No classes {$rangeText} due to {$reasonTxt}.";
+                $existsInList = $ordered->contains(function ($n) use ($msg) {
+                    return ($n->type ?? "") === "suspention_day" && ($n->message ?? "") === $msg;
+                });
+                if (!$existsInList) {
+                    $ordered->prepend(
+                        (object) [
+                            "id" => null,
+                            "user_id" => $professorId,
+                            "booking_id" => null,
+                            "type" => "suspention_day",
+                            "title" => "Suspention of Class",
+                            "message" => $msg,
+                            "is_read" => false,
+                            "created_at" => now(),
+                            "updated_at" => now(),
+                        ],
+                    );
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        return response()->json(["notifications" => $ordered->take(10)->values()]);
     }
 
     public function markProfessorAsRead(Request $request)

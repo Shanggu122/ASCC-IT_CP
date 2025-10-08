@@ -329,4 +329,24 @@ class Notification extends Model
             ]);
         }
     }
+
+    /**
+     * Create a simple system notification for a user (no booking_id required).
+     * Types are free-form strings (e.g., 'override_applied').
+     */
+    public static function createSystem(
+        int $userId,
+        string $title,
+        string $message,
+        string $type = "system",
+    ) {
+        return self::create([
+            "user_id" => $userId,
+            "booking_id" => null,
+            "type" => $type,
+            "title" => $title,
+            "message" => $message,
+            "is_read" => false,
+        ]);
+    }
 }
