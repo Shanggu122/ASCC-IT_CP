@@ -161,19 +161,48 @@
     closeSettingsBtn.addEventListener('click',closeSettings);
     applySettingsBtn.addEventListener('click',async()=>{if(cameraSelect.value) await switchCamera(cameraSelect.value);if(micSelect.value) await switchMic(micSelect.value);try{const videos=remoteContainer.querySelectorAll('video');videos.forEach(v=>v.setSinkId && v.setSinkId(speakerSelect.value));}catch{}closeSettings();});
     async function fetchRtcTokenProf(channel){
-      const res = await fetch(`{{ route('agora.token.rtc.prof') }}?channel=${encodeURIComponent(channel)}`, { credentials: 'include' });
-      if(!res.ok) throw new Error('Failed to fetch RTC token');
+      const url = `{{ route('agora.token.rtc.prof') }}?channel=${encodeURIComponent(channel)}`;
+      const res = await fetch(url, { credentials: 'include' });
+      if(!res.ok){
+        let body='';
+        try{ body = await res.text(); }catch{}
+        console.error('RTC token fetch failed', {status: res.status, url, body});
+        throw new Error(`RTC token endpoint returned ${res.status}`);
+      }
       const data = await res.json();
-      if(!data.token || !data.appId) throw new Error('Invalid RTC token response');
+      if(!data.token || !data.appId){
+        console.error('Invalid RTC token response payload', data);
+        throw new Error('Invalid RTC token response');
+      }
       return data;
     }
     async function fetchRtmTokenProf(){
       try{
-        const res = await fetch(`{{ route('agora.token.rtm.prof') }}`, { credentials: 'include' });
-        if(!res.ok){ logMsg(`RTM token endpoint status: ${res.status}`, true); return null; }
+        const url = `{{ route('agora.token.rtm.prof') }}`;
+        const res = await fetch(url, { credentials: 'include' });
+        if(!res.ok){
+          let body='';
+          try{ body = await res.text(); }catch{}
+          console.warn('RTM token endpoint status', {status: res.status, url, body});
+          return null;
+        }
         const data = await res.json();
         if(!data || !data.token) return null; return data;
-      }catch{ return null; }
+      }catch(err){ console.warn('RTM token fetch error', err); return null; }
+    }
+
+    // Try to create local tracks; fall back gracefully if devices are busy/denied
+    async function createLocalTracksWithFallback(){
+      try{
+        const pair = await AgoraRTC.createMicrophoneAndCameraTracks();
+        return { audio: pair[0], video: pair[1], mode: 'mic+cam' };
+      }catch(err){
+        console.warn('createMicrophoneAndCameraTracks failed, falling back…', err);
+        let audio=null, video=null, mode='none';
+        try{ video = await AgoraRTC.createCameraVideoTrack(); mode = video ? 'cam' : mode; }catch(e){ console.warn('camera track failed', e); }
+        try{ audio = await AgoraRTC.createMicrophoneAudioTrack(); mode = audio && mode==='cam' ? 'mic+cam' : (audio ? 'mic' : mode); }catch(e){ console.warn('microphone track failed', e); }
+        return { audio, video, mode, error: err };
+      }
     }
     async function joinCall(){
       const rtc = await fetchRtcTokenProf(CHANNEL);
@@ -182,8 +211,25 @@
       client.on('user-published',handleUserPublished); client.on('user-unpublished',handleUserUnpublished); client.on('user-joined',refreshParticipants); client.on('user-left',refreshParticipants);
       client.on('token-privilege-will-expire', async ()=>{ try{ const fresh = await fetchRtcTokenProf(CHANNEL); TOKEN = fresh.token; await client.renewToken(TOKEN); logMsg('RTC token renewed',true);}catch{ logMsg('RTC token renewal failed',true);} });
       client.on('token-privilege-did-expire', async ()=>{ try{ const fresh = await fetchRtcTokenProf(CHANNEL); TOKEN = fresh.token; await client.renewToken(TOKEN); logMsg('RTC token reloaded after expiry',true);}catch{ logMsg('RTC token reload failed',true);} });
+      // Join first; do not abort the call if device creation fails
       localUid = await client.join(appIdFromServer, CHANNEL, TOKEN, uidFromServer);
-  [localAudioTrack,localVideoTrack]=await AgoraRTC.createMicrophoneAndCameraTracks(); localVideoTrack.play(localContainer); await client.publish([localAudioTrack,localVideoTrack]);
+      const created = await createLocalTracksWithFallback();
+      localAudioTrack = created.audio || null;
+      localVideoTrack = created.video || null;
+      const toPublish = [];
+      if(localAudioTrack) toPublish.push(localAudioTrack);
+      if(localVideoTrack) {
+        toPublish.push(localVideoTrack);
+        try{ localVideoTrack.play(localContainer); }catch{}
+      }
+      if(toPublish.length){
+        try{ await client.publish(toPublish); }
+        catch(pubErr){ console.error('Failed to publish local tracks', pubErr); }
+      } else {
+        logMsg('Joined without mic/camera (device blocked or not available).', true);
+        // Show status badges appropriately
+        try{ remoteStatus.classList.remove('hidden'); }catch{}
+      }
   try{ rtcDataStream = await client.createDataStream(); logMsg('Chat ready (RTC data stream).', true);}catch{}
   refreshParticipants();
       async function connectRTM(){

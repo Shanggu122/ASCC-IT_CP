@@ -342,24 +342,35 @@
     });
 
     async function fetchRtcToken(channel){
-      const res = await fetch(`{{ route('agora.token.rtc') }}?channel=${encodeURIComponent(channel)}`, { credentials: 'include' });
-      if(!res.ok) throw new Error('Failed to fetch RTC token');
+      const url = `{{ route('agora.token.rtc') }}?channel=${encodeURIComponent(channel)}`;
+      const res = await fetch(url, { credentials: 'include' });
+      if(!res.ok){ let body=''; try{ body=await res.text(); }catch{} console.error('RTC token fetch failed', {status: res.status, url, body}); throw new Error(`RTC token endpoint returned ${res.status}`); }
       const data = await res.json();
-      if(!data.token || !data.appId) throw new Error('Invalid RTC token response');
+      if(!data.token || !data.appId){ console.error('Invalid RTC token response payload', data); throw new Error('Invalid RTC token response'); }
       return data;
     }
 
     async function fetchRtmToken(){
       try{
-        const res = await fetch(`{{ route('agora.token.rtm') }}`, { credentials: 'include' });
-        if(!res.ok){
-          logMsg(`RTM token endpoint status: ${res.status}`, true);
-          return null;
-        }
+        const url = `{{ route('agora.token.rtm') }}`;
+        const res = await fetch(url, { credentials: 'include' });
+        if(!res.ok){ let body=''; try{ body=await res.text(); }catch{} console.warn('RTM token endpoint status', {status: res.status, url, body}); return null; }
         const data = await res.json();
         if(!data || !data.token) return null;
         return data;
-      }catch{ return null; }
+      }catch(err){ console.warn('RTM token fetch error', err); return null; }
+    }
+
+    // Device fallback like professor page
+    async function createLocalTracksWithFallback(){
+      try{ const pair = await AgoraRTC.createMicrophoneAndCameraTracks(); return { audio: pair[0], video: pair[1], mode: 'mic+cam' }; }
+      catch(err){
+        console.warn('createMicrophoneAndCameraTracks failed, falling back…', err);
+        let audio=null, video=null, mode='none';
+        try{ video = await AgoraRTC.createCameraVideoTrack(); mode = video ? 'cam' : mode; }catch(e){ console.warn('camera track failed', e); }
+        try{ audio = await AgoraRTC.createMicrophoneAudioTrack(); mode = audio && mode==='cam' ? 'mic+cam' : (audio ? 'mic' : mode); }catch(e){ console.warn('microphone track failed', e); }
+        return { audio, video, mode, error: err };
+      }
     }
 
     async function joinCall(){
@@ -389,10 +400,16 @@
         }catch{ logMsg('RTC token reload failed', true); }
       });
 
+  // Join first; don't fail whole call if mic/cam creation fails
   localUid = await client.join(appIdFromServer, CHANNEL, TOKEN, uidFromServer);
-      [localAudioTrack, localVideoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-      localVideoTrack.play(localContainer);
-      await client.publish([localAudioTrack, localVideoTrack]);
+    const created = await createLocalTracksWithFallback();
+    localAudioTrack = created.audio || null;
+    localVideoTrack = created.video || null;
+    const toPublish = [];
+    if(localAudioTrack) toPublish.push(localAudioTrack);
+    if(localVideoTrack){ toPublish.push(localVideoTrack); try{ localVideoTrack.play(localContainer); }catch{} }
+    if(toPublish.length){ try{ await client.publish(toPublish); }catch(pubErr){ console.error('Failed to publish local tracks', pubErr);} }
+    else { logMsg('Joined without mic/camera (device blocked or not available).', true); }
       // Create RTC data stream fallback for chat
       try {
         rtcDataStream = await client.createDataStream();
