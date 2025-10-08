@@ -452,21 +452,25 @@
   {{-- <script src="{{ asset('js/dashboard.js') }}"></script> --}}
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
   <script>
-    // Responsive notification visibility: show on tablets/desktops, use bell on small mobile only
+    // Responsive notification visibility (match student behavior):
+    // - < 769px: hide panel; show bell (mobile dropdown)
+    // - 769px–1450px: hide panel; show bell (space for calendar)
+    // - >= 1451px: show panel; hide bell
     (function(){
       function applyProfessorNotifMode(){
         const w = window.innerWidth;
         const panel = document.querySelector('.inbox-notifications');
         const bell = document.getElementById('mobileNotificationBell');
         if(!panel) return; // bail if markup missing
-        if (w < 769) {
-          // Small mobile: hide panel, show bell dropdown
+        if (w <= 1450 && w >= 769) {
           panel.style.display = 'none';
           if(bell){ bell.style.display = 'block'; bell.style.opacity = '1'; }
-        } else {
-          // Tablet and up: show panel inline, hide bell badge
+        } else if (w >= 1451) {
           panel.style.display = '';
           if(bell){ bell.style.display = 'none'; }
+        } else { // real mobile widths
+          panel.style.display = 'none';
+          if(bell){ bell.style.display = 'block'; bell.style.opacity = '1'; }
         }
       }
       window.addEventListener('resize', applyProfessorNotifMode);
