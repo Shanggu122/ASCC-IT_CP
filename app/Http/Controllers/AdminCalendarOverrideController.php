@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\CalendarOverride;
+use App\Models\Notification;
 use App\Services\CalendarOverrideService;
 use Carbon\Carbon;
 
@@ -48,7 +49,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspended";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspention";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -112,7 +113,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspended";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspention";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -173,7 +174,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspended";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspention";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -229,7 +230,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = "Blocked";
+                    $label = "Suspention";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -598,6 +599,56 @@ class AdminCalendarOverrideController extends Controller
                 // holiday: no forced changes to bookings by default
                 $unchanged++;
             }
+        }
+
+        // After processing, if this is a Suspention (block_all), notify professors and affected students
+        try {
+            if (($data["effect"] ?? null) === "block_all") {
+                $title = "Suspention of Class";
+
+                $startHuman = Carbon::parse($startDate)->format("M d, Y");
+                $endHuman = Carbon::parse($endDate)->format("M d, Y");
+                $rangeText =
+                    $startDate === $endDate
+                        ? "on {$startHuman}"
+                        : "from {$startHuman} to {$endHuman}";
+
+                $reasonTxt = trim((string) ($data["reason_text"] ?? ""));
+                if ($reasonTxt === "" && !empty($data["reason_key"])) {
+                    $rk = $data["reason_key"];
+                    $map = [
+                        "weather" => "Inclement weather",
+                        "prof_leave" => "Professor leave",
+                        "health" => "Health advisory",
+                        "emergency" => "Emergency advisory",
+                    ];
+                    $reasonTxt = $map[$rk] ?? ucfirst(str_replace("_", " ", (string) $rk));
+                }
+                if ($reasonTxt === "") {
+                    $reasonTxt = "administrative reasons";
+                }
+
+                $reschedText =
+                    $data["auto_reschedule"] ?? false
+                        ? "Affected bookings will be rescheduled."
+                        : "Affected bookings have been cancelled.";
+
+                $message = "No classes {$rangeText} due to {$reasonTxt}. {$reschedText}";
+
+                // Notify ALL professors regardless of scope
+                $profRecipients = DB::table("professors")->pluck("Prof_ID")->toArray();
+                foreach ($profRecipients as $pid) {
+                    Notification::createSystem((int) $pid, $title, $message, "suspention_day");
+                }
+
+                // Notify ALL students, even without bookings on the affected dates
+                $studentRecipients = DB::table("t_student")->pluck("Stud_ID")->toArray();
+                foreach ($studentRecipients as $sid) {
+                    Notification::createSystem((int) $sid, $title, $message, "suspention_day");
+                }
+            }
+        } catch (\Throwable $e) {
+            // Do not fail the apply call because of notification errors
         }
 
         return response()->json([

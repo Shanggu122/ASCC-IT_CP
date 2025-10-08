@@ -37,6 +37,7 @@
         </div>
       @endif
     </div>
+  <div id="noResults" class="no-results-message">NO PROFESSOR FOUND</div>
   </div>
 
   <button class="chat-button" onclick="toggleChat()">
@@ -77,18 +78,30 @@
     function filterColleagues() {
       const searchInput = document.getElementById('searchInput');
       const cleaned = sanitize(searchInput.value);
-      if(searchInput.value !== cleaned) searchInput.value = cleaned;
+      if (searchInput.value !== cleaned) searchInput.value = cleaned;
       const filter = cleaned.toLowerCase();
       const cards = document.querySelectorAll('.profile-card');
-      
+      let visible = 0;
+
       cards.forEach(card => {
-        const name = card.getAttribute('data-name').toLowerCase();
-        if (name.includes(filter)) {
-          card.style.display = 'block';
+        const name = (card.getAttribute('data-name') || '').toLowerCase();
+        const show = !filter || name.includes(filter);
+        if (show) {
+          card.style.removeProperty('display');
+          visible++;
         } else {
           card.style.display = 'none';
         }
       });
+
+      const msg = document.getElementById('noResults');
+      if (msg) {
+        if (cleaned && visible === 0) {
+          msg.style.display = 'block';
+        } else {
+          msg.style.display = 'none';
+        }
+      }
     }
 
     // Add Enter key functionality for chat form

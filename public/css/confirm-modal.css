@@ -6,7 +6,8 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 2000;
+    /* Must be above booking modal overlay/content (10000/10001) */
+    z-index: 13000;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease;

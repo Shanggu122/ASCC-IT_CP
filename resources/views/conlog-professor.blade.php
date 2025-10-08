@@ -8,6 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/conlog-professor.css') }}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
   
   
   <style>
@@ -312,8 +313,8 @@
           </div>
         </div>
         @empty
-          <div class="table-row">
-            <div class="table-cell" colspan="8">No consultation found.</div>
+          <div class="table-row no-results-row">
+            <div class="table-cell" style="text-align:center;color:#666;font-style:italic;">No Consultations Found.</div>
           </div>
         @endforelse
       <!-- Spacer removed: layout handled by CSS margins -->
@@ -399,7 +400,7 @@
           <p><strong>Current Date:</strong> <span id="currentDate"></span></p>
           <div class="date-input-group">
             <label for="newDate">Select New Date:</label>
-            <input type="date" id="newDate" class="date-input" required>
+            <input type="text" id="newDate" class="date-input" placeholder="YYYY-MM-DD" required>
           </div>
           <div class="date-input-group">
             <label for="rescheduleReason">Reason for Rescheduling:</label>
@@ -465,8 +466,9 @@
       <div class="print-header">
         <h2>Professor Consultation Log</h2>
   <div id="printProfessor" class="print-professor" 
-    data-prof-name="{{ optional(auth()->guard('professor')->user())->Name ?? (auth()->user()->Name ?? auth()->user()->name ?? '') }}"
-    data-prof-id="{{ optional(auth()->guard('professor')->user())->Prof_ID ?? (auth()->user()->Prof_ID ?? auth()->user()->id ?? '') }}">
+      data-prof-name="{{ optional(auth()->guard('professor')->user())->Name ?? (auth()->user()->Name ?? auth()->user()->name ?? '') }}"
+      data-prof-id="{{ optional(auth()->guard('professor')->user())->Prof_ID ?? (auth()->user()->Prof_ID ?? auth()->user()->id ?? '') }}"
+      data-prof-schedule="{{ optional(auth()->guard('professor')->user())->Schedule ?? '' }}">
   </div>
   <div id="printMeta" class="print-meta"></div>
       </div>
@@ -487,29 +489,104 @@
       <div id="printFooter" class="print-footer-note"></div>
     </div>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
   <script>
     let currentBookingId = null;
     let currentRescheduleButton = null;
+    let reschedulePicker = null;
+    // Sets/maps used by disableDayFn (populated on modal open)
+    let __resAllowedWeekdays = new Set(); // 1-5 = Mon-Fri
+    let __resBlockedIso = new Set(); // 'YYYY-MM-DD' dates blocked by overrides
+    let __resForcedByIso = new Map(); // iso -> forced_mode string ('online'|'onsite')
+
+    function parseAllowedWeekdaysFromSchedule(scheduleText){
+      const set = new Set();
+      if(!scheduleText) return set;
+      try{
+        const lines = String(scheduleText).split(/\n|<br\s*\/>/i).map(s=>s.trim()).filter(Boolean);
+        const nameToNum = { Monday:1, Tuesday:2, Wednesday:3, Thursday:4, Friday:5 };
+        lines.forEach(line=>{
+          const m = line.match(/^(Monday|Tuesday|Wednesday|Thursday|Friday)\b/i);
+          if(m){
+            const key = m[1].charAt(0).toUpperCase()+m[1].slice(1).toLowerCase();
+            const n = nameToNum[key]; if(n) set.add(n);
+          }
+        });
+      }catch(_){ }
+      return set;
+    }
+
+    function isoFromDateObj(d){
+      try { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; } catch(_){ return ''; }
+    }
+
+    function makeRescheduleDisableDayFn(){
+      return function(date){
+        const day = date.getDay(); // 0 Sun..6 Sat
+        // Always block weekends
+        if(day===0 || day===6) return true;
+        // Overrides: if blocked and not specifically force-open by mode, disable
+        const iso = isoFromDateObj(date);
+        if(__resBlockedIso.has(iso)) return true;
+        // If no schedule at all, block weekdays unless there's a forced mode override
+        if(__resAllowedWeekdays.size===0){
+          return __resForcedByIso.has(iso) ? false : true;
+        }
+        // If weekday not in allowed schedule, allow only if forced mode override exists
+        if(!__resAllowedWeekdays.has(day)){
+          return __resForcedByIso.has(iso) ? false : true;
+        }
+        return false; // allowed
+      };
+    }
 
     function showRescheduleModal(bookingId, currentDate, bookingMode) {
       currentBookingId = bookingId;
-      currentRescheduleButton = event.target.closest('button');
+      // Resolve button context only if invoked via a click event
+      try{
+        const ev = (typeof event !== 'undefined') ? event : null;
+        currentRescheduleButton = ev && ev.target && ev.target.closest ? ev.target.closest('button') : currentRescheduleButton;
+      }catch(_){ /* ignore */ }
       
       // Set current date in the modal
       document.getElementById('currentDate').textContent = currentDate;
       
-      // Set minimum date to today
-      const today = new Date().toISOString().split('T')[0];
+      // Prepare schedule context for disableDayFn
+      const profIdEl = document.getElementById('printProfessor');
+      const profSchedule = profIdEl ? (profIdEl.getAttribute('data-prof-schedule')||'') : '';
+      __resAllowedWeekdays = parseAllowedWeekdaysFromSchedule(profSchedule);
+      __resBlockedIso = new Set();
+      __resForcedByIso = new Map();
+
+      // Initialize/Reset Pikaday on the input
       const dateInput = document.getElementById('newDate');
-      dateInput.setAttribute('min', today);
+      if(reschedulePicker && typeof reschedulePicker.destroy==='function'){
+        reschedulePicker.destroy(); reschedulePicker = null;
+      }
       dateInput.value = '';
+      reschedulePicker = new Pikaday({
+        field: dateInput,
+        format: 'YYYY-MM-DD',
+        firstDay: 1,
+        minDate: new Date(),
+        disableDayFn: makeRescheduleDisableDayFn(),
+        onSelect: function(){
+          // Keep ISO format for downstream validators
+          dateInput.value = this.getMoment ? this.getMoment().format('YYYY-MM-DD') : this.toString();
+          dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
 
       // Detect original mode from parameter or table cell fallback
       let originalMode = (bookingMode||'').toLowerCase();
       if(!originalMode){
-        // Find closest row and read Mode column text
-        const btn = currentRescheduleButton;
-        const row = btn ? btn.closest('.table-row') : null;
+        // Prefer resolving via the row with matching booking id
+        let row = null;
+        try{
+          const cell = document.querySelector(`.table .table-cell[data-booking-id="${bookingId}"]`);
+          row = cell ? cell.closest('.table-row') : null;
+        }catch(_){ }
+        if(!row && currentRescheduleButton) row = currentRescheduleButton.closest('.table-row');
         const modeCell = row ? row.querySelector('.table-cell[data-label="Mode"]') : null;
         originalMode = (modeCell ? (modeCell.textContent||'').trim().toLowerCase() : '').replace(/[^a-z]/g,'');
       }
@@ -520,7 +597,6 @@
         (function(){
           // Build a short range availability request for next 60 days
           try{
-            const profIdEl = document.getElementById('printLogsContainer')?.querySelector('#printProfessor');
             const profId = profIdEl ? profIdEl.getAttribute('data-prof-id') : null;
             if(!profId) return Promise.resolve(null);
             const now = new Date();
@@ -540,7 +616,22 @@
           const map = {};
           (availResp.dates||[]).forEach(rec=>{ map[rec.date]=rec; });
           dateInput.setAttribute('data-avail', JSON.stringify(map));
-        } else { dateInput.removeAttribute('data-avail'); }
+          // Build overrides sets for disableDayFn (blocked/forced_mode)
+          __resBlockedIso.clear(); __resForcedByIso.clear();
+          (availResp.dates||[]).forEach(rec=>{
+            // rec.date is like 'Mon Jan 01 2025' — convert to ISO
+            try{
+              const d = new Date(rec.date);
+              const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+              if(rec.blocked) __resBlockedIso.add(iso);
+              if(rec.forced_mode) __resForcedByIso.set(iso, rec.forced_mode);
+            }catch(_){ }
+          });
+          // Redraw picker to apply new disable rules
+          try{ reschedulePicker && reschedulePicker.draw && reschedulePicker.draw(); }catch(_){ }
+        } else {
+          dateInput.removeAttribute('data-avail');
+        }
 
         // Attach one-time input validator combining capacity + mode rule
         dateInput.addEventListener('input', function(){
@@ -582,6 +673,10 @@
       document.getElementById('rescheduleOverlay').style.display = 'none';
       currentBookingId = null;
       currentRescheduleButton = null;
+      if(reschedulePicker && typeof reschedulePicker.destroy==='function'){
+        try{ reschedulePicker.destroy(); }catch(_){ }
+        reschedulePicker = null;
+      }
       
       // Clear form fields
       document.getElementById('newDate').value = '';
@@ -608,18 +703,13 @@
 
       // Set current date in the modal
       document.getElementById('currentDate').textContent = currentDate;
-      
-      // Set minimum date to today
-      const today = new Date().toISOString().split('T')[0];
-      document.getElementById('newDate').setAttribute('min', today);
-      document.getElementById('newDate').value = '';
-      
-      // Show reschedule modal
-      document.getElementById('rescheduleOverlay').style.display = 'flex';
+      // Defer to main initializer to setup picker, availability, and open modal
+      showRescheduleModal(currentBookingId, currentDate, '');
 
       // Clear the pending approval variables since we're now rescheduling
       pendingApprovalButton = null;
       pendingApprovalBookingId = null;
+      return;
     }
 
     function confirmReschedule() {

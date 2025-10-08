@@ -20,6 +20,9 @@
                 <div class="search-wrapper">
                   <input type="text" id="prof-search" placeholder="Search professor..." oninput="filterProfessors()" />
                 </div>
+                <div id="inboxNoResults" style="display:none; margin:10px 0 6px; color:#b00020; font-weight:600; font-style:italic;">
+                  NO PROFESSOR FOUND
+                </div>
         @php
           $currentDept = null;
           $deptLabels = [1=>'IT & IS','2'=>'Computer Science'];
@@ -89,7 +92,7 @@
                     <label for="file-input" class="attach-btn" title="Upload file">
                         <i class='bx bx-paperclip'></i>
                     </label>
-                    <input type="file" id="file-input" multiple style="display:none;" accept="image/*,.pdf,.doc,.docx" />
+                    <input type="file" id="file-input" multiple style="display:none;" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" />
                     <textarea id="message-input" placeholder="Type a message..." rows="1" maxlength="5000"></textarea>
                     <button id="send-btn" onclick="sendMessage()">Send</button>
                   <input type="hidden" id="last-send-ts" value="0" />
@@ -391,7 +394,34 @@
 
         document.getElementById("file-input").addEventListener("change", function (e) {
             const files = Array.from(e.target.files);
-            selectedFiles = selectedFiles.concat(files);
+            const ALLOWED_EXT = ['pdf','doc','docx','xls','xlsx','ppt','pptx'];
+            const MAX_MB = 25;
+            const MAX_BYTES = MAX_MB * 1024 * 1024;
+            const MAX_FILES = 10;
+            const rejected = [];
+            const accepted = [];
+            if(selectedFiles.length + files.length > MAX_FILES){
+              showToast(`You can attach up to ${MAX_FILES} files at once.`, 'error');
+              e.target.value='';
+              return;
+            }
+            files.forEach(f=>{
+              const name = (f.name||'').toLowerCase();
+              const ext = name.split('.').pop();
+              const isAllowed = ALLOWED_EXT.includes(ext);
+              const within = f.size <= MAX_BYTES;
+              if(isAllowed && within){ accepted.push(f); }
+              else { rejected.push({name: f.name, reason: !isAllowed ? 'type' : 'size'}); }
+            });
+            if(rejected.length){
+              const hasType = rejected.some(r=>r.reason==='type');
+              const hasSize = rejected.some(r=>r.reason==='size');
+              let msg = 'Invalid attachment. ';
+              if(hasType){ msg += 'Only PDF, Word, Excel, or PowerPoint files are allowed. '; }
+              if(hasSize){ msg += `Each file must be 25 MB or smaller.`; }
+              showToast(msg.trim(), 'error');
+            }
+            if(accepted.length){ selectedFiles = selectedFiles.concat(accepted); }
             renderFilePreviews();
             e.target.value = ''; // Reset file input for next selection
         });
@@ -495,11 +525,17 @@
                 formData.append('files[]', file);
             });
 
-            fetch('/send-message', {
-                method: 'POST',
-                body: formData
+            fetch('/send-message', { method: 'POST', body: formData })
+            .then(async response => {
+              let data=null; let raw='';
+              try { raw = await response.text(); data = JSON.parse(raw); }
+              catch(parseErr){
+                const hint = response.status === 413 ? 'Attachments too large.' : 'Server returned an unexpected response.';
+                throw { status: 'Error', error: hint + ` (HTTP ${response.status})` };
+              }
+              if(!response.ok){ throw data; }
+              return data;
             })
-            .then(response => response.json())
       .then(data => {
                 if (data.status === 'Message sent!') {
                     textarea.value=''; textarea.style.height='auto';
@@ -508,7 +544,7 @@
                     // Stop typing indicator
                     ChatCommon.sendTyping(currentStudentId, currentProfId, 'student', false);
                 } else {
-                    alert('Error sending: ' + (data.error || data.status));
+                    showToast('Invalid attachment. Only PDF, Word, Excel, or PowerPoint up to 25 MB each.', 'error');
                     // On error, mark pending bubble failed
                     if(pendingMap[clientUuid]){ pendingMap[clientUuid].classList.add('failed'); pendingMap[clientUuid].style.opacity='1'; }
                 }
@@ -518,7 +554,14 @@
         setTimeout(()=>{ const b=document.getElementById('send-btn'); if(b) b.disabled=false; }, left);
             })
       .catch(error => {
-        alert('Error: ' + error);
+        let msg = 'Failed to send.';
+        if(error){
+          if(error.details && Array.isArray(error.details) && error.details.length){ msg = error.details[0]; }
+          else if(error.error){ msg = error.error; }
+          else if(error.status){ msg = error.status; }
+        }
+        if(/25 MB/i.test(msg)){ msg = 'Each file must be 25 MB or smaller.'; }
+        showToast(msg, 'error');
         sending=false;
         const left = Math.max(0, sendCooldownUntil - Date.now());
         setTimeout(()=>{ const b=document.getElementById('send-btn'); if(b) b.disabled=false; }, left);
@@ -684,14 +727,18 @@
         function filterProfessors(){
           const term = document.getElementById('prof-search').value.trim().toLowerCase();
           const items = document.querySelectorAll('.inbox-item');
+          let visibleCount = 0;
           items.forEach(it=>{
             const name = it.getAttribute('data-name');
             if(!term || name.includes(term)){
               it.style.display='flex';
+              visibleCount++;
             } else {
               it.style.display='none';
             }
           });
+          const emptyEl = document.getElementById('inboxNoResults');
+          if(emptyEl){ emptyEl.style.display = (visibleCount === 0) ? 'block' : 'none'; }
           // Hide dept headers if no visible items below them
           document.querySelectorAll('.dept-separator').forEach(header=>{
             let next = header.nextElementSibling;

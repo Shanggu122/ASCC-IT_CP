@@ -166,6 +166,9 @@
 .swatch-leave {
     background: #0ea5a4; /* Leave Day → Teal/Cyan (matches professor) */
 }
+.swatch-today {
+    background: #5fb9d4; /* Today highlight (matches .is-today .pika-button) */
+}
 .swatch-multiple {
     background: #ff4500; /* Multiple Bookings → Orangey-Red */
     border: 2px solid #333;

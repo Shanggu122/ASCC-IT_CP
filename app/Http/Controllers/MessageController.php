@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use App\Events\PresencePing;
+use Illuminate\Support\Facades\Validator;
 
 class MessageController extends Controller
 {
@@ -18,6 +19,22 @@ class MessageController extends Controller
     public function sendMessage(Request $request)
     {
         try {
+            // Validate attachments: allow only office docs/PDF up to 25MB per file
+            $validator = Validator::make($request->all(), [
+                "files.*" => "nullable|file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx|max:25600",
+                "file" => "nullable|file|mimes:pdf,doc,docx,xls,xlsx,ppt,pptx|max:25600",
+            ]);
+            if ($validator->fails()) {
+                return response()->json(
+                    [
+                        "status" => "Invalid attachment",
+                        "error" =>
+                            "Only PDF, Word, Excel, or PowerPoint files up to 25 MB per file are allowed.",
+                        "details" => $validator->errors()->all(),
+                    ],
+                    422,
+                );
+            }
             $bookingId = $request->input("bookingId");
             $sender = $request->input("sender");
             $recipient = $request->input("recipient"); // may be null for public/system later
@@ -259,9 +276,25 @@ class MessageController extends Controller
                 ->with("error", "Please log in as a professor to view messages.");
         }
 
+        // Determine which students are eligible for video call TODAY (approved/rescheduled bookings)
+        $now = now("Asia/Manila");
+        $todayPad = $now->format("D M d Y");
+        $todayNoPad = $now->format("D M j Y");
+        $todayIso = $now->toDateString();
+        $capacityStatuses = ["approved", "rescheduled"];
+        $eligibleToday = DB::table("t_consultation_bookings as b")
+            ->select("b.Stud_ID", DB::raw("1 as can_video_call"))
+            ->where("b.Prof_ID", $user->Prof_ID)
+            ->whereIn("b.Status", $capacityStatuses)
+            ->whereIn("b.Booking_Date", [$todayPad, $todayNoPad, $todayIso])
+            ->groupBy("b.Stud_ID");
+
         // Direct messaging aggregation using Stud_ID/Prof_ID
         $students = DB::table("t_chat_messages as m")
             ->join("t_student as stu", "stu.Stud_ID", "=", "m.Stud_ID")
+            ->leftJoinSub($eligibleToday, "elig", function ($join) {
+                $join->on("elig.Stud_ID", "=", "stu.Stud_ID");
+            })
             ->where("m.Prof_ID", $user->Prof_ID)
             ->select([
                 "stu.Name as name",
@@ -274,8 +307,9 @@ class MessageController extends Controller
                 DB::raw(
                     'SUBSTRING_INDEX(GROUP_CONCAT(m.Sender ORDER BY m.Created_At DESC), ",", 1) as last_sender',
                 ),
+                DB::raw("COALESCE(elig.can_video_call, 0) as can_video_call"),
             ])
-            ->groupBy("stu.Name", "stu.Stud_ID", "stu.profile_picture")
+            ->groupBy("stu.Name", "stu.Stud_ID", "stu.profile_picture", "elig.can_video_call")
             ->orderBy("last_message_time", "desc")
             ->get();
 

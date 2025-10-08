@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
-use App\Models\User;  // Make sure your User model is imported
+use App\Models\User; // Make sure your User model is imported
 
 class ProfileController extends Controller
 {
@@ -16,16 +16,16 @@ class ProfileController extends Controller
     {
         // Get the authenticated user
         $user = Auth::user();
-        
+
         // Return the profile view with user data
-        return view('profile', compact('user'));
+        return view("profile", compact("user"));
     }
 
     public function changePassword(Request $request)
     {
         $request->validate([
-            'oldPassword' => 'required|string',
-            'newPassword' => 'required|string|min:8|confirmed',
+            "oldPassword" => "required|string",
+            "newPassword" => "required|string|min:8|confirmed",
         ]);
 
         // Get the authenticated user
@@ -33,7 +33,9 @@ class ProfileController extends Controller
 
         // Check if the old password is correct
         if (!Hash::check($request->oldPassword, $user->password)) {
-            return back()->withErrors(['oldPassword' => 'The provided password does not match our records.']);
+            return back()->withErrors([
+                "oldPassword" => "The provided password does not match our records.",
+            ]);
         }
 
         // Update the password
@@ -41,33 +43,32 @@ class ProfileController extends Controller
         $user->save();
 
         // Redirect back with success message
-        return back()->with('password_status', 'Password updated successfully!');
+        return back()->with("password_status", "Password updated successfully!");
     }
 
     public function uploadPicture(Request $request)
     {
         $request->validate([
-            'profile_picture' => 'required|image|mimes:jpeg,png,jpg|max:2048',
+            "profile_picture" => "required|image|mimes:jpeg,png,jpg|max:2048",
         ]);
 
         $user = Auth::user();
-        $path = $request->file('profile_picture')->store('profile_pictures', 'public');
-        $user->profile_picture = $path;
+        // Let model mutator handle storage and attribute
+        $user->setAttribute("profile_picture", $request->file("profile_picture"));
         $user->save();
 
-        return back()->with('status', 'Profile picture updated!');
+        return back()->with("status", "Profile picture updated!");
     }
 
     public function deletePicture(Request $request)
     {
         $user = Auth::user();
         if ($user->profile_picture) {
-            Storage::disk('public')->delete($user->profile_picture);
-            $user->profile_picture = null;
+            Storage::disk("public")->delete($user->profile_picture);
+            $user->setAttribute("profile_picture", null);
             $user->save();
-            return response()->json(['success' => true]);
+            return response()->json(["success" => true]);
         }
-        return response()->json(['success' => false]);
+        return response()->json(["success" => false]);
     }
-
 }

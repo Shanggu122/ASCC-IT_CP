@@ -250,12 +250,13 @@
                   <div class="legend-item"><span class="legend-swatch swatch-approved"></span>Approved <i class='bx bx-check-circle legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-completed"></span>Completed <i class='bx bx-badge-check legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-rescheduled"></span>Rescheduled <i class='bx bx-calendar-edit legend-icon' aria-hidden="true"></i></div>
-                  <div class="legend-item"><span class="legend-swatch swatch-suspended"></span>Suspended <i class='bx bx-block legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-suspended"></span>Suspention of class <i class='bx bx-block legend-icon' aria-hidden="true"></i></div>
                 </div>
               </div>
               <div class="legend-section">
                 <div class="legend-section-title">Day Types</div>
                 <div class="legend-grid">
+                  <div class="legend-item"><span class="legend-swatch swatch-today"></span>Today <i class='bx bx-sun legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-online"></span>Online Day <i class='bx bx-video legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-forced"></span>Forced Online <i class='bx bx-switch legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-holiday"></span>Holiday <i class='bx bx-party legend-icon' aria-hidden="true"></i></div>
@@ -481,7 +482,7 @@
             }
             if (!chosen) { return; }
             const badge = document.createElement('span');
-            // Badge class: distinguish Online Day vs Forced Online; End Year distinct from Suspended
+            // Badge class: distinguish Online Day vs Forced Online; End Year distinct from Suspention
             let chosenCls;
             if (chosen.effect === 'holiday') {
               chosenCls = 'ov-holiday';
@@ -497,7 +498,7 @@
             const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
             badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
             const isEndYearLbl = (chosen.effect === 'block_all') && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label || '') || /end\s*year/i.test(chosen.reason_text || ''));
-            badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (isEndYearLbl ? 'End Year' : 'Suspended') : forceLabel);
+            badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (isEndYearLbl ? 'End Year' : 'Suspention') : forceLabel);
             cell.style.position = 'relative';
             cell.appendChild(badge);
             // Cell background class, with Online Day distinct from Forced Online
@@ -876,13 +877,19 @@
       }
       
       const notificationsHtml = notifications.map(notification => {
-        // Use generic "Consultation" title to avoid redundancy with the status badge
-        const cleanTitle = notification.title.includes('Consultation') ? 'Consultation' : notification.title;
+        const isSuspention = notification.type === 'suspention_day';
+        const typeLabel = isSuspention
+          ? 'SUSPENTION'
+          : ((notification.type || '').replace('_',' ').toUpperCase());
+        // For suspention system notice, show a clear title; otherwise keep existing rule
+        const cleanTitle = isSuspention
+          ? 'Suspention of Class'
+          : (notification.title.includes('Consultation') ? 'Consultation' : notification.title);
         
         return `
           <div class="notification-item ${notification.is_read ? '' : 'unread'}" 
                onclick="markNotificationAsRead(${notification.id})">
-            <div class="notification-type ${notification.type}">${notification.type}</div>
+            <div class="notification-type ${notification.type}">${typeLabel}</div>
             <div class="notification-title">${cleanTitle}</div>
             <div class="notification-message">${notification.message}</div>
             <div class="notification-time" data-timeago data-ts="${notification.created_at}"></div>

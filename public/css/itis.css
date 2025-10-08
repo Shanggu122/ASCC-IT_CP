@@ -268,6 +268,15 @@ body {
     color: #12372a;
 }
 
+/* No results message (match student pages) */
+.no-results-message {
+    display: none;
+    margin-top: 12px;
+    color: #b00020;
+    font-weight: 600;
+    font-style: italic;
+}
+
 /* Profile Body */
 .profile-body .checkboxes label {
     display: block;
@@ -1034,6 +1043,40 @@ body {
         font-size: 14px;
         padding: 12px 16px;
     }
+}
+
+/* Subject dropdown: custom arrow positioned with left offset */
+#modalSubjectSelect {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-size: 14px 14px;
+    background-position: right 14px center; /* move arrow 14px from the right edge */
+    padding-right: 40px; /* ensure text doesn't overlap with arrow */
+}
+#modalSubjectSelect::-ms-expand {
+    display: none;
+}
+
+/* Custom dropdown trigger: add matching arrow and offset */
+.cs-dd .cs-dd-trigger {
+    position: relative;
+    padding-right: 40px; /* room for arrow */
+}
+.cs-dd .cs-dd-trigger::after {
+    content: '';
+    position: absolute;
+    right: 14px; /* move arrow left from the edge */
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    transform: translateY(-50%);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-size: 14px 14px;
+    pointer-events: none;
 }
 
 /* Tablet range: make modal full-viewport width (IT&IS student) */
