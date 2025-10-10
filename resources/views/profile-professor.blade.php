@@ -237,6 +237,7 @@ const sidePanelInputFile = document.getElementById('sidePanelInputFile');
 const sidePanelProfilePic = document.getElementById('sidePanelProfilePic');
 const sidePanelSaveBtn = document.getElementById('sidePanelSaveBtn');
 const profilePicForm = document.getElementById('profilePicForm');
+let uploadSubmittingProf = false; // anti-spam guard
 
 function isValidProfileImage(file){
   if(!file) return false;
@@ -258,19 +259,34 @@ if (sidePanelInputFile) {
     const file = sidePanelInputFile.files && sidePanelInputFile.files[0];
     if(file && isValidProfileImage(file)){
       sidePanelProfilePic.src = URL.createObjectURL(file);
-      if (sidePanelSaveBtn) sidePanelSaveBtn.style.display = 'inline-block';
+      if (sidePanelSaveBtn){
+        sidePanelSaveBtn.style.display = 'inline-block';
+        sidePanelSaveBtn.disabled = false;
+        sidePanelSaveBtn.textContent = 'Save';
+      }
     } else {
       sidePanelInputFile.value = '';
-      if (sidePanelSaveBtn) sidePanelSaveBtn.style.display = 'none';
+      if (sidePanelSaveBtn){
+        sidePanelSaveBtn.style.display = 'none';
+        sidePanelSaveBtn.disabled = false;
+        sidePanelSaveBtn.textContent = 'Save';
+      }
     }
   });
 }
 
 if (profilePicForm) {
   profilePicForm.addEventListener('submit', function(e){
+    if (uploadSubmittingProf) { e.preventDefault(); return; }
     const file = sidePanelInputFile && sidePanelInputFile.files && sidePanelInputFile.files[0];
     if(!file){ e.preventDefault(); showNotification('Please choose an image file to upload.', true); return; }
     if(!isValidProfileImage(file)) { e.preventDefault(); return; }
+    // Passed validation: lock button and prevent double-submit
+    uploadSubmittingProf = true;
+    if (sidePanelSaveBtn){
+      sidePanelSaveBtn.disabled = true;
+      sidePanelSaveBtn.textContent = 'Saving...';
+    }
   });
 }
 

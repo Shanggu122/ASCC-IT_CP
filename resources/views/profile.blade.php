@@ -244,6 +244,7 @@ const sidePanelInputFile = document.getElementById('sidePanelInputFile');
 const sidePanelProfilePic = document.getElementById('sidePanelProfilePic');
 const sidePanelSaveBtn = document.getElementById('sidePanelSaveBtn');
 const profilePicForm = document.getElementById('profilePicForm');
+let uploadSubmittingStudent = false; // anti-spam guard
 
 // Validate file client-side (type and size) before previewing or submitting
 function isValidProfileImage(file){
@@ -267,10 +268,14 @@ if (sidePanelInputFile) {
     if(file && isValidProfileImage(file)){
       sidePanelProfilePic.src = URL.createObjectURL(file);
       sidePanelSaveBtn.style.display = 'inline-block';
+      sidePanelSaveBtn.disabled = false;
+      sidePanelSaveBtn.textContent = 'Save';
     } else {
       // Reset invalid selection and keep current preview
       sidePanelInputFile.value = '';
       sidePanelSaveBtn.style.display = 'none';
+      sidePanelSaveBtn.disabled = false;
+      sidePanelSaveBtn.textContent = 'Save';
     }
   });
 }
@@ -278,6 +283,7 @@ if (sidePanelInputFile) {
 // Guard form submit in case of manual trigger
 if (profilePicForm) {
   profilePicForm.addEventListener('submit', function(e){
+    if (uploadSubmittingStudent) { e.preventDefault(); return; }
     const file = sidePanelInputFile && sidePanelInputFile.files && sidePanelInputFile.files[0];
     if(!file){
       e.preventDefault();
@@ -288,6 +294,9 @@ if (profilePicForm) {
       e.preventDefault();
       return;
     }
+    uploadSubmittingStudent = true;
+    sidePanelSaveBtn.disabled = true;
+    sidePanelSaveBtn.textContent = 'Saving...';
   });
 }
 
