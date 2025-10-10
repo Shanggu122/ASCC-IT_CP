@@ -51,6 +51,36 @@
       </table>
     </div>
 
+    <!-- Schedule Section -->
+    <div class="info-section">
+      <div class="section-title">SCHEDULE</div>
+      <table class="info-table">
+        <tr>
+          <td class="info-label info-label--schedule">Weekly schedule</td>
+          <td>
+            @php
+              $scheduleText = trim((string)($user->Schedule ?? ''));
+              $lines = $scheduleText !== '' ? preg_split('/\r\n|\r|\n/', $scheduleText) : [];
+            @endphp
+            @if(!empty($lines))
+              <ul class="schedule-list">
+                @foreach($lines as $line)
+                  @if(trim($line) !== '')
+                    <li>{{ $line }}</li>
+                  @else
+                    <li class="schedule-empty-line"></li>
+                  @endif
+                @endforeach
+              </ul>
+            @else
+              <span class="schedule-no-data">No schedule set</span>
+            @endif
+            <!-- Editing schedule is admin-only; no edit UI for professors -->
+          </td>
+        </tr>
+      </table>
+    </div>
+
     <!-- Chat Overlay Panel -->
     <div class="chat-overlay" id="chatOverlay">
       <div class="chat-header">
@@ -145,6 +175,8 @@
         </form>
       </div>
     </div>
+
+    <!-- Schedule editor removed for professors -->
 
     <button class="chat-button" onclick="togglePanel('chatOverlay')">
       <i class='bx bxs-message-rounded-dots'></i>

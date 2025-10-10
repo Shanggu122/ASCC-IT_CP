@@ -373,7 +373,8 @@ td:hover > .change-link + .edit-icon {
         margin-top: 0.5rem;
     }
     .user-name,
-    .student-id {
+    .student-id,
+    .prof-id {
         text-align: center;
         width: 100%;
     }
@@ -383,6 +384,44 @@ td:hover > .change-link + .edit-icon {
         height: 120px;
         border-radius: 50%;
         object-fit: cover;
+    }
+
+    /* Ensure Basic Information table wraps content nicely on narrow screens */
+    .info-section .info-table {
+        table-layout: fixed; /* consistent column widths */
+        width: 100%;
+    }
+    .info-section .info-table td {
+        word-break: break-word; /* break long tokens */
+        overflow-wrap: anywhere; /* allow breaking anywhere for long emails */
+        white-space: normal; /* allow wrapping */
+        padding: 0.85rem; /* slightly tighter padding for mobile */
+    }
+    .info-section .info-table .info-label {
+        width: 40%; /* give labels a reasonable width on mobile */
+    }
+
+    /* Schedule row tweaks for mobile */
+    .info-section .info-table .info-label--schedule {
+        width: 28%; /* narrower label so value column stays wide */
+        white-space: normal; /* allow wrapping */
+        word-break: normal; /* do not break inside words */
+        overflow-wrap: normal; /* wrap only at natural breakpoints (spaces) */
+        hyphens: none;
+    }
+    /* Make schedule bullets take less horizontal space and keep each entry on one line */
+    .schedule-list {
+        list-style-position: inside;
+        padding-left: 12px;
+        margin: 0;
+    }
+    .schedule-list li {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.35;
+        font-size: 0.95rem;
+        margin: 6px 0;
     }
 }
 
@@ -533,4 +572,28 @@ td:hover > .change-link + .edit-icon {
 }
 .profile-pic-container .delete-pic-btn:hover {
     color: #c0392b;
+}
+
+/* Schedule list styling */
+.schedule-list {
+    list-style: disc;
+    padding-left: 20px;
+}
+.schedule-list li {
+    margin: 2px 0;
+}
+.schedule-list .schedule-empty-line {
+    list-style: none;
+    height: 6px;
+}
+
+/* Schedule table label cell */
+td.info-label.info-label--schedule {
+    width: 180px;
+    vertical-align: top;
+}
+
+/* No schedule text */
+.schedule-no-data {
+    color: #666;
 }

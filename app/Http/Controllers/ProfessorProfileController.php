@@ -101,4 +101,46 @@ class ProfessorProfileController extends Controller
         }
         return response()->json(["success" => false]);
     }
+
+    /**
+     * Update the professor's schedule text (newline-separated).
+     */
+    public function updateSchedule(Request $request)
+    {
+        $user = Auth::guard("professor")->user();
+        if (!$user) {
+            return redirect()->route("login.professor");
+        }
+
+        $validated = $request->validate(
+            [
+                "schedule" => ["nullable", "string", "max:10000"],
+            ],
+            [
+                "schedule.max" => "Schedule is too long. Please keep it under 10,000 characters.",
+            ],
+        );
+
+        $text = (string) ($validated["schedule"] ?? "");
+        // Normalize line endings and trim each line
+        $text = preg_replace("/(\r\n|\r|\n)/", "\n", $text);
+        $lines = array_map("trim", $text === "" ? [] : explode("\n", $text));
+        // Collapse multiple empty lines
+        $clean = "";
+        if (!empty($lines)) {
+            $cleanLines = [];
+            foreach ($lines as $l) {
+                if ($l === "" && end($cleanLines) === "") {
+                    continue;
+                }
+                $cleanLines[] = $l;
+            }
+            $clean = implode("\n", $cleanLines);
+        }
+
+        $user->Schedule = $clean !== "" ? $clean : null;
+        $user->save();
+
+        return back()->with("status", "Schedule updated.");
+    }
 }
