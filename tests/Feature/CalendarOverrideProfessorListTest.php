@@ -115,8 +115,8 @@ class CalendarOverrideProfessorListTest extends TestCase
         $this->assertSame("block_all", $json["overrides"][$k1][0]["effect"]);
         $this->assertSame("force_mode", $json["overrides"][$k2][0]["effect"]);
         $this->assertSame("online", $json["overrides"][$k2][0]["allowed_mode"]);
-        // Labels
-        $this->assertSame("Suspended", $json["overrides"][$k1][0]["label"]);
+    // Labels: global block_all now labeled as "Suspention"
+    $this->assertSame("Suspention", $json["overrides"][$k1][0]["label"]);
         $this->assertSame("Force Online", $json["overrides"][$k2][0]["label"]);
     }
 }
