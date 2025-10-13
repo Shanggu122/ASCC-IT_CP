@@ -34,8 +34,7 @@ class MessageAttachmentValidationTest extends TestCase
         $this->be($user, "web");
     }
 
-    /** @test */
-    public function rejects_disallowed_mime_single_file()
+    public function test_rejects_disallowed_mime_single_file()
     {
         $file = UploadedFile::fake()->create("clip.mp4", 1000, "video/mp4");
         $payload = [
@@ -51,8 +50,7 @@ class MessageAttachmentValidationTest extends TestCase
         $res->assertStatus(422)->assertJsonFragment(["status" => "Invalid attachment"]);
     }
 
-    /** @test */
-    public function rejects_file_over_25mb()
+    public function test_rejects_file_over_25mb()
     {
         // Size in kilobytes; > 25600 KB triggers validation fail
         $file = UploadedFile::fake()->create("big.pdf", 26000, "application/pdf");
@@ -68,8 +66,7 @@ class MessageAttachmentValidationTest extends TestCase
         $res->assertStatus(422)->assertJsonFragment(["status" => "Invalid attachment"]);
     }
 
-    /** @test */
-    public function accepts_allowed_doc_under_25mb_and_stores()
+    public function test_accepts_allowed_doc_under_25mb_and_stores()
     {
         $file = UploadedFile::fake()->create(
             "ok.docx",
@@ -97,8 +94,7 @@ class MessageAttachmentValidationTest extends TestCase
         $this->assertTrue($exists, "Expected a chat message row with file_path to be created");
     }
 
-    /** @test */
-    public function rejects_when_any_file_in_array_is_invalid()
+    public function test_rejects_when_any_file_in_array_is_invalid()
     {
         $good = UploadedFile::fake()->create("ok.pdf", 1000, "application/pdf");
         $bad = UploadedFile::fake()->create("song.mp3", 500, "audio/mpeg");
