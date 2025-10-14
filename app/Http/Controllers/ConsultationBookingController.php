@@ -85,6 +85,39 @@ class ConsultationBookingController extends Controller
                 ->withErrors(["booking_date" => $msg])
                 ->withInput();
         }
+        // Enforce booking window: allow only current month; open next month when today is within last week's Monday onwards
+        $today = Carbon::now("Asia/Manila")->startOfDay();
+        $curStart = $today->copy()->startOfMonth();
+        $curEnd = $today->copy()->endOfMonth();
+        // Compute Monday of the last week (week that contains the month's last day, Monday-start)
+        $lastDay = $curEnd->copy();
+        // Carbon weekday: 0=Sun..6=Sat; we want Monday(1)
+        $dow = (int) $lastDay->dayOfWeek; // 0..6
+        $diff = ($dow - 1 + 7) % 7; // days back to Monday
+        $lastWeekMon = $lastDay->copy()->subDays($diff)->startOfDay();
+        $maxAllowed = $curEnd->copy();
+        if ($today->greaterThanOrEqualTo($lastWeekMon)) {
+            // Extend to end of next month
+            $maxAllowed = $today->copy()->addMonth()->endOfMonth();
+        }
+        if ($carbonDate->lt($today) || $carbonDate->gt($maxAllowed)) {
+            $msg =
+                "You can only book within the current month. The next month opens during the last week of this month.";
+            if ($request->wantsJson()) {
+                return response()->json(
+                    [
+                        "success" => false,
+                        "message" => $msg,
+                        "errors" => ["booking_date" => [$msg]],
+                    ],
+                    422,
+                );
+            }
+            return redirect()
+                ->back()
+                ->withErrors(["booking_date" => $msg])
+                ->withInput();
+        }
         $date = $carbonDate->format("D M d Y");
 
         // Check if "Others" is selected (Consult_type_ID = 6 in your DB)

@@ -153,6 +153,8 @@
     visibility: visible !important;
   }
 
+  
+
   /* Full-screen loading overlay (match login look) */
   .auth-loading-overlay {
     position: fixed;
@@ -386,6 +388,9 @@
             <span><i class="legend-low"></i> Almost Full</span>
             <span><i class="legend-full"></i> Full</span>
           </div>
+          <div id="bookingWindowHint" style="font-size:12px;color:#2563eb;margin:4px 0 8px;">
+            <!-- JS will fill hint about when next month opens -->
+          </div>
           <input id="calendar" type="text" placeholder="Select Date" name="booking_date" required>
         </div>
 
@@ -408,7 +413,70 @@
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
   <script>
   document.addEventListener("DOMContentLoaded", function() {
+      // Booking window rule: allow only current month; open next month when today is in the last week (Mon-start) of the month
+      function todayStart(){ const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); }
+      function getLastWeekMondayOfMonth(base){
+        const y=base.getFullYear(), m=base.getMonth();
+        const last=new Date(y, m+1, 0);
+        // Monday=1, JS getDay(): Sun=0..Sat=6
+        const d=last.getDay();
+        const diff = (d - 1 + 7) % 7; // days back to Monday
+        const mon=new Date(last); mon.setDate(last.getDate()-diff);
+        return new Date(mon.getFullYear(), mon.getMonth(), mon.getDate());
+      }
+      function computeAllowedMaxDate(){
+        const t = todayStart();
+        const lastWeekMon = getLastWeekMondayOfMonth(t);
+        if(t.getTime() >= lastWeekMon.getTime()){
+          // open entire next month
+          const nextEnd = new Date(t.getFullYear(), t.getMonth()+2, 0);
+          return new Date(nextEnd.getFullYear(), nextEnd.getMonth(), nextEnd.getDate());
+        }
+        // otherwise, only until end of current month
+        const curEnd = new Date(t.getFullYear(), t.getMonth()+1, 0);
+        return new Date(curEnd.getFullYear(), curEnd.getMonth(), curEnd.getDate());
+      }
+      const __BOOK_MIN_DATE = todayStart();
+      const __BOOK_MAX_DATE = computeAllowedMaxDate();
+  // Always allow navigating far into the future so students can SEE future months (but selection stays disabled outside window)
+  const __NAV_MAX_DATE = new Date(2099, 11, 31);
+
+      // Render hint for students
+      (function renderBookingWindowHint(){
+        try{
+          const t = todayStart();
+          const lastWeekMon = getLastWeekMondayOfMonth(t);
+          const el = document.getElementById('bookingWindowHint');
+          if(!el) return;
+          const fmt = new Intl.DateTimeFormat('en-US', { weekday:'short', month:'short', day:'2-digit', year:'numeric'});
+          if(t.getTime() >= lastWeekMon.getTime()){
+            el.textContent = `Next month is now open for booking.`;
+            el.style.color = '#047857'; // green when open
+          } else {
+            el.textContent = `Heads up: Next month opens on ${fmt.format(lastWeekMon)}.`;
+            el.style.color = '#2563eb';
+          }
+        }catch(_){ }
+      })();
+
+      
+
       let allowedWeekdays = new Set(); // numeric 1-5 Mon-Fri allowed for selected professor
+
+      // LocalStorage helpers for instant hydration of overrides
+      function lsGetOv(key){
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) return null;
+          const obj = JSON.parse(raw);
+          if (!obj || !obj.exp || Date.now() > obj.exp) { localStorage.removeItem(key); return null; }
+          return obj.data || null;
+        } catch(_) { return null; }
+      }
+      function lsSetOv(key, data, ttlMs){
+        try { localStorage.setItem(key, JSON.stringify({ exp: Date.now() + (ttlMs || 6*3600*1000), data })); } catch(_) {}
+      }
+      function buildLsKey(scope, cacheKey){ return `ov:${scope}:${cacheKey}`; }
 
       // Public overrides cache and helpers (ISO-keyed)
       window.__publicOverrides = window.__publicOverrides || {}; // { 'YYYY-MM-DD': [ ... ] }
@@ -421,14 +489,17 @@
       }
 
       function disableDayFn(date){
+        // Enforce booking window
+        if(date < __BOOK_MIN_DATE) return true;
+        if(date > __BOOK_MAX_DATE) return true;
         const day = date.getDay(); // 0 Sun..6 Sat
         if(day===0 || day===6) return true; // weekends blocked
         // Block by overrides (Holiday or Suspended)
         if(isOverrideBlocked(date)) return true;
-        // If no schedule, allow only if force/online override exists
-        if(allowedWeekdays.size === 0){ return hasForceOrOnlineOverride(date) ? false : true; }
-        // Otherwise block days not in schedule unless forced online
-        if(!allowedWeekdays.has(day)){ return hasForceOrOnlineOverride(date) ? false : true; }
+        // If no schedule, block ALL weekdays (even Online Day)
+        if(allowedWeekdays.size === 0) return true;
+        // Otherwise block days not in schedule
+        if(!allowedWeekdays.has(day)) return true;
         return false;
       }
 
@@ -476,7 +547,8 @@
         showDaysInNextAndPreviousMonths: true,
         firstDay: 1,
         bound: false,
-        minDate: new Date(),
+        minDate: __BOOK_MIN_DATE,
+        maxDate: __NAV_MAX_DATE,
         disableDayFn: disableDayFn
       });
       // Expose globally so async fetchers can trigger redraws reliably
@@ -588,6 +660,9 @@
         });
       };
       function refreshAvailabilityColors(){ window.__applyAvailability(__availabilityCache); }
+  function enforceDisabledAttrs(){
+    try { document.querySelectorAll('.pika-table td.is-disabled .pika-button').forEach(btn=>{ btn.setAttribute('disabled','disabled'); btn.setAttribute('aria-disabled','true'); btn.style.pointerEvents='none'; }); } catch(_) {}
+  }
   const _origDraw = picker.draw.bind(picker);
   picker.draw = function(){
     _origDraw();
@@ -596,19 +671,12 @@
     try{ applyPublicOverridesToCalendar(); }catch(_){ }
     try{ if(window.applyLockForSelectedDate){ applyLockForSelectedDate(); } }catch(_){ }
     try{ attachSelectionObserver(); }catch(_){ }
+    enforceDisabledAttrs();
   };
   // Ensure calendar is visible and headers state is applied immediately (mirrors ITIS)
   try { picker.show(); updateWeekdayHeaders(); } catch(_) {}
-  // Repaint overrides on any calendar DOM mutation to prevent brief disappearance on redraws
-  (function attachCalendarObserver(){
-    const tbl = document.querySelector('.pika-table');
-    if(!tbl || tbl.__ovObserver) return;
-    const obs = new MutationObserver(()=>{
-      try { applyPublicOverridesToCalendar(); } catch(_) {}
-    });
-    obs.observe(tbl, { childList:true, subtree:true, attributes:true, attributeFilter:['class'] });
-    tbl.__ovObserver = obs;
-  })();
+  // Note: We rely on our picker.draw override to repaint overrides consistently.
+  // Avoid observing all table mutations as that can cause repaint loops and jank.
       function fetchAvailability(profId){
         if(!profId) return;
         const now = new Date();
@@ -624,6 +692,17 @@
       document.addEventListener('click', function(e){
         const btn = e.target.closest('.pika-button');
         if(!btn) return;
+        // Block any interaction on disabled days (Leave/Suspension/Holiday)
+        try{
+          const tdCell = btn.closest('td');
+          const disabled = (tdCell && tdCell.classList.contains('is-disabled')) || btn.hasAttribute('disabled') || btn.getAttribute('aria-disabled')==='true';
+          if(disabled){
+            e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+            const sel = document.querySelector('.pika-table td.is-selected');
+            if(sel && sel.classList.contains('is-disabled')) sel.classList.remove('is-selected');
+            return false;
+          }
+        }catch(_){ }
         // Apply mode lock to radio inputs when selecting a date
         let mode = btn.dataset.mode || null;
         if(!mode){
@@ -673,6 +752,8 @@
         const obs = new MutationObserver(()=>{
           const td = table.querySelector('td.is-selected .pika-button');
           if(!td) return;
+          // Ignore disabled selections (e.g., Leave/Suspension/holiday)
+          try { const tdCell = td.closest('td'); if(tdCell && tdCell.classList.contains('is-disabled')) return; } catch(_) {}
           let mode = td.dataset.mode || null;
           if(!mode){
             try{
@@ -741,10 +822,9 @@
       // Expose helpers to global scope for use outside this closure
       window.__comsciGetVisibleMonthBaseDate = getVisibleMonthBaseDate;
 
-      // Only paint once overrides have been loaded at least once to avoid remove-then-add flicker
+      // Paint whenever overrides exist (LS/cache/network)
       window.__ovInitialized = window.__ovInitialized || false;
       function applyPublicOverridesToCalendar(){
-        if(!window.__ovInitialized) return;
         const cells = document.querySelectorAll('.pika-table td');
         cells.forEach(td=>{
           const btn = td.querySelector('.pika-button'); if(!btn) return;
@@ -787,7 +867,7 @@
             const dayCls = (chosen.reason_key === 'online_day') ? 'day-online' : 'day-force';
             btn.classList.add(dayCls);
           }
-          if (chosen.effect === 'holiday' || chosen.effect === 'block_all'){
+            if (chosen.effect === 'holiday' || chosen.effect === 'block_all'){
             td.classList.remove('slot-free','slot-low','slot-full');
             td.classList.add('is-disabled');
             btn.setAttribute('disabled','disabled');
@@ -796,12 +876,13 @@
             if (chosen.effect === 'block_all') {
               const isLeave = (chosen.reason_key === 'prof_leave' || /leave/i.test(chosen.label||''));
               const isEndYear = (!isLeave) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label||'') || /end\s*year/i.test(chosen.reason_text||''));
-              if (isLeave) { btn.classList.add('day-leave'); btn.classList.remove('ov-hard-block'); }
+                if (isLeave) { btn.classList.add('day-leave'); td.classList.add('day-leave-td'); btn.classList.remove('ov-hard-block'); }
               else if (isEndYear) { btn.classList.add('day-endyear'); btn.classList.remove('ov-hard-block'); }
               else { btn.classList.add('ov-hard-block'); }
             } else { btn.classList.add('day-holiday'); }
           } else {
             btn.classList.remove('ov-hard-block','day-holiday','day-leave','day-endyear');
+            td.classList.remove('day-leave-td');
           }
           if (chosen.effect === 'force_mode'){
             let mode = chosen.allowed_mode || (chosen.reason_key==='online_day'?'online':null) || 'online';
@@ -903,7 +984,8 @@
       (function prefetchOnHover(){
         // Track in-flight override fetches so openModal can await briefly
         window.__ovPending = window.__ovPending || {}; // key -> Promise
-        function monthRange(d){ const s=new Date(d.getFullYear(), d.getMonth(), 1); const e=new Date(d.getFullYear(), d.getMonth()+1, 0); return {s,e}; }
+        // Expand to prev + current + next month so adjacent grid cells paint instantly
+        function monthRange(d){ const s=new Date(d.getFullYear(), d.getMonth()-1, 1); const e=new Date(d.getFullYear(), d.getMonth()+2, 0); return {s,e}; }
         function toIso(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
         async function prefetch(profId){
           try{
@@ -956,8 +1038,9 @@
           if(!id) return;
           try {
             const today = new Date();
-            const s = new Date(today.getFullYear(), today.getMonth(), 1);
-            const eN = new Date(today.getFullYear(), today.getMonth()+1, 0);
+            // Prefetch prev + current + next month to cover adjacent grid days
+            const s = new Date(today.getFullYear(), today.getMonth()-1, 1);
+            const eN = new Date(today.getFullYear(), today.getMonth()+2, 0);
             const toIso = d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
             const cacheKey = `${id}|${toIso(s)}-${toIso(eN)}`;
             if(window.__ovCache && window.__ovCache[cacheKey]) return;
@@ -979,6 +1062,17 @@ async function openModal(card) {
       document.querySelector('.calendar-wrapper-container')?.classList.remove('has-error');
       try { if(window.picker){ window.picker.setDate(null); } } catch(e) {}
       document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
+    })();
+
+    // Always reset the visible month to the current month when opening a professor modal
+    (function resetVisibleMonth(){
+      try{
+        if(window.picker){
+          const t=new Date();
+          window.picker.gotoDate(new Date(t.getFullYear(), t.getMonth(), 1));
+          window.picker.draw();
+        }
+      }catch(_){ }
     })();
 
     // Clear previously selected checkboxes, radios, and Others field
@@ -1037,31 +1131,45 @@ async function openModal(card) {
     document.getElementById("modalProfilePic").src = img;
     document.getElementById("modalProfileName").textContent = name;
     document.getElementById("modalProfId").value = profId;
-    // Apply schedule immediately so only allowed weekdays are enabled on first paint
-    if (window.__updateAllowedWeekdays) { try { window.__updateAllowedWeekdays(schedule); } catch(_) {} }
-    // Then fetch availability (slight delay keeps UI responsive)
-    if(window.__fetchAvailability){ setTimeout(()=>window.__fetchAvailability(profId),120); }
-    // Fetch professor-specific overrides for the visible month (use exposed global)
-    try { if (typeof window.__comsciFetchOverridesForMonth === 'function') window.__comsciFetchOverridesForMonth(window.__comsciGetVisibleMonthBaseDate ? window.__comsciGetVisibleMonthBaseDate() : getVisibleMonthBaseDate()); } catch(_) {}
-    // Cache-first immediate paint like ITIS: paint BEFORE showing modal to avoid initial blank state
+    // Hydrate professor overrides BEFORE first draw so leave/suspension apply instantly like global
     try {
+      // Clear any previous professor's overrides to prevent bleed-through
+      window.__publicOverrides = {};
+      if (typeof recomputeBlockedSet === 'function') recomputeBlockedSet();
+      try { if(window.picker){ window.picker.draw(); } } catch(_) {}
+
+      // Then assign this professor's preloaded overrides (can be empty)
+      try {
+        const pre = (window.__preloadedProfOverrides||{})[parseInt(profId,10)] || {};
+        window.__publicOverrides = pre;
+        if (typeof recomputeBlockedSet === 'function') recomputeBlockedSet();
+        try { if(window.picker){ window.picker.draw(); } } catch(_) {}
+      } catch(_) {}
+
       const base = (window.__comsciGetVisibleMonthBaseDate ? window.__comsciGetVisibleMonthBaseDate() : getVisibleMonthBaseDate());
       const toIso = d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      const start = new Date(base.getFullYear(), base.getMonth(), 1);
-      const end = new Date(base.getFullYear(), base.getMonth()+1, 0);
+      const start = new Date(base.getFullYear(), base.getMonth()-1, 1);
+      const end = new Date(base.getFullYear(), base.getMonth()+2, 0);
       const cacheKey = `${profId}|${toIso(start)}-${toIso(end)}`;
-      // Await a pending prefetch for this window briefly (up to ~180ms) to maximize cache hit
+      // Load from localStorage if present (no draw yet; we'll draw after schedule is applied)
+      try { const ls = lsGetOv(buildLsKey('public', cacheKey)); if(ls){ window.__publicOverrides = ls; if(typeof recomputeBlockedSet==='function') recomputeBlockedSet(); } } catch(_) {}
+      // Await any in-flight prefetch briefly; then hydrate from in-memory cache
       try { const p=(window.__ovPending||{})[cacheKey]; if(p){ await Promise.race([p, new Promise(r=>setTimeout(r,180))]); } } catch(_) {}
       if (window.__ovCache && window.__ovCache[cacheKey]){
         window.__publicOverrides = window.__ovCache[cacheKey];
         window.__ovInitialized = true;
         try { if (typeof recomputeBlockedSet === 'function') recomputeBlockedSet(); } catch(_) {}
-        if(window.picker) window.picker.draw();
-        try { applyPublicOverridesToCalendar(); } catch(_) {}
       }
     } catch(_) {}
 
-    // Now show the modal after attempting cache-first so Leave/overrides are visible instantly
+    // Apply schedule NOW so the first draw includes hydrated overrides
+    if (window.__updateAllowedWeekdays) { try { window.__updateAllowedWeekdays(schedule); } catch(_) {} }
+    // Then fetch availability (slight delay keeps UI responsive)
+    if(window.__fetchAvailability){ setTimeout(()=>window.__fetchAvailability(profId),120); }
+    // Fetch professor-specific overrides for the visible month (network refresh after initial cache-first)
+    try { if (typeof window.__comsciFetchOverridesForMonth === 'function') window.__comsciFetchOverridesForMonth(window.__comsciGetVisibleMonthBaseDate ? window.__comsciGetVisibleMonthBaseDate() : getVisibleMonthBaseDate()); } catch(_) {}
+
+    // Show the modal after first draw to avoid flicker
     document.getElementById("consultationModal").style.display = "flex";
     document.body.classList.add("modal-open");
     
@@ -1280,6 +1388,8 @@ if(bookingForm){
 }
 
 window.professors = @json($professors);
+// Preloaded professor leave dates for prev+current+next month window
+window.__preloadedProfOverrides = @json($preloadedOverrides ?? []);
 
 // === Secure client-side search (defensive) ===
 // This search is purely client-side (DOM filtering). We still defensively

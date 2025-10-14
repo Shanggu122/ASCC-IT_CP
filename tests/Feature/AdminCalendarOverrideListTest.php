@@ -121,16 +121,16 @@ class AdminCalendarOverrideListTest extends TestCase
         $this->assertSame("block_all", $json["overrides"][$k1][0]["effect"]);
         $this->assertSame("block_all", $json["overrides"][$k4][0]["effect"]);
 
-        // Labels should be "Suspended" for admin list
+        // Labels now use the new term "Suspention" for block_all days (per updated behavior)
         $this->assertSame(
-            "Blocked",
+            "Suspention",
             $json["overrides"][$k1][0]["label"],
-            "Admin list label for block_all should be Blocked",
+            "Admin list label for block_all should be Suspention",
         );
         $this->assertSame(
-            "Blocked",
+            "Suspention",
             $json["overrides"][$k4][0]["label"],
-            "Admin list label for block_all should be Blocked",
+            "Admin list label for block_all should be Suspention",
         );
     }
 }

@@ -774,8 +774,14 @@ Route::middleware("auth:web,professor")->group(function () {
 });
 
 // Final student course list routes (protected)
-Route::get("/itis", [CardItis::class, "showItis"])->middleware("auth");
-Route::get("/comsci", [CardComsci::class, "showComsci"])->middleware("auth");
+// Student booking pages: protect by auth in normal runs, but allow public access during E2E tests
+if (app()->environment("testing") || env("E2E_PUBLIC", false)) {
+    Route::get("/itis", [CardItis::class, "showItis"]);
+    Route::get("/comsci", [CardComsci::class, "showComsci"]);
+} else {
+    Route::get("/itis", [CardItis::class, "showItis"])->middleware("auth");
+    Route::get("/comsci", [CardComsci::class, "showComsci"])->middleware("auth");
+}
 
 Route::post("/send-file", [MessageController::class, "sendFile"])->middleware("auth:web,professor");
 

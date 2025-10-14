@@ -85,6 +85,7 @@ body {
         width: 100% !important;
     }
 }
+/* Leave: button gets teal background behind the number */
 .pika-button.day-leave,
 .slot-free .pika-button.day-leave,
 .slot-low .pika-button.day-leave,
@@ -96,6 +97,17 @@ body {
     background: rgba(18, 163, 155, 0.65) !important;
     color: #ffffff !important;
     border-color: transparent !important;
+}
+/* Persist button tint even when disabled */
+.is-disabled .pika-button.day-leave {
+    background: rgba(14, 165, 164, 0.55) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+}
+/* Also tint the entire table cell for Leave, per request */
+/* Remove big box: do not tint the entire cell for Leave */
+.pika-table td.day-leave-td {
+    background: transparent !important;
 }
 .profile-card img {
     width: 60px;
