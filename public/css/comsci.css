@@ -72,6 +72,7 @@ body {
     font-weight: 600;
     display: inline-block;
 }
+/* Restore teal on the button for Leave */
 .day-leave {
     background: rgba(18, 163, 155, 0.55) !important;
 }
@@ -93,6 +94,17 @@ body {
     background: rgba(18, 163, 155, 0.65) !important;
     color: #ffffff !important;
     border-color: transparent !important;
+}
+/* Persist Leave tint even when day is disabled by overrides */
+.is-disabled .pika-button.day-leave {
+    background: rgba(14, 165, 164, 0.55) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+}
+/* Full-cell tint for Leave Day on ComSci booking calendar */
+/* Remove big box: clear the full-cell tint for Leave */
+.pika-table td.day-leave-td {
+    background: transparent !important;
 }
 .profile-name {
     font-weight: 600;

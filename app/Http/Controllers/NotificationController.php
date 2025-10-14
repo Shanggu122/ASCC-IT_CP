@@ -22,8 +22,16 @@ class NotificationController extends Controller
         // Ensure global suspension notifications exist for this student (idempotent)
         try {
             $today = Carbon::today("Asia/Manila")->toDateString();
+            // Only include genuine suspension-type overrides here.
+            // Exclude professor leave (scope_type=professor with reason_key=prof_leave)
             $upcoming = CalendarOverride::query()
                 ->where("effect", "block_all")
+                ->where(function ($q) {
+                    $q->whereNull("scope_type")->orWhere("scope_type", "!=", "professor");
+                })
+                ->where(function ($q) {
+                    $q->whereNull("reason_key")->orWhere("reason_key", "!=", "prof_leave");
+                })
                 ->where("end_date", ">=", $today)
                 ->orderBy("start_date", "asc")
                 ->limit(10)
@@ -66,6 +74,8 @@ class NotificationController extends Controller
 
         // Fetch all notifications for this student, then reduce to latest per booking/group
         $all = Notification::where("user_id", $userId)
+            // Students should not see professor-leave system notices
+            ->whereNotIn("type", ["professor_leave", "professor_leave_removed"])
             ->orderBy("updated_at", "desc")
             ->orderBy("created_at", "desc")
             ->get();
@@ -91,6 +101,12 @@ class NotificationController extends Controller
             $today = Carbon::today("Asia/Manila")->toDateString();
             $upcoming = CalendarOverride::query()
                 ->where("effect", "block_all")
+                ->where(function ($q) {
+                    $q->whereNull("scope_type")->orWhere("scope_type", "!=", "professor");
+                })
+                ->where(function ($q) {
+                    $q->whereNull("reason_key")->orWhere("reason_key", "!=", "prof_leave");
+                })
                 ->where("end_date", ">=", $today)
                 ->orderBy("start_date", "asc")
                 ->limit(3)
@@ -197,6 +213,13 @@ class NotificationController extends Controller
             $today = Carbon::today("Asia/Manila")->toDateString();
             $upcoming = CalendarOverride::query()
                 ->where("effect", "block_all")
+                // Exclude professor leave entirely from professor autogen notices
+                ->where(function ($q) {
+                    $q->whereNull("reason_key")->orWhere("reason_key", "!=", "prof_leave");
+                })
+                ->where(function ($q) {
+                    $q->whereNull("scope_type")->orWhere("scope_type", "!=", "professor");
+                })
                 ->where("end_date", ">=", $today)
                 ->orderBy("start_date", "asc")
                 ->limit(10)
@@ -266,6 +289,12 @@ class NotificationController extends Controller
             $today = Carbon::today("Asia/Manila")->toDateString();
             $upcoming = CalendarOverride::query()
                 ->where("effect", "block_all")
+                ->where(function ($q) {
+                    $q->whereNull("reason_key")->orWhere("reason_key", "!=", "prof_leave");
+                })
+                ->where(function ($q) {
+                    $q->whereNull("scope_type")->orWhere("scope_type", "!=", "professor");
+                })
                 ->where("end_date", ">=", $today)
                 ->orderBy("start_date", "asc")
                 ->limit(3)

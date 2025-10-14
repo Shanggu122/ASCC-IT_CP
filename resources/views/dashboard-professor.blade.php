@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ asset('css/legend.css') }}">
   <link rel="stylesheet" href="{{ asset('css/dashboard-professor.css') }}">
   <link rel="stylesheet" href="{{ asset('css/notifications.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/toast.css') }}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
   <style>
      #calendar {
@@ -323,13 +324,7 @@
     .ascc-btn { border:none; border-radius:8px; padding:10px 14px; font-weight:600; cursor:pointer; }
     .ascc-btn-primary { background:#0d2b20; color:#fff; }
     .ascc-btn-secondary { background:#e9ecef; color:#0d2b20; }
-    .toast-wrapper { position: fixed; top: 16px; right: 16px; display:flex; flex-direction:column; gap:10px; z-index:10001; }
-    .ascc-toast { background:#fff; color:#12372a; border-left:4px solid #0d2b20; border-radius:8px; padding:10px 12px; box-shadow:0 6px 20px rgba(0,0,0,0.15); display:flex; align-items:center; gap:10px; }
-    .ascc-toast-success { border-left-color:#28a745; }
-    .ascc-toast-error { border-left-color:#dc3545; }
-    .ascc-toast-info { border-left-color:#0d2b20; }
-    .ascc-toast-close { background:transparent; border:none; font-size:16px; margin-left:6px; cursor:pointer; color:#666; }
-    .ascc-toast.hide { opacity:0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; }
+    /* Toast styles removed here in favor of shared public/css/toast.css used by students */
     /* Local swatch color for Leave Day if not present in shared legend.css */
     .legend-swatch.swatch-leave { background-color: #0ea5a4; }
   </style>
@@ -444,6 +439,9 @@
       <button onclick="closeBookingModal()" style="margin-top:2rem;">Close</button>
     </div>
   </div>
+
+  {{-- Shared toast container + API (matches ITIS/COMSCI student booking UI) --}}
+  @include('partials.toast')
 
   <!-- Consultation Tooltip -->
   <div id="consultationTooltip" style="display:none; position:absolute; z-index:9999; background:#fff; border:1px solid #ccc; border-radius:8px; padding:12px; max-width:320px; box-shadow:0 4px 12px rgba(0,0,0,0.15); font-family:'Poppins',sans-serif; font-size:13px;"></div>
@@ -898,14 +896,40 @@ function fetchProfessorOverridesForMonth(dateObj) {
     const res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN': token}, body: JSON.stringify(body), credentials:'same-origin' });
     return res.json();
   }
-  function ensureToastWrapper(){ let wrap=document.querySelector('.toast-wrapper'); if(!wrap){ wrap=document.createElement('div'); wrap.className='toast-wrapper'; document.body.appendChild(wrap);} return wrap; }
-  function showToast(message, type='info', timeout=2200){ const wrap=ensureToastWrapper(); const toast=document.createElement('div'); toast.className=`ascc-toast ${type==='success'?'ascc-toast-success': type==='error'?'ascc-toast-error':'ascc-toast-info'}`; toast.innerHTML=`<div>${message}</div><button class="ascc-toast-close" aria-label="Close">×</button>`; wrap.appendChild(toast); const closer=toast.querySelector('.ascc-toast-close'); let hid=false; const hide=()=>{ if(hid) return; hid=true; toast.classList.add('hide'); setTimeout(()=> toast.remove(), 250); }; closer.addEventListener('click', hide); setTimeout(hide, timeout); }
+  // Use shared ASCCToast from partials.toast for consistent UI across apps
+  function isPastDay(dateObj){
+    try{
+      if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) return false;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const cmp = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+      return cmp < today;
+    }catch(_){ return false; }
+  }
+  function isoToDate(iso){
+    try{
+      const [y,m,d] = (iso||'').split('-').map(v=>parseInt(v,10));
+      if (!y || isNaN(y) || isNaN(m) || isNaN(d)) return null;
+      return new Date(y, (m-1), d);
+    }catch(_){ return null; }
+  }
+  // Throttle the past-day error toast to avoid spamming (2 seconds cooldown)
+  function showPastDayError(){
+    const now = Date.now();
+    const last = window.__pastDayToastLast || 0;
+    if (now - last < 2000) return; // within cooldown, skip
+    window.__pastDayToastLast = now;
+    try { ASCCToast.show('Cannot edit a past day.', 'error'); } catch(_) {}
+  }
   function themedConfirm(title, html){ return new Promise(resolve=>{ const overlay=document.createElement('div'); overlay.className='ascc-confirm-overlay'; const dlg=document.createElement('div'); dlg.className='ascc-confirm'; dlg.setAttribute('role','dialog'); dlg.setAttribute('aria-modal','true'); dlg.innerHTML=`<div class=\"ascc-confirm-header\"><div class=\"ascc-confirm-title\">${title}</div><button class=\"ascc-confirm-close\" aria-label=\"Close\">×</button></div><div class=\"ascc-confirm-body\">${html}</div><div class=\"ascc-confirm-actions\"><button id=\"dlgCancel\" class=\"ascc-btn ascc-btn-secondary\">Cancel</button><button id=\"dlgOk\" class=\"ascc-btn ascc-btn-primary\">Confirm</button></div>`; overlay.appendChild(dlg); document.body.appendChild(overlay); const okBtn=dlg.querySelector('#dlgOk'); const cancelBtn=dlg.querySelector('#dlgCancel'); const closeBtn=dlg.querySelector('.ascc-confirm-close'); const cleanup=()=>{ document.removeEventListener('keydown', onKey); overlay.remove(); }; const close=(v)=>{ cleanup(); resolve(v); }; const onKey=(e)=>{ if(e.key==='Escape'){ e.preventDefault(); close(false);} if(e.key==='Tab'){ const focusables=dlg.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])'); if(focusables.length){ const first=focusables[0]; const last=focusables[focusables.length-1]; if(e.shiftKey && document.activeElement===first){ last.focus(); e.preventDefault(); } else if(!e.shiftKey && document.activeElement===last){ first.focus(); e.preventDefault(); } } } }; closeBtn.addEventListener('click', ()=>close(false)); cancelBtn.addEventListener('click', ()=>close(false)); okBtn.addEventListener('click', ()=>close(true)); document.addEventListener('keydown', onKey); okBtn.focus(); }); }
 
   async function handleLeaveToggle(btn){
     try { console.log('[LeaveToggle] date cell clicked'); } catch(_) {}
     const iso = toIsoFromCell(btn);
     if (!iso) return;
+    // Disallow editing past dates (mirror admin behavior)
+    const dt = isoToDate(iso);
+    if (dt && isPastDay(dt)) { showPastDayError(); return; }
     const currentlyLeave = isLeaveOnIso(iso);
     const title = currentlyLeave ? 'Remove Leave Day' : 'Set Leave Day';
     const msg = currentlyLeave ? `Remove your leave on <strong>${btn.getAttribute('aria-label')||iso}</strong>?` : `Mark <strong>${btn.getAttribute('aria-label')||iso}</strong> as a Leave day? This will block bookings.`;
@@ -919,17 +943,17 @@ function fetchProfessorOverridesForMonth(dateObj) {
         const arr = window.profOverrides[iso] || [];
         if (currentlyLeave) {
           window.profOverrides[iso] = arr.filter(x => !(x.effect==='block_all' && (x.reason_key==='prof_leave' || x.label==='Leave')));
-          showToast('Leave removed', 'success');
+          ASCCToast.show('Leave removed', 'success');
         } else {
           arr.push({ effect:'block_all', reason_key:'prof_leave', reason_text:'Leave', label:'Leave' });
           window.profOverrides[iso] = arr;
-          showToast('Leave set', 'success');
+          ASCCToast.show('Leave set', 'success');
         }
         if (window.professorPicker) window.professorPicker.draw();
       } else {
-        showToast('Failed to update leave', 'error');
+  ASCCToast.show('Failed to update leave', 'error');
       }
-    } catch(_){ showToast('Failed to update leave', 'error'); }
+  } catch(_){ ASCCToast.show('Failed to update leave', 'error'); }
   }
 
   function bindLeaveHandlers(){
