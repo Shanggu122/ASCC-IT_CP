@@ -10,7 +10,72 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #f9f9f9;
+    /* Softer very light grey (not flat dull grey) with subtle vertical gradient */
+    background: linear-gradient(180deg, #e5e6e5 0%, #f3f5f4 60%, #f2f4f3 100%);
+}
+
+/* Back to landing button (top-left) */
+.left-panel { position: relative; }
+.back-to-landing {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    text-decoration: none;
+    padding: 0;
+}
+.back-to-landing i { font-size: 36px; line-height: 1; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.back-to-landing:hover { opacity: 0.9; transform: translateX(-1px); }
+.back-to-landing:focus-visible { outline: 3px solid #ffffff; outline-offset: 2px; border-radius: 4px; }
+
+/* College Title Styling */
+.college-title,
+.college-title * {
+    color: #fff !important;
+    font-weight: normal !important;
+}
+
+/* Full-screen loading overlay */
+.auth-loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.82);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+.auth-loading-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+.auth-loading-spinner {
+    width: 58px;
+    height: 58px;
+    border: 5px solid rgba(255, 255, 255, 0.18);
+    border-top-color: #36b58b;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 18px;
+}
+.auth-loading-text {
+    color: #e9f9f3;
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    font-family: 'Segoe UI', sans-serif;
+}
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .container {
@@ -21,9 +86,27 @@ body {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
+.status-row {
+    max-width: 350px;
+    margin: -8px auto 6px; /* compact spacing without pushing content */
+    height: 18px; /* fixed height to avoid layout shift */
+    display: flex;
+    align-items: center;
+    overflow: hidden; /* clip if text longer */
+}
+.status-row .field-success {
+    margin: 0;
+    line-height: 18px; /* match container height */
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    width: 100%;
+}
+
+/* Left panel (logo and college title) */
 .left-panel {
     flex: 1;
-    background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.8), rgba(13, 96, 70, 0.8));
+    background: linear-gradient(135deg, #12372a 0%, #20543d 50%, #2d6e4e 100%);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -34,14 +117,16 @@ body {
 }
 
 .left-logo {
-    width: 260px; /* Increase the logo size */
-    max-width: 100%; /* Responsive: don't overflow panel */
-    margin-bottom: 3.5rem;
+    width: 340px;
+    max-width: 100%;
+    margin-bottom: 2.2rem;
+    margin-top: -1.5rem;
 }
 
 .left-panel h2 {
     font-size: 1.2rem;
-    color: #003d29;
+    color: #fff;
+    font-weight: 900;
 }
 
 .right-panel {
@@ -120,11 +205,134 @@ body {
 
 .toggle-password {
     position: absolute;
-    right: 16px;
-    top: 12px;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
     cursor: pointer;
     font-size: 20px;
-    color: #777;
+    color: #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    /* Background & border removed per request (icon only) */
+    background: transparent;
+    border: none;
+    transition: color 0.18s;
+    z-index: 2; /* original layering */
+}
+
+.toggle-password:hover,
+.toggle-password:focus {
+    /* Keep only color feedback */
+    background: transparent;
+    color: #0b3d2e;
+    border: none;
+    box-shadow: none;
+}
+
+/* Floating label fields */
+/* External labels (standard positioning) */
+/* Remove old external label style when using float-stack */
+.field-label {
+    display: none;
+}
+
+/* Stacked floating labels (grey container) */
+.float-stack {
+    position: relative;
+}
+.float-stack input {
+    background: #e3e3e3; /* light grey like screenshot */
+    border: 1px solid #e3e3e3;
+    padding: 22px 52px 8px 18px; /* top space for label, right for eye */
+    font-size: 15px;
+    transition:
+        border-color 0.18s,
+        background 0.18s;
+}
+.float-stack.password-group input {
+    padding-right: 70px;
+}
+/* removed elevated z-index overrides */
+.float-stack label {
+    position: absolute;
+    top: 14px; /* vertically centered with empty input text */
+    left: 18px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #0b3d2e;
+    letter-spacing: 0.3px;
+    pointer-events: none;
+    transform-origin: left top;
+    transition: all 0.16s ease;
+}
+.float-stack input::placeholder {
+    color: transparent;
+}
+.float-stack input:focus {
+    background: #f8f8f8;
+    border-color: #0b3d2e;
+}
+.float-stack input:focus ~ .toggle-password,
+.float-stack input:not(:placeholder-shown) ~ .toggle-password {
+    /* Prevent background from appearing when input is focused or filled */
+    background: transparent;
+    border: none;
+}
+.float-stack input:focus + label,
+.float-stack input:not(:placeholder-shown) + label,
+/* JS-applied class for prefilled/autofill */
+.float-stack input.filled + label,
+/* WebKit autofill direct */
+.float-stack input:-webkit-autofill + label {
+    top: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.95;
+}
+/* Normalize autofill background/text */
+.float-stack input:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 30px #e3e3e3 inset !important;
+    -webkit-text-fill-color: #0b3d2e !important;
+    caret-color: #0b3d2e;
+}
+
+/* Remember me alignment */
+/* Remember me inline in options row */
+.remember-inline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #0b3d2e;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+.remember-inline input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    accent-color: #0b3d2e;
+}
+
+/* Forgot password moved below */
+.below-actions {
+    max-width: 350px;
+    width: 100%;
+    margin: 0.9rem auto 0;
+    text-align: center;
+}
+.below-actions .forgot-bottom {
+    font-size: 13px;
+    color: #0b3d2e;
+    text-decoration: none;
+    display: inline-block;
+}
+.below-actions .forgot-bottom:hover {
+    text-decoration: underline;
 }
 
 .options {
@@ -182,6 +390,37 @@ body {
     align-items: center;
     flex: 1; /* Take up available space */
     text-align: left; /* Align error text to the left */
+    min-height: 18px; /* normalize line-height space */
+    transition: opacity 0.32s ease;
+}
+
+/* Placeholder (empty) to preserve row height when no general error */
+.login-error-placeholder {
+    flex: 1;
+    min-height: 18px; /* near line-height of error text */
+}
+/* Success message shown inline within .options-row (left side) */
+.options-row .field-success {
+    color: #0b6e4f;
+    font-size: 14px;
+    font-weight: 600;
+    min-height: 18px;
+    display: flex;
+    align-items: center;
+}
+
+/* Fade-out class used by auto-dismiss JS; keeps height to avoid shifting Remember me */
+.fade-out-login-error {
+    opacity: 0;
+}
+/* Also fade out field-level messages when JS adds the class */
+.fade-out-field-error {
+    opacity: 0;
+}
+
+/* Red border highlight for invalid inputs */
+.input-error {
+    border-color: #dc3545 !important;
 }
 
 /* Generic field-level error directly under an input */
@@ -193,6 +432,10 @@ body {
     width: 100%;
     text-align: left;
     padding-left: 4px;
+    /* Align under centered inputs (same width as .input-group) */
+    max-width: 350px;
+    margin-left: auto;
+    margin-right: auto;
 }
 .field-success {
     color: #0b6e4f;
@@ -202,6 +445,22 @@ body {
     width: 100%;
     text-align: left;
     padding-left: 4px;
+    /* Align under centered inputs (same width as .input-group) */
+    max-width: 350px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Reserve space under password for transient status so layout below doesn't shift */
+.status-row {
+    max-width: 350px;
+    margin: -10px auto 0; /* closer to the password field, no extra bottom gap */
+    min-height: 14px; /* minimal fixed space to avoid shifting */
+    display: block;
+}
+/* Remove extra top margin inside status row to keep it compact */
+.status-row .field-success {
+    margin-top: 0;
 }
 
 .options-row a {
@@ -210,6 +469,11 @@ body {
     font-size: 14px;
     white-space: nowrap; /* Prevent link from wrapping */
     margin-left: 10px; /* Add some space between error and link */
+}
+
+/* Ensure link sticks to right even when error wraps */
+.options-row a {
+    margin-left: 16px;
 }
 
 /* Add this to push the form down if needed */

@@ -1,7 +1,7 @@
 // your Agora credentials
 const APP_ID = "ab155f23c3fc4ae980b11973d818c460";
 const TOKEN =
-    "007eJxTYChOEopXWTWhsuyCa9ITR/kwW5nja6Yd4A3r2xZoOuW9sYECQ2KSoalpmpFxsnFaskliqqWFQZKhoaW5cYqFoUWyiZnBhjKVjIZARobbOWrMjAwQCOKzMzgWOzvreoYwMAAAAbgdew=="; // null if token not needed
+    "007eJxTYBB7sH2B1evi8MNMvhtm+twQlZJ1/Vi8aoGryK1H4grGWt8VGMxNjYyTTVLNjI3NzUzMjQwtUo0tTc3TjA0Mzc0sDIxSf7QczGgIZGSoXabPwsgAgSA+O0NJanGJoZExAwMAMtoeWg=="; // null if token not needed
 const CHANNEL = decodeURIComponent(location.pathname.split("/").pop());
 
 let client, localAudioTrack, localVideoTrack;

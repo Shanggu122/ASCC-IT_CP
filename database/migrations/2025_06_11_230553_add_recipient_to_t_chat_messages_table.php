@@ -11,9 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('t_chat_messages', function (Blueprint $table) {
-            $table->string('Recipient')->nullable();
-        });
+        if (Schema::hasTable('t_chat_messages') && !Schema::hasColumn('t_chat_messages', 'Recipient')) {
+            Schema::table('t_chat_messages', function (Blueprint $table) {
+                $table->string('Recipient')->nullable();
+            });
+        }
     }
 
     /**
@@ -21,8 +23,10 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('t_chat_messages', function (Blueprint $table) {
-            $table->dropColumn('Recipient');
-        });
+        if (Schema::hasTable('t_chat_messages') && Schema::hasColumn('t_chat_messages', 'Recipient')) {
+            Schema::table('t_chat_messages', function (Blueprint $table) {
+                $table->dropColumn('Recipient');
+            });
+        }
     }
 };

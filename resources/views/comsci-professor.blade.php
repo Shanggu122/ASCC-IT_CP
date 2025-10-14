@@ -18,7 +18,9 @@
     </div>
     
     <div class="search-container">
-      <input type="text" id="searchInput" placeholder="Search..." onkeyup="filterColleagues()">
+      <input type="text" id="searchInput" placeholder="Search..." onkeyup="filterColleagues()"
+        autocomplete="off" spellcheck="false" maxlength="100"
+        pattern="[A-Za-z0-9 .,@_-]{0,100}" aria-label="Search colleagues">
     </div>
     
     <div class="profile-cards-grid">
@@ -35,6 +37,7 @@
         </div>
       @endif
     </div>
+  <div id="noResults" class="no-results-message">NO PROFESSOR FOUND</div>
   </div>
   
   <button class="chat-button" onclick="toggleChat()">
@@ -59,24 +62,49 @@
   
   <script src="{{ asset('js/comsci.js') }}"></script>
   <script>
+    function sanitize(raw){
+      if(!raw) return '';
+      return raw
+        .replace(/\/*.*?\*\//g,'')
+        .replace(/--+/g,' ')
+        .replace(/[;`'"<>]/g,' ')
+        .replace(/\s+/g,' ')
+        .trim()
+        .slice(0,100);
+    }
+
     function filterColleagues() {
       const searchInput = document.getElementById('searchInput');
-      const filter = searchInput.value.toLowerCase();
+      const cleaned = sanitize(searchInput.value);
+      if (searchInput.value !== cleaned) searchInput.value = cleaned;
+      const filter = cleaned.toLowerCase();
       const cards = document.querySelectorAll('.profile-card');
-      
+      let visible = 0;
+
       cards.forEach(card => {
-        const name = card.getAttribute('data-name').toLowerCase();
-        if (name.includes(filter)) {
-          card.style.display = 'block';
+        const name = (card.getAttribute('data-name') || '').toLowerCase();
+        const show = !filter || name.includes(filter);
+        if (show) {
+          card.style.removeProperty('display'); // keep CSS layout (flex in grid)
+          visible++;
         } else {
           card.style.display = 'none';
         }
       });
+
+      const msg = document.getElementById('noResults');
+      if (msg) {
+        if (cleaned && visible === 0) {
+          msg.style.display = 'block';
+        } else {
+          msg.style.display = 'none';
+        }
+      }
     }
 
     // Add Enter key functionality for chat form
     document.addEventListener('DOMContentLoaded', function() {
-      const messageInput = document.getElementById('message');
+  const messageInput = document.getElementById('message');
       if (messageInput) {
         // Remove any existing event listeners first
         messageInput.removeEventListener('keydown', handleEnterKey);
@@ -94,6 +122,7 @@
             filterColleagues();
           }
         });
+        searchInput.addEventListener('input', filterColleagues);
       }
     });
     
@@ -103,10 +132,30 @@
         event.preventDefault();
         const chatForm = document.getElementById('chatForm');
         if (chatForm) {
-          chatForm.requestSubmit();
+          const msg = document.getElementById('message');
+          if(msg){
+            const cleaned = sanitize(msg.value);
+            if(cleaned) { msg.value = cleaned; chatForm.requestSubmit(); }
+          }
         }
       }
     }
+
+    // Chat form sanitization on submit
+    document.addEventListener('DOMContentLoaded', function(){
+      const form = document.getElementById('chatForm');
+      const msg = document.getElementById('message');
+      if(form && msg){
+        msg.setAttribute('maxlength','250');
+        msg.setAttribute('autocomplete','off');
+        msg.setAttribute('spellcheck','false');
+        form.addEventListener('submit', function(e){
+          const cleaned = sanitize(msg.value);
+          if(!cleaned){ e.preventDefault(); msg.value=''; return; }
+          msg.value = cleaned;
+        });
+      }
+    });
   </script>
 </body>
 </html> 

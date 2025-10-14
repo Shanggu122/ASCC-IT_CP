@@ -11,11 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('messages', function (Blueprint $table) {
-            $table->string('file_path')->nullable();
-            $table->string('file_type')->nullable();
-            $table->string('original_name')->nullable();
-        });
+        if (Schema::hasTable('messages')) {
+            Schema::table('messages', function (Blueprint $table) {
+                if (!Schema::hasColumn('messages', 'file_path')) {
+                    $table->string('file_path')->nullable();
+                }
+                if (!Schema::hasColumn('messages', 'file_type')) {
+                    $table->string('file_type')->nullable();
+                }
+                if (!Schema::hasColumn('messages', 'original_name')) {
+                    $table->string('original_name')->nullable();
+                }
+            });
+        }
     }
 
     /**
@@ -23,8 +31,18 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('messages', function (Blueprint $table) {
-            $table->dropColumn(['file_path', 'file_type', 'original_name']);
-        });
+        if (Schema::hasTable('messages')) {
+            Schema::table('messages', function (Blueprint $table) {
+                $drops = [];
+                foreach (['file_path', 'file_type', 'original_name'] as $col) {
+                    if (Schema::hasColumn('messages', $col)) {
+                        $drops[] = $col;
+                    }
+                }
+                if (!empty($drops)) {
+                    $table->dropColumn($drops);
+                }
+            });
+        }
     }
 };

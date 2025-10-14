@@ -2,7 +2,7 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: "Segoe UI", sans-serif;
+    font-family: 'Segoe UI', sans-serif;
 }
 
 body {
@@ -10,7 +10,8 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #f9f9f9;
+    /* Match login page subtle gradient */
+    background: linear-gradient(180deg, #e5e6e5 0%, #f3f5f4 60%, #f2f4f3 100%);
 }
 
 .container {
@@ -21,13 +22,11 @@ body {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
+/* Light gradient background for left panel */
+/* Dark green gradient background for left panel */
 .left-panel {
     flex: 1;
-    background: linear-gradient(
-        to bottom right,
-        rgba(255, 255, 255, 0.8),
-        rgba(13, 96, 70, 0.8)
-    );
+    background: linear-gradient(135deg, #12372a 0%, #20543d 50%, #2d6e4e 100%);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -38,14 +37,16 @@ body {
 }
 
 .left-logo {
-    width: 260px; /* Increase the logo size */
-    max-width: 100%; /* Responsive: don't overflow panel */
-    margin-bottom: 3.5rem;
+    width: 340px;
+    max-width: 100%;
+    margin-bottom: 2.2rem;
+    margin-top: -1.5rem;
 }
 
 .left-panel h2 {
     font-size: 1.2rem;
-    color: #003d29;
+    color: #ffffff;
+    font-weight: 400;
 }
 
 .right-panel {
@@ -187,6 +188,24 @@ body {
     min-height: 32px;
 }
 
+/* Field level validation error (added for reset password page) */
+.field-error {
+    color: #dc3545;
+    font-size: 14px;
+    margin-top: 6px;
+    font-weight: 500;
+    width: 100%;
+    text-align: left;
+    padding-left: 4px;
+    min-height: 18px;
+    transition: opacity 0.32s ease;
+}
+
+.fade-out-field-error,
+.fade-out-login-error {
+    opacity: 0;
+}
+
 /* Add this to push the form down if needed */
 .right-panel form {
     margin-top: 2.5rem; /* Reduced space above the form */
@@ -204,19 +223,38 @@ body {
 }
 
 .back-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px; /* Slightly larger for better centering */
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     background: #0b3d2e;
     color: #fff;
-    font-size: 1.5rem; /* Larger arrow */
+    font-size: 1.5rem;
     margin-right: 1rem;
     text-decoration: none;
-    transition: background 0.2s;
+    transition:
+        background 0.2s,
+        box-shadow 0.2s;
     flex-shrink: 0;
+    cursor: pointer;
+    position: relative;
+    z-index: 5;
+    user-select: none;
+    touch-action: manipulation;
+    line-height: 1;
+}
+
+.back-btn:hover {
+    background: #105943;
+}
+.back-btn:active {
+    background: #094130;
+}
+.back-btn:focus-visible {
+    outline: 3px solid #36b58b;
+    outline-offset: 2px;
 }
 
 .fp-title {
@@ -236,7 +274,7 @@ body {
     margin-top: 1.5rem; /* Increased top margin to bring it down */
     margin-bottom: 2rem;
     text-align: center; /* Center the instruction text */
-    font-family: "Segoe UI", sans-serif;
+    font-family: 'Segoe UI', sans-serif;
     letter-spacing: 0.01em;
 }
 

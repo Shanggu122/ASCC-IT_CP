@@ -29,6 +29,15 @@ body {
     color: #12372a;
 }
 
+/* Tablet: reduce size and push heading down a bit to avoid navbar overlap */
+@media (min-width: 769px) and (max-width: 1280px) {
+    .header h1 {
+        font-size: 1.85rem;
+        line-height: 1.2;
+        margin-top: 28px;
+    }
+}
+
 /* Search */
 .search-container {
     margin: 1rem 0;
@@ -43,16 +52,62 @@ body {
 }
 
 /* Profile Card */
+.profile-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr); /* match admin */
+    gap: 32px;
+    margin-top: 2rem;
+    max-width: 1300px; /* match admin */
+    flex-direction: column;
+}
+/* Match admin card look and width */
 .profile-card {
     display: flex;
     align-items: center;
     gap: 1rem;
-    background: white;
+    background: #ffffff;
     padding: 1rem;
     border-radius: 12px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-    max-width: 300px;
     cursor: pointer;
+    max-width: 300px;
+    min-height: 100px;
+}
+@media (max-width: 768px) {
+    .profile-cards-grid {
+        display: flex;
+        grid-template-columns: repeat(4, 1fr);
+        flex-direction: column;
+        padding-bottom: 6rem;
+    }
+    .profile-card {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+}
+/* Leave: button gets teal background behind the number */
+.pika-button.day-leave,
+.slot-free .pika-button.day-leave,
+.slot-low .pika-button.day-leave,
+.slot-full .pika-button.day-leave,
+.pika-button.day-leave:hover,
+.slot-free .pika-button.day-leave:hover,
+.slot-low .pika-button.day-leave:hover,
+.slot-full .pika-button.day-leave:hover {
+    background: rgba(18, 163, 155, 0.65) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+}
+/* Persist button tint even when disabled */
+.is-disabled .pika-button.day-leave {
+    background: rgba(14, 165, 164, 0.55) !important;
+    color: #ffffff !important;
+    border-color: transparent !important;
+}
+/* Also tint the entire table cell for Leave, per request */
+/* Remove big box: do not tint the entire cell for Leave */
+.pika-table td.day-leave-td {
+    background: transparent !important;
 }
 .profile-card img {
     width: 60px;
@@ -63,7 +118,7 @@ body {
 .profile-name {
     font-weight: 600;
     color: #12372a;
-    font-size: 1.1rem; /* increased globally */
+    font-size: 1rem; /* match admin */
 }
 
 /* Chat Button */
@@ -225,6 +280,15 @@ body {
     color: #12372a;
 }
 
+/* No results message (match student pages) */
+.no-results-message {
+    display: none;
+    margin-top: 12px;
+    color: #b00020;
+    font-weight: 600;
+    font-style: italic;
+}
+
 /* Profile Body */
 .profile-body .checkboxes label {
     display: block;
@@ -327,27 +391,28 @@ body {
 
 .profile-cards-grid {
     display: grid;
-    /* Responsive columns: min width 250px, fill available space */
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    /* Match admin: fixed 4 columns, consistent spacing */
+    grid-template-columns: repeat(4, 1fr);
     gap: 32px;
     margin-top: 2rem;
-    max-width: 1400px;
+    max-width: 1300px;
     width: 100%;
 }
-/* Tweak card sizing to be fluid */
+/* Match admin card sizing: do not force full width */
 .profile-card {
-    width: 100%;
-    max-width: 100%;
+    width: auto;
+    max-width: 300px;
     min-height: 100px;
 }
-@media (max-width: 1400px) {
-    .profile-cards-grid { gap: 28px; }
-}
 @media (max-width: 1100px) {
-    .profile-cards-grid { gap: 24px; }
+    .profile-cards-grid {
+        gap: 28px;
+    }
 }
 @media (max-width: 900px) {
-    .profile-cards-grid { gap: 20px; }
+    .profile-cards-grid {
+        gap: 24px;
+    }
 }
 @media (max-width: 768px) {
     .profile-cards-grid {
@@ -358,10 +423,16 @@ body {
     .profile-card {
         max-width: 100% !important;
     }
-    .profile-name { font-size: 1rem; }
+    .profile-name {
+        font-size: 1rem;
+    }
     /* Hide native select show custom dropdown */
-    .modal-header select { display: none !important; }
-    #csSubjectDropdown { display: block !important; }
+    .modal-header select {
+        display: none !important;
+    }
+    #csSubjectDropdown {
+        display: block !important;
+    }
 }
 
 /* No colleagues message */
@@ -484,9 +555,17 @@ body {
     flex: 1;
     min-width: 500px;
     max-width: 600px;
+    /* Keep original padding so label/legend stay in place */
     padding: 24px;
     height: 600px;
     margin-bottom: 24px;
+}
+
+/* Shift only the calendar (not the label/legend) slightly to the left for alignment */
+@media (min-width: 769px) {
+    .calendar-wrapper-container .pika-lendar {
+        margin-left: -8px;
+    }
 }
 
 .calendar-header {
@@ -706,20 +785,36 @@ body {
     margin-right: 60px;
 }
 
-/* Radio Button Style */
+/* Radio Button Style - force visible checked dot (consistent across browsers) */
 .mode-selection input[type='radio'] {
-    width: 30px;
-    height: 30px;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    width: 28px;
+    height: 28px;
     margin-right: 10px;
     border: 2px solid #093b2f;
     border-radius: 50%;
-    background-color: white;
-    appearance: none;
+    background: #fff;
+    position: relative;
+    display: inline-grid;
+    place-content: center;
 }
-
-.mode-selection input[type='radio']:checked {
-    background-color: #093b2f;
-    border-color: #093b2f;
+.mode-selection input[type='radio']::before {
+    content: '';
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #093b2f;
+    transform: scale(0);
+    transition: transform 120ms ease-in-out;
+}
+.mode-selection input[type='radio']:checked::before {
+    transform: scale(1);
+}
+.mode-selection input[type='radio'][disabled] {
+    filter: grayscale(1) opacity(0.6);
+    cursor: not-allowed;
 }
 
 /* Saturday and Sunday Color */
@@ -959,5 +1054,55 @@ body {
         left: 20px;
         font-size: 14px;
         padding: 12px 16px;
+    }
+}
+
+/* Subject dropdown: custom arrow positioned with left offset */
+#modalSubjectSelect {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-size: 14px 14px;
+    background-position: right 14px center; /* move arrow 14px from the right edge */
+    padding-right: 40px; /* ensure text doesn't overlap with arrow */
+}
+#modalSubjectSelect::-ms-expand {
+    display: none;
+}
+
+/* Custom dropdown trigger: add matching arrow and offset */
+.cs-dd .cs-dd-trigger {
+    position: relative;
+    padding-right: 40px; /* room for arrow */
+}
+.cs-dd .cs-dd-trigger::after {
+    content: '';
+    position: absolute;
+    right: 14px; /* move arrow left from the edge */
+    top: 50%;
+    width: 14px;
+    height: 14px;
+    transform: translateY(-50%);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-size: 14px 14px;
+    pointer-events: none;
+}
+
+/* Tablet range: make modal full-viewport width (IT&IS student) */
+@media (min-width: 769px) and (max-width: 1280px) {
+    .modal-overlay {
+        left: 0 !important;
+        width: 100vw !important;
+    }
+    .modal-content {
+        width: 100vw !important;
+        height: 100vh !important;
+        max-width: 100vw !important;
+        border-radius: 0 !important;
+        padding-left: 24px !important;
+        padding-right: 24px !important;
     }
 }

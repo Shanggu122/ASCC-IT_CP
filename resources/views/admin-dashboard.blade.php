@@ -182,6 +182,35 @@
       scrollbar-color: #ccc #f9f9f9;
     }
 
+  /* Override badges (holiday/suspended/force) */
+    .pika-button .ov-badge {
+      position: absolute;
+      left: 6px;
+      bottom: 6px;
+      font-size: 10px;
+      line-height: 1;
+      padding: 3px 6px;
+      border-radius: 8px;
+      color: #ffffff;
+      pointer-events: none;
+      white-space: nowrap;
+      max-width: calc(100% - 12px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  /* Override badge colors (admin) */
+  .ov-holiday { background: #9B59B6; } /* Holiday → Violet */
+  .ov-blocked { background: #374151; } /* Suspended → Dark Gray (unchanged) */
+  .ov-force   { background: #2563eb; } /* Forced Online → Blue (reverted) */
+  .ov-online  { background: #FF69B4; } /* Online Day → Pink */
+  .ov-endyear { background: #6366f1; } /* End of School Year → Indigo */
+  /* Whole-cell background for overrides */
+  .day-holiday  { background-color: rgba(155,89,182,0.55) !important; } /* Violet */
+  .day-blocked  { background-color: rgba(55,65,81,0.75) !important; }  /* Suspended */
+  .day-force    { background-color: rgba(37,99,235,0.6) !important; }   /* Blue (reverted) */
+  .day-online   { background-color: rgba(255,105,180,0.45) !important; }/* Pink */
+  .day-endyear  { background-color: rgba(99,102,241,0.6) !important; }   /* Indigo */
+
     /* Custom scrollbar for webkit browsers */
     #consultationTooltip::-webkit-scrollbar {
       width: 6px;
@@ -362,10 +391,113 @@
     #consultationTooltip .detail-row:last-child { margin-bottom: 4px !important; }
 
   /* Updated: make pending badge text white for consistency */
-  .status-pending { background: #f0a500; color: #ffffff !important; }
-    .status-approved { background: #28a745; color: #ffffff !important; }
-    .status-completed { background: #17a2b8; color: #ffffff !important; }
-    .status-rescheduled { background: #dc3545; color: #ffffff !important; }
+  /* Match legend colors exactly for status badges */
+  .status-pending { background: #ffa600; color: #ffffff !important; }
+    .status-approved { background: #0f9657; color: #ffffff !important; }
+    .status-completed { background: #093b2f; color: #ffffff !important; }
+    .status-rescheduled { background: #c50000; color: #ffffff !important; }
+
+    /* Legend toggle + panel (collapsible) */
+    .calendar-box { position: relative; }
+    .legend-toggle {
+      position: fixed; /* stay visible while scrolling */
+      left: 20px;
+      bottom: 20px; /* docked in the bottom-left corner */
+      z-index: 12000;
+      background: #14b8a6; /* teal */
+      color: #fff;
+      border: none;
+      width: 48px; height: 48px; /* consistent FAB size */
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.25);
+      transition: transform .15s ease, background-color .15s ease, box-shadow .2s ease;
+    }
+    .legend-toggle:hover { background:#0d9488; transform: scale(1.05); }
+    .legend-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,.35), 0 10px 20px rgba(0,0,0,0.25); }
+    /* Chatbot FAB: bottom-right corner, same look as legend */
+    .chat-button {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 12000;
+      background: #14b8a6; /* teal */
+      color: #fff;
+      border: none;
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.25);
+      transition: transform .15s ease, background-color .15s ease, box-shadow .2s ease;
+    }
+    .chat-button:hover { background:#0d9488; transform: scale(1.05); }
+    .chat-button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,.35), 0 10px 20px rgba(0,0,0,0.25); }
+
+    .legend-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.2);
+      z-index: 11000;
+      opacity: 0; visibility: hidden;
+      transition: opacity .2s ease, visibility .2s ease;
+    }
+    .legend-backdrop.open { opacity: 1; visibility: visible; }
+
+    .legend-panel {
+      position: fixed;
+      left: 24px; bottom: 80px; /* float above the bottom-left FAB on desktop */
+      width: 420px; max-width: calc(100vw - 32px);
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      transform: translateY(10px);
+      transition: transform .25s ease, opacity .25s ease;
+      opacity: 0;
+    }
+    .legend-backdrop.open .legend-panel { transform: translateY(0); opacity: 1; }
+    .legend-header { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid #e5e7eb; }
+    .legend-header h3 { margin:0; font-size:16px; color:#12372a; }
+    .legend-close { background:none; border:none; font-size:22px; line-height:1; cursor:pointer; color:#334155; }
+    .legend-content { padding:12px 14px 14px; }
+    .legend-section { margin-bottom: 12px; }
+    .legend-section-title { font-weight:600; color:#0f172a; margin: 0 0 8px 0; font-size:14px; }
+  .legend-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+  .legend-item { display:flex; align-items:center; font-size: 13px; color:#111827; }
+    .legend-swatch { width:16px; height:16px; border-radius:3px; margin-right:8px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06); }
+  .legend-icon { font-size:16px; color:#6b7280; margin-left:6px; }
+    /* Swatch colors (match calendar colors) */
+    .swatch-pending { background:#ffa600; }
+    .swatch-approved { background:#0f9657; }
+    .swatch-completed { background:#093b2f; }
+    .swatch-rescheduled { background:#c50000; }
+  .swatch-suspended { background:#374151; }
+  .swatch-online { background:#FF69B4; }   /* Online Day → Pink */
+  .swatch-forced { background:#2563eb; }   /* Forced Online → Blue (reverted) */
+  .swatch-holiday { background:#9B59B6; }  /* Holiday → Violet */
+  .swatch-endyear { background:#6366f1; }  /* End of School Year → Indigo */
+  .swatch-today { background:#5fb9d4; }    /* Today highlight */
+  .swatch-multiple { background:#FF4500; } /* Multiple Bookings → Orangey-Red */
+
+    /* Drawer behavior on small screens */
+    @media (max-width: 768px) {
+      .legend-panel {
+        left: 0; right: 0; bottom: 0; width: auto; max-width: none;
+        border-radius: 12px 12px 0 0;
+        transform: translateY(100%);
+        padding-bottom: 84px; /* avoid overlap with corner FABs on mobile */
+      }
+      .legend-backdrop.open .legend-panel { transform: translateY(0); }
+      .legend-grid { grid-template-columns: 1fr; }
+      .legend-toggle { left: 12px; bottom: 12px; }
+      .chat-button { right: 12px; bottom: 12px; }
+    }
+
+    /* Position the legend button just to the right of the left sidebar (desktop only) */
+    @media (min-width: 951px) {
+      .legend-toggle { left: calc(220px + 20px) !important; }
+      .legend-panel { left: calc(220px + 24px) !important; }
+    }
   </style>
 </head>
 <body>
@@ -380,12 +512,42 @@
         <div class="calendar-wrapper-container">
           <input id="calendar" type="text" placeholder="Select Date" name="booking_date" required>
         </div>
-        <div class="legend">
-          <div><span class="legend-box pending"></span> Pending</div>
-          <div><span class="legend-box approved"></span> Approved</div>
-          <div><span class="legend-box completed"></span> Completed</div>
-          <div><span class="legend-box rescheduled"></span> Rescheduled</div>
-          <div><span class="legend-box multiple-bookings"></span> Multiple Bookings</div>
+        <!-- Collapsible legend: toggle button + panel -->
+        <button id="legendToggle" class="legend-toggle" aria-haspopup="dialog" aria-controls="legendBackdrop" aria-label="View Legend" title="View Legend">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="color:#fff">
+            <path fill="currentColor" d="M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20zm0 7a1.25 1.25 0 1 1 0-2.5a1.25 1.25 0 0 1 0 2.5zM11 11h2v6h-2z"/>
+          </svg>
+        </button>
+        <div id="legendBackdrop" class="legend-backdrop" aria-hidden="true">
+          <div class="legend-panel" role="dialog" aria-modal="true" aria-labelledby="legendTitle">
+            <div class="legend-header">
+              <h3 id="legendTitle">Legend</h3>
+              <button id="legendClose" class="legend-close" aria-label="Close">×</button>
+            </div>
+            <div class="legend-content">
+              <div class="legend-section">
+                <div class="legend-section-title">Consultation Status</div>
+                <div class="legend-grid">
+                  <div class="legend-item"><span class="legend-swatch swatch-pending"></span>Pending <i class='bx bx-time legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-approved"></span>Approved <i class='bx bx-check-circle legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-completed"></span>Completed <i class='bx bx-badge-check legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-rescheduled"></span>Rescheduled <i class='bx bx-calendar-edit legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-suspended"></span>Suspention of class <i class='bx bx-block legend-icon' aria-hidden="true"></i></div>
+                </div>
+              </div>
+              <div class="legend-section">
+                <div class="legend-section-title">Day Types</div>
+                <div class="legend-grid">
+                  <div class="legend-item"><span class="legend-swatch swatch-today"></span>Today <i class='bx bx-sun legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-online"></span>Online Day <i class='bx bx-video legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-forced"></span>Forced Online <i class='bx bx-switch legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-holiday"></span>Holiday <i class='bx bx-party legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-endyear"></span>End of School Year <i class='bx bx-calendar-x legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-multiple"></span>Multiple Bookings <i class='bx bx-group legend-icon' aria-hidden="true"></i></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="box">
@@ -449,6 +611,8 @@
 
   <script src="{{ asset('js/dashboard.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
+  <link rel="stylesheet" href="{{ asset('css/toast.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/confirm.css') }}">
   <script>
     // Wait for DOM to be fully loaded
     document.addEventListener('DOMContentLoaded', function() {
@@ -582,111 +746,475 @@
     const bookingMap = new Map();
     const detailsMap = new Map();
    
-    // ADMIN VERSION: Fetch ALL consultations from all professors and students
-    fetch('/api/admin/all-consultations')
-      .then(response => response.json())
-      .then(data => {
-        console.log('🔧 ADMIN - Initial load - fetched ALL consultation data:', data.length, 'entries');
-        
-        data.forEach(entry => {
-          const date = new Date(entry.Booking_Date);
-          const key = date.toDateString();
-          
-          // For status coloring and modal
-          bookingMap.set(key, { status: entry.Status.toLowerCase(), id: entry.Booking_ID });
-          // For hover tooltip details
-          if (!detailsMap.has(key)) detailsMap.set(key, []);
-          detailsMap.get(key).push(entry);
-        });
-
-        console.log('Admin Booking Map size:', bookingMap.size);
-        console.log('Admin Details Map size:', detailsMap.size);
-
-        // Initialize Pikaday AFTER data is loaded
-        const picker = new Pikaday({
-          field: document.getElementById('calendar'),
-          format: 'ddd, MMM DD YYYY',
-          showDaysInNextAndPreviousMonths: true,
-          firstDay: 1,
-          bound: false,
-          onDraw: function() {
-            console.log('Admin Calendar onDraw called');
-            const cells = document.querySelectorAll('.pika-button');
-            console.log('Found calendar cells:', cells.length);
-            
-            cells.forEach(cell => {
+    // Initialize Pikaday immediately so the calendar renders without waiting for network calls
+    (function initAdminCalendar() {
+      const picker = new Pikaday({
+        field: document.getElementById('calendar'),
+        format: 'ddd, MMM DD YYYY',
+        showDaysInNextAndPreviousMonths: true,
+        firstDay: 1,
+        bound: false,
+        onDraw: function() {
+          // Determine visible month key once per draw
+          const baseForDraw = (function(){
+            try { return getVisibleMonthBaseDate(); } catch(_) { const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), 1); }
+          })();
+          const monthKeyForDraw = `${baseForDraw.getFullYear()}-${String(baseForDraw.getMonth()+1).padStart(2,'0')}`;
+          const cells = document.querySelectorAll('.pika-button');
+          cells.forEach(cell => {
             const day = cell.getAttribute('data-pika-day');
             const month = cell.getAttribute('data-pika-month');
             const year = cell.getAttribute('data-pika-year');
-            
             if (day && month && year) {
               const cellDate = new Date(year, month, day);
               const key = cellDate.toDateString();
-              
+              const isoKey = `${cellDate.getFullYear()}-${String(cellDate.getMonth()+1).padStart(2,'0')}-${String(cellDate.getDate()).padStart(2,'0')}`;
+
+              // Use overrides source with per-month sticky fallback so badges don't flicker
+              const ovSource = (function(){
+                if (window.adminOverrides && typeof window.adminOverrides === 'object') return window.adminOverrides;
+                if (window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[monthKeyForDraw]) return window.__adminOvCacheByMonth[monthKeyForDraw];
+                // legacy single cache fallback
+                if (window.__adminOvCache && typeof window.__adminOvCache === 'object') return window.__adminOvCache;
+                // global cache fallback for instant paint across months
+                if (window.__adminOvGlobalCache && typeof window.__adminOvGlobalCache === 'object') return window.__adminOvGlobalCache;
+                return null;
+              })();
+              const haveOv = !!ovSource;
+
+              // Only clear previous override visuals if we have some source to repaint from
+              if (haveOv) {
+                const oldBadge = cell.querySelector('.ov-badge');
+                if (oldBadge) oldBadge.remove();
+                cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
+              }
+
+              // Render overrides badge if present (pulling from chosen source)
+              if (haveOv && ovSource[isoKey] && ovSource[isoKey].length > 0) {
+                const items = ovSource[isoKey];
+                let chosen = null;
+                for (const ov of items) { if (ov.effect === 'holiday') { chosen = ov; break; } }
+                if (!chosen) { for (const ov of items) { if (ov.effect === 'block_all') { chosen = ov; break; } } }
+                if (!chosen) { chosen = items[0]; }
+                const badge = document.createElement('span');
+                const isOnlineDay = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day'));
+                const isEndYear = (chosen.effect === 'block_all' && (chosen.reason_key === 'end_year'));
+                const chosenCls = (chosen.effect === 'holiday'
+                  ? 'ov-holiday'
+                  : (chosen.effect === 'block_all'
+                    ? (isEndYear ? 'ov-endyear' : 'ov-blocked')
+                    : (isOnlineDay ? 'ov-online' : 'ov-force')));
+                badge.className = 'ov-badge ' + chosenCls;
+                const forceLabel = isOnlineDay ? 'Online Day' : 'Forced Online';
+                const labelTxt = (chosen.effect === 'holiday')
+                  ? (chosen.reason_text || 'Holiday')
+                  : (chosen.effect === 'block_all'
+                    ? (isEndYear ? 'End Year' : 'Suspention')
+                    : forceLabel);
+                badge.title = chosen.label || chosen.reason_text || labelTxt;
+                badge.textContent = labelTxt;
+                cell.style.position = 'relative';
+                cell.appendChild(badge);
+                const dayCls = (chosen.effect === 'holiday'
+                  ? 'day-holiday'
+                  : (chosen.effect === 'block_all'
+                    ? (isEndYear ? 'day-endyear' : 'day-blocked')
+                    : (isOnlineDay ? 'day-online' : 'day-force')));
+                cell.classList.add(dayCls);
+              }
+
+              // Render booking status when data is available (bookingMap may initially be empty)
               if (bookingMap.has(key)) {
-                console.log('Admin found booking for date:', key, bookingMap.get(key));
-                
                 const booking = bookingMap.get(key);
                 const status = booking.status;
-                const bookingId = booking.id;
-                
-                // Get the number of consultations for this date
                 const consultationsForDay = detailsMap.get(key) || [];
                 const consultationCount = consultationsForDay.length;
-                
                 const classMap = {
                   pending: 'status-pending',
                   approved: 'status-approved',
                   completed: 'status-completed',
                   rescheduled: 'status-rescheduled'
                 };
-                
                 cell.classList.add('has-booking');
                 cell.classList.add(classMap[status]);
                 cell.setAttribute('data-status', status);
-                
-                // Add multiple booking indicators
-                if (consultationCount >= 2) {
-                  cell.classList.add('has-multiple-bookings');
-                }
-                
-                // Store consultation count for tooltip or other uses
+                if (consultationCount >= 2) cell.classList.add('has-multiple-bookings');
                 cell.setAttribute('data-consultation-count', consultationCount);
-                
-                console.log('Admin Added classes to cell:', cell.className, 'Consultations:', consultationCount);
-                
-                // CLICK FUNCTIONALITY DISABLED - Only hover tooltips enabled
-                // cell.removeEventListener('click', cell.bookingClickHandler);
-
-                // Disabled click functionality - only hover enabled
-                cell.style.cursor = 'default'; // Changed from 'pointer' to 'default'
-                console.log('Admin Click disabled - only hover tooltip enabled');
-
-                // --- IMPROVED HOVER FUNCTIONALITY FOR ADMIN ---
-                console.log('Admin Adding hover events to cell:', key);
-                
-                // Store data directly on the DOM element for reliable access
+                // Prepare hover data
                 cell.setAttribute('data-consultation-key', key);
                 cell.setAttribute('data-has-consultations', 'true');
-                
-                console.log('Admin Cell prepared for hover with key:', key);
-              } else {
-                // console.log('⚪ Admin No booking for date:', key);
+                cell.style.cursor = 'default';
               }
             }
           });
-          }
-        });
-        picker.show();
-        picker.draw();
-        
-        // Store picker globally for real-time updates
-        window.adminPicker = picker;
-      })
-      .catch(error => {
-        console.error('Admin Error fetching consultation data:', error);
-        console.log('Admin Calendar will still load without consultation data');
+          // Debug: show how many override days are available for the visible month
+          try {
+            const monthKey = `${baseForDraw.getFullYear()}-${String(baseForDraw.getMonth()+1).padStart(2,'0')}`;
+            const src = (function(){
+              if (window.adminOverrides && typeof window.adminOverrides === 'object') return window.adminOverrides;
+              if (window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[monthKey]) return window.__adminOvCacheByMonth[monthKey];
+              if (window.__adminOvCache && typeof window.__adminOvCache === 'object') return window.__adminOvCache;
+              if (window.__adminOvGlobalCache && typeof window.__adminOvGlobalCache === 'object') return window.__adminOvGlobalCache;
+              return null;
+            })();
+            if (src) {
+              const cnt = Object.keys(src).filter(k=>Array.isArray(src[k]) && src[k].length>0).length;
+              console.debug('[OV] Draw visible month', monthKey, 'days:', cnt);
+            } else {
+              console.debug('[OV] Draw visible month', monthKey, 'no source yet');
+            }
+          } catch(_) {}
+        }
       });
+      // Prepare overrides BEFORE first draw to avoid visible delay
+      window.adminPicker = picker;
+      try {
+        hydrateCachesFromStorage();
+        const basePre = getVisibleMonthBaseDate();
+        const monthKeyPre = `${basePre.getFullYear()}-${String(basePre.getMonth()+1).padStart(2,'0')}`;
+        // Prefer stored month cache
+        const storedMonth = (typeof loadMonthFromStorage === 'function') ? loadMonthFromStorage(monthKeyPre) : null;
+        if (storedMonth && Object.keys(storedMonth).length > 0) {
+          if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+          window.__adminOvCacheByMonth[monthKeyPre] = storedMonth;
+          window.adminOverrides = storedMonth;
+          window.__adminOvCache = storedMonth;
+        } else {
+          // Compose from global persistent cache
+          const composed = (typeof composeMonthMapFromGlobal === 'function') ? composeMonthMapFromGlobal(basePre) : null;
+          if (composed) {
+            if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+            window.__adminOvCacheByMonth[monthKeyPre] = composed;
+            window.adminOverrides = composed;
+            window.__adminOvCache = composed;
+          }
+        }
+      } catch(_) {}
+      picker.show();
+      picker.draw();
+      // Instant paint from persistent cache and prefetch neighbors on first init
+      try {
+        const baseNow = getVisibleMonthBaseDate();
+        hydrateCachesFromStorage();
+        if (!applyCachedOverridesForMonth(baseNow)) {
+          // Try composing month map from global cache stored in localStorage
+          const map = composeMonthMapFromGlobal(baseNow);
+          if (map) {
+            window.adminOverrides = map;
+            window.__adminOvCache = map;
+            if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+            const keyNow = `${baseNow.getFullYear()}-${String(baseNow.getMonth()+1).padStart(2,'0')}`;
+            window.__adminOvCacheByMonth[keyNow] = map;
+            picker.draw();
+          }
+        }
+        prefetchAdjacentMonths(baseNow);
+      } catch(_) {}
+    })();
+
+    // Kick off initial background fetches without blocking initial render
+    (function initialFetches() {
+      // Fetch overrides for visible month right away; fetchAdminOverridesForMonth will redraw on success
+      try {
+        const base = (function(){
+          const t = new Date();
+          return new Date(t.getFullYear(), t.getMonth(), 1);
+        })();
+        fetchAdminOverridesForMonth(base);
+      } catch (e) { console.warn('Initial overrides fetch error:', e); }
+
+      // Load consultations data; when it completes, loadAdminCalendarData will also refresh overrides as needed
+      if (typeof loadAdminCalendarData === 'function') {
+        loadAdminCalendarData();
+      } else {
+        // Fallback simple populate if function not yet defined (should be defined later)
+        fetch('/api/admin/all-consultations')
+          .then(r => r.json())
+          .then(data => {
+            bookingMap.clear();
+            detailsMap.clear();
+            data.forEach(entry => {
+              const date = new Date(entry.Booking_Date);
+              const key = date.toDateString();
+              bookingMap.set(key, { status: entry.Status.toLowerCase(), id: entry.Booking_ID });
+              if (!detailsMap.has(key)) detailsMap.set(key, []);
+              detailsMap.get(key).push(entry);
+            });
+            if (window.adminPicker) window.adminPicker.draw();
+          })
+          .catch(err => console.warn('Initial consultations fetch failed:', err));
+      }
+    })();
+
+    // Fetch overrides for current visible month and cache on window
+  function fetchAdminOverridesForMonth(dateObj) {
+      try {
+        if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) {
+          console.warn('Overrides fetch skipped: invalid base date', dateObj);
+          return;
+        }
+        const start = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
+        const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 0);
+        const monthKey = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}`;
+        const toIso = (d) => {
+          if (!d || !(d instanceof Date) || isNaN(d.getTime())) return null;
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        };
+        const startStr = toIso(start);
+        const endStr = toIso(end);
+        if (!startStr || !endStr) {
+          console.warn('Overrides fetch skipped: start/end invalid', { start, end });
+          return;
+        }
+        const adminUrl = `/api/admin/calendar/overrides?start_date=${startStr}&end_date=${endStr}`;
+        const publicUrl = `/api/calendar/overrides?start_date=${startStr}&end_date=${endStr}`;
+        console.debug('[OV] Fetching admin overrides for', monthKey, adminUrl);
+        fetch(adminUrl, {
+        method: 'GET',
+        headers: { 'Accept':'application/json' },
+        credentials: 'same-origin'
+      }).then(async r=>{
+        if (!r.ok) {
+          console.warn('[OV] Admin overrides HTTP status', r.status);
+          throw new Error('http_' + r.status);
+        }
+        let data;
+        try {
+          data = await r.json();
+        } catch(jsonErr) {
+          console.warn('[OV] Admin overrides non-JSON response, keeping cache', jsonErr);
+          throw new Error('non_json');
+        }
+        if (data && data.success) {
+          const incoming = data.overrides || {};
+          const keys = Object.keys(incoming).filter(k=>Array.isArray(incoming[k]) && incoming[k].length>0);
+          console.debug('[OV] Admin overrides loaded', { monthKey, days: keys.length, sample: keys.slice(0,5) });
+          // Init per-month cache
+          if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+          window.__adminOvCacheByMonth[monthKey] = incoming;
+          // Merge into global cache for instant cross-month paint
+          if (!window.__adminOvGlobalCache) window.__adminOvGlobalCache = {};
+          keys.forEach(k=>{ window.__adminOvGlobalCache[k] = incoming[k]; });
+          // Persist to localStorage
+          persistMonthToStorage(monthKey, incoming);
+          persistGlobalToStorage(window.__adminOvGlobalCache);
+          // Only update live overrides if the fetched month matches the currently visible month
+          const visibleBase = (function(){
+            try { return getVisibleMonthBaseDate(); } catch(_) { const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), 1); }
+          })();
+          const visibleKey = `${visibleBase.getFullYear()}-${String(visibleBase.getMonth()+1).padStart(2,'0')}`;
+          if (visibleKey === monthKey) {
+            window.adminOverrides = incoming;
+            // Legacy single cache for older paths
+            window.__adminOvCache = incoming;
+            // Re-draw if picker exists to paint badges
+            if (window.adminPicker) window.adminPicker.draw();
+          }
+        } else {
+          console.warn('[OV] Admin overrides payload not successful', data);
+          throw new Error('payload_unsuccessful');
+        }
+      }).catch((e) => {
+        console.warn('[OV] Admin overrides fetch failed, will try public fallback', e && e.message);
+        // Public fallback: global overrides only (fine for Suspended/Holiday/Online Day global cases)
+        fetch(publicUrl, { method:'GET', headers:{'Accept':'application/json'} })
+          .then(r=>r.ok ? r.json() : Promise.reject(new Error('public_http_'+r.status)))
+          .then(data=>{
+            if (data && data.success) {
+              const incoming = data.overrides || {};
+              const keys = Object.keys(incoming).filter(k=>Array.isArray(incoming[k]) && incoming[k].length>0);
+              console.debug('[OV/FALLBACK] Public overrides loaded', { monthKey, days: keys.length, sample: keys.slice(0,5) });
+              if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+              window.__adminOvCacheByMonth[monthKey] = incoming;
+              if (!window.__adminOvGlobalCache) window.__adminOvGlobalCache = {};
+              Object.keys(incoming).forEach(k=>{
+                if (Array.isArray(incoming[k]) && incoming[k].length>0) window.__adminOvGlobalCache[k] = incoming[k];
+              });
+              persistMonthToStorage(monthKey, incoming);
+              persistGlobalToStorage(window.__adminOvGlobalCache);
+              const visibleBase = (function(){
+                try { return getVisibleMonthBaseDate(); } catch(_) { const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), 1); }
+              })();
+              const visibleKey = `${visibleBase.getFullYear()}-${String(visibleBase.getMonth()+1).padStart(2,'0')}`;
+              if (visibleKey === monthKey) {
+                // Note: mark as fallback source
+                window.adminOverrides = incoming;
+                window.__adminOvCache = incoming;
+                if (window.adminPicker) window.adminPicker.draw();
+              }
+            } else {
+              console.warn('[OV/FALLBACK] Public overrides payload not successful', data);
+            }
+          })
+          .catch(err=>{
+            console.warn('[OV/FALLBACK] Public overrides failed', err && err.message);
+          });
+      });
+      } catch (err) {
+        console.error('Admin Error loading calendar data:', err);
+      }
+    }
+
+    // Fast path: immediately apply cached overrides for a given month (no network)
+    function applyCachedOverridesForMonth(dateObj) {
+      try {
+        if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) return;
+        const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}`;
+        if (window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[monthKey]) {
+          window.adminOverrides = window.__adminOvCacheByMonth[monthKey];
+          window.__adminOvCache = window.adminOverrides; // legacy single cache
+          if (window.adminPicker) window.adminPicker.draw();
+          console.debug('[OV] Applied cached overrides for', monthKey);
+          return true;
+        }
+        // Try from persistent storage
+        hydrateCachesFromStorage();
+        const map = composeMonthMapFromGlobal(dateObj);
+        if (map) {
+          if (!window.__adminOvCacheByMonth) window.__adminOvCacheByMonth = {};
+          window.__adminOvCacheByMonth[monthKey] = map;
+          window.adminOverrides = map;
+          window.__adminOvCache = map;
+          if (window.adminPicker) window.adminPicker.draw();
+          console.debug('[OV] Applied composed overrides from stored global for', monthKey);
+          return true;
+        }
+      } catch(_) {}
+      return false;
+    }
+
+    // Prefetch adjacent months (previous/next) if not cached yet
+    function prefetchAdjacentMonths(baseDate) {
+      try {
+        if (!baseDate || isNaN(baseDate.getTime())) return;
+        const prev = new Date(baseDate.getFullYear(), baseDate.getMonth() - 1, 1);
+        const next = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 1);
+        const needPrev = !(window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[`${prev.getFullYear()}-${String(prev.getMonth()+1).padStart(2,'0')}`]);
+        const needNext = !(window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[`${next.getFullYear()}-${String(next.getMonth()+1).padStart(2,'0')}`]);
+        if (needPrev) fetchAdminOverridesForMonth(prev);
+        if (needNext) fetchAdminOverridesForMonth(next);
+      } catch(_) {}
+    }
+
+    // Helper: find the currently visible calendar month as a safe Date (YYYY,MM,1)
+    function getVisibleMonthBaseDate() {
+      try {
+        // 1) Prefer Pikaday select elements (most reliable)
+        const selMonth = document.querySelector('.pika-select-month');
+        const selYear = document.querySelector('.pika-select-year');
+        if (selMonth && selYear) {
+          const m = parseInt(selMonth.value, 10);
+          const y = parseInt(selYear.value, 10);
+          if (!isNaN(m) && !isNaN(y)) {
+            const d = new Date(y, m, 1);
+            if (!isNaN(d.getTime())) return d;
+          }
+        }
+        // 2) Parse label; support full and short month names
+        const labelEl = document.querySelector('.pika-label');
+        if (labelEl) {
+          const text = (labelEl.textContent || '').trim();
+          const parts = text.split(/\s+/);
+          if (parts.length === 2) {
+            const monthMap = {
+              January:0, February:1, March:2, April:3, May:4, June:5, July:6, August:7, September:8, October:9, November:10, December:11,
+              Jan:0, Feb:1, Mar:2, Apr:3, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11
+            };
+            const m = monthMap[parts[0]];
+            const y = parseInt(parts[1], 10);
+            if (!isNaN(m) && !isNaN(y)) {
+              const d = new Date(y, m, 1);
+              if (!isNaN(d.getTime())) return d;
+            }
+          }
+        }
+        // 3) Fallback: use any current-month day cell if available
+        const cur = document.querySelector('.pika-table .pika-button:not(.is-outside-current-month)');
+        if (cur) {
+          const y = parseInt(cur.getAttribute('data-pika-year'), 10);
+          const m = parseInt(cur.getAttribute('data-pika-month'), 10);
+          if (!isNaN(y) && !isNaN(m)) {
+            const d = new Date(y, m, 1);
+            if (!isNaN(d.getTime())) return d;
+          }
+        }
+      } catch (_) {}
+      const today = new Date();
+      return new Date(today.getFullYear(), today.getMonth(), 1);
+    }
+
+    // Hook into month navigation to refresh overrides
+    (function observeMonthNavigation(){
+      const calendarEl = document.getElementById('calendar');
+      if (!calendarEl) return;
+      const run = () => {
+        const base = getVisibleMonthBaseDate();
+        // Paint instantly from cache if available, then update via network
+        applyCachedOverridesForMonth(base);
+        fetchAdminOverridesForMonth(base);
+        // Proactively fetch neighbors
+        prefetchAdjacentMonths(base);
+      };
+      // Initial load
+      setTimeout(run, 100);
+      // Re-run on next/prev clicks
+      document.addEventListener('click', (e)=>{
+        const t = e.target;
+        if (t.closest && (t.closest('.pika-prev') || t.closest('.pika-next'))) {
+          setTimeout(run, 150);
+        }
+      });
+      // Also handle month/year dropdown changes
+      document.addEventListener('change', (e)=>{
+        const el = e.target;
+        if (!el) return;
+        if (el.classList && (el.classList.contains('pika-select-month') || el.classList.contains('pika-select-year'))) {
+          setTimeout(run, 80);
+        }
+      });
+    })();
+
+    // -------- Persistent storage helpers --------
+    const LS_KEY_GLOBAL = 'ascc_admin_ov_global_v1';
+    const LS_KEY_MONTH_PREFIX = 'ascc_admin_ov_month_v1:';
+    function persistGlobalToStorage(map) {
+      try { localStorage.setItem(LS_KEY_GLOBAL, JSON.stringify(map||{})); } catch(_) {}
+    }
+    function loadGlobalFromStorage() {
+      try { const s = localStorage.getItem(LS_KEY_GLOBAL); return s ? JSON.parse(s) : {}; } catch(_) { return {}; }
+    }
+    function persistMonthToStorage(monthKey, map) {
+      try { localStorage.setItem(LS_KEY_MONTH_PREFIX+monthKey, JSON.stringify(map||{})); } catch(_) {}
+    }
+    function loadMonthFromStorage(monthKey) {
+      try { const s = localStorage.getItem(LS_KEY_MONTH_PREFIX+monthKey); return s ? JSON.parse(s) : null; } catch(_) { return null; }
+    }
+    function hydrateCachesFromStorage() {
+      try {
+        if (!window.__adminOvGlobalCache) window.__adminOvGlobalCache = loadGlobalFromStorage();
+      } catch(_) {}
+    }
+    function composeMonthMapFromGlobal(dateObj) {
+      try {
+        if (!dateObj || isNaN(dateObj.getTime())) return null;
+        hydrateCachesFromStorage();
+        const g = window.__adminOvGlobalCache || {};
+        const y = dateObj.getFullYear();
+        const m = dateObj.getMonth();
+        const first = new Date(y, m, 1);
+        const last = new Date(y, m+1, 0);
+        let any = false;
+        const map = {};
+        for (let d = new Date(first); d <= last; d.setDate(d.getDate()+1)) {
+          const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+          if (Array.isArray(g[iso]) && g[iso].length>0) { map[iso] = g[iso]; any = true; }
+        }
+        return any ? map : null;
+      } catch(_) { return null; }
+    }
 
     // ADMIN TOOLTIP HOVER FUNCTIONALITY
     console.log('Setting up ADMIN global hover event delegation...');
@@ -748,7 +1276,7 @@
             return `${datePart} ${hourStr}:${minute}:${second} ${suffix}`;
           }
 
-          // Build each consultation entry with ONLY a bottom divider like professor dashboard (no additional top borders)
+          // Build each consultation entry (no actions)
           consultations.forEach((entry, index) => {
             html += `
               <div class="consultation-entry">
@@ -876,10 +1404,15 @@
     });
 
     // PREVENT ONLY CLICK AND TOUCH EVENTS ON CALENDAR DATE CELLS, ALLOW HOVER
+    // Allow clicks when admin date edit modal is enabled
+    window.ADMIN_DATE_EDIT_ENABLED = true;
     function preventCalendarClicks(e) {
       const target = e.target;
       // Only prevent clicks/touches on date buttons inside the table, not navigation buttons
       // Allow mouseover/mouseout for tooltips
+      if (window.ADMIN_DATE_EDIT_ENABLED) {
+        return; // allow click through for admin edit
+      }
       if (target && target.classList && target.classList.contains('pika-button') && target.closest('.pika-table')) {
         if (e.type === 'click' || e.type === 'mousedown' || e.type === 'touchstart' || e.type === 'touchend') {
           e.preventDefault();
@@ -897,13 +1430,794 @@
       document.addEventListener(eventType, preventCalendarClicks, false); // Bubble phase
     });
 
-    // ADMIN NOTIFICATION FUNCTIONS
-    // Mark all as read functionality
-    document.getElementById('mark-all-read').addEventListener('click', function() {
-      markAllAdminNotificationsAsRead();
+    // --- Admin Date Edit Modal ---
+    // Modal template
+    const modalHtml = `
+      <div id="adminOverrideBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:9998;"></div>
+      <div id="adminOverrideModal" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9999;background:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.2);width:560px;max-width:92vw;">
+        <div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;background:#12372a;color:#fff;border-top-left-radius:10px;border-top-right-radius:10px;">
+          <div style="font-weight:600">Edit Day</div>
+          <button id="adminOverrideClose" style="background:transparent;border:none;color:#fff;font-size:18px;cursor:pointer">×</button>
+        </div>
+        <div style="padding:16px 18px;color:#12372a;">
+          <div style="margin-bottom:10px;font-size:14px">Date: <span id="adminOverrideDate" style="font-weight:600"></span></div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="online_day"> Online Day</label>
+            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="force_online"> Forced Online</label>
+            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="block_all"> Suspention</label>
+            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="holiday"> Holiday</label>
+            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="end_year"> End of School Year</label>
+          </div>
+          <div id="forceModeRow" style="margin-bottom:10px; display:none">
+            <label>Allowed Mode:
+              <select id="ov_allowed_mode" style="margin-left:8px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px">
+                <option value="online">Online</option>
+                <option value="onsite">Onsite</option>
+              </select>
+            </label>
+          </div>
+          <div id="reasonRow" style="display:flex;gap:12px;flex-wrap:wrap;margin:10px 0">
+            <label>Reason
+              <select id="ov_reason_key" style="margin-left:8px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px">
+                <option value="">—</option>
+                <option value="weather">Weather</option>
+                <option value="power_outage">Power outage</option>
+                <option value="health_advisory">Health advisory</option>
+                <option value="holiday_shift">Holiday shift</option>
+                <option value="facility">Facility issue</option>
+                <option value="others">Others</option>
+              </select>
+            </label>
+            <input id="ov_reason_text" placeholder="Enter reason" style="display:none;flex:1;min-width:200px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px"></input>
+          </div>
+          <div id="holidayRow" style="display:none;margin:10px 0">
+            <label>Holiday Name
+              <input id="ov_holiday_name" placeholder="e.g., Christmas Day" style="margin-left:8px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;width:calc(100% - 8px)">
+              </input>
+            </label>
+          </div>
+          <div id="endYearRow" style="display:none;margin:10px 0">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div><strong>Start day:</strong> <span id="ov_start_label">—</span></div>
+              <label><strong>End day:</strong>
+                <input id="ov_end_date" type="date" style="margin-left:8px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px">
+                </input>
+              </label>
+              <div style="font-size:12px;color:#64748b">All days from Start to End will be disabled (no classes).</div>
+            </div>
+          </div>
+          <div id="autoReschedRow" style="display:none;margin:4px 0 12px 0">
+            <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ov_auto_reschedule"> Auto‑reschedule affected bookings</label>
+            <div style="font-size:12px;color:#64748b;margin-top:6px">Exam/Quiz bookings will be placed first into onsite slots. Others will follow mode rules.</div>
+          </div>
+          <div id="ov_preview" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-top:6px;display:none"></div>
+        </div>
+        <div style="padding:12px 18px;border-top:1px solid #e5e7eb;display:flex;gap:10px;justify-content:space-between;align-items:center">
+          <button id="ovRemoveBtn" style="padding:8px 12px;border:1px solid #ef4444;border-radius:8px;background:#fff;color:#b91c1c;cursor:pointer">Remove</button>
+          <div style="display:flex;gap:10px">
+            <button id="ovPreviewBtn" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#12372a;cursor:pointer">Preview</button>
+            <button id="ovApplyBtn" style="padding:8px 12px;border:none;border-radius:8px;background:#12372a;color:#fff;cursor:pointer">Apply</button>
+          </div>
+        </div>
+      </div>`;
+
+    // Inject modal once
+    if (!document.getElementById('adminOverrideModal')) {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = modalHtml;
+      document.body.appendChild(wrap);
+    }
+
+    // Helper: determine if a given date has any override applied (by data map or DOM fallback)
+    function hasOverrideForDate(dateStr) {
+      try {
+        const dt = new Date(dateStr);
+        const iso = isNaN(dt.getTime()) ? null : `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+        if (iso && window.adminOverrides && window.adminOverrides[iso] && window.adminOverrides[iso].length > 0) {
+          return true;
+        }
+        // Fallback: scan DOM for a badge or override day class on the specific cell
+        const cells = document.querySelectorAll('.pika-button');
+        for (const cell of cells) {
+          const d = new Date(
+            cell.getAttribute('data-pika-year'),
+            cell.getAttribute('data-pika-month'),
+            cell.getAttribute('data-pika-day')
+          );
+          if (d.toDateString() === dateStr) {
+            if (cell.querySelector('.ov-badge')) return true;
+            if (
+              cell.classList.contains('day-holiday') ||
+              cell.classList.contains('day-blocked') ||
+              cell.classList.contains('day-force') ||
+              cell.classList.contains('day-endyear')
+            ) return true;
+            break;
+          }
+        }
+      } catch (e) { /* noop */ }
+      return false;
+    }
+
+    function openOverrideModal(dateStr) {
+      const modal = document.getElementById('adminOverrideModal');
+      const backdrop = document.getElementById('adminOverrideBackdrop');
+      document.getElementById('adminOverrideDate').textContent = dateStr;
+      modal.style.display = 'block';
+      backdrop.style.display = 'block';
+      // Clear previous selection/state each time the modal opens
+      try {
+        document.querySelectorAll('input[name="ov_effect"]').forEach(r => r.checked = false);
+        const rk = document.getElementById('ov_reason_key');
+        const rt = document.getElementById('ov_reason_text');
+        const hn = document.getElementById('ov_holiday_name');
+        const ed = document.getElementById('ov_end_date');
+        const sl = document.getElementById('ov_start_label');
+  if (rk) rk.value = '';
+  if (rt) { rt.value = ''; rt.disabled = true; rt.style.display = 'none'; rt.placeholder = 'Enter reason'; }
+        if (hn) hn.value = '';
+        if (ed) {
+          ed.value = '';
+          // Ensure min is updated each time the modal opens
+          try {
+            const today = new Date();
+            const start = new Date(dateStr);
+            const base = (isNaN(start) ? today : (start > today ? start : today));
+            const iso = `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
+            ed.min = iso;
+          } catch(_) {}
+        }
+        if (sl) sl.textContent = dateStr || '—';
+        const ar = document.getElementById('ov_auto_reschedule');
+        if (ar) ar.checked = false;
+      } catch(_) {}
+      // Toggle Remove button availability based on whether an override exists on that date
+      const removeBtn = document.getElementById('ovRemoveBtn');
+      if (removeBtn) {
+        const exists = hasOverrideForDate(dateStr);
+        removeBtn.disabled = !exists;
+        removeBtn.setAttribute('aria-disabled', String(!exists));
+        removeBtn.title = exists ? 'Remove existing override' : 'No override on this date';
+        // visual state
+        removeBtn.style.opacity = exists ? '1' : '0.5';
+        removeBtn.style.cursor = exists ? 'pointer' : 'not-allowed';
+      }
+      // Ensure rows reflect the currently selected option (none by default)
+      if (typeof updateOverrideRows === 'function') updateOverrideRows();
+    }
+    function closeOverrideModal() {
+      const modal = document.getElementById('adminOverrideModal');
+      const backdrop = document.getElementById('adminOverrideBackdrop');
+      modal.style.display = 'none';
+      backdrop.style.display = 'none';
+      const preview = document.getElementById('ov_preview');
+      if (preview) { preview.style.display = 'none'; preview.innerHTML=''; }
+    }
+    (function(){
+      const closeBtn = document.getElementById('adminOverrideClose');
+      if (closeBtn) closeBtn.addEventListener('click', closeOverrideModal);
+      const backdrop = document.getElementById('adminOverrideBackdrop');
+      if (backdrop) backdrop.addEventListener('click', closeOverrideModal);
+    })();
+
+    // Centralized UI toggle for modal rows
+    function updateOverrideRows() {
+      const effect = document.querySelector('input[name="ov_effect"]:checked')?.value;
+      const forceRow = document.getElementById('forceModeRow');
+      const autoRow = document.getElementById('autoReschedRow');
+      const reasonRow = document.getElementById('reasonRow');
+      const holidayRow = document.getElementById('holidayRow');
+  const endYearRow = document.getElementById('endYearRow');
+      const reasonKeyEl = document.getElementById('ov_reason_key');
+      const reasonTextEl = document.getElementById('ov_reason_text');
+
+      // When nothing is selected, hide all conditional rows and disable inputs
+      if (!effect) {
+        if (forceRow) forceRow.style.display = 'none';
+        if (autoRow) autoRow.style.display = 'none';
+        if (reasonRow) reasonRow.style.display = 'none';
+        if (holidayRow) holidayRow.style.display = 'none';
+        if (endYearRow) endYearRow.style.display = 'none';
+        if (reasonKeyEl) { reasonKeyEl.disabled = true; reasonKeyEl.value = ''; }
+        if (reasonTextEl) { reasonTextEl.disabled = true; reasonTextEl.value = ''; reasonTextEl.placeholder = 'Notes (optional)'; }
+        return;
+      }
+
+      if (forceRow) forceRow.style.display = 'none';
+      // Show auto-reschedule for Suspended and Forced Online
+  if (autoRow) autoRow.style.display = (effect === 'block_all' || effect === 'force_online') ? 'block' : 'none';
+
+  // End Year uses its own row; hide other conditional inputs
+  if (endYearRow) {
+    endYearRow.style.display = (effect === 'end_year') ? 'block' : 'none';
+    // Update the min selectable date for end day: cannot be in the past, and cannot be before start day
+    try {
+      const ed = document.getElementById('ov_end_date');
+      const startLabel = document.getElementById('ov_start_label')?.textContent || '';
+      const start = new Date(startLabel);
+      const today = new Date();
+      const base = (!isNaN(start) && start > today) ? start : today;
+      const iso = `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
+      if (ed) {
+        ed.min = iso;
+        if (ed.value && ed.value < iso) ed.value = '';
+      }
+    } catch(_) {}
+  }
+  const hideReasons = (effect === 'online_day' || effect === 'holiday' || effect === 'end_year');
+      if (reasonRow) reasonRow.style.display = hideReasons ? 'none' : 'flex';
+  if (holidayRow) holidayRow.style.display = (effect === 'holiday') ? 'block' : 'none';
+
+      // Disable and clear reason inputs when hidden
+      if (reasonKeyEl) {
+        reasonKeyEl.disabled = hideReasons;
+        if (hideReasons) reasonKeyEl.value = '';
+      }
+      if (reasonTextEl) {
+        reasonTextEl.disabled = hideReasons;
+        if (hideReasons) {
+          reasonTextEl.value = '';
+          reasonTextEl.style.display = 'none';
+        } else {
+          const rkVal = reasonKeyEl ? reasonKeyEl.value : '';
+          const showText = rkVal === 'others';
+          reasonTextEl.style.display = showText ? 'inline-block' : 'none';
+          if (!showText) reasonTextEl.value = '';
+          reasonTextEl.placeholder = 'Enter reason';
+        }
+      }
+    }
+    // Change handler for reason key to toggle placeholder and ensure input is enabled when Others
+    document.addEventListener('change', function(e){
+      if (e.target && e.target.id === 'ov_reason_key') {
+        const reasonTextEl = document.getElementById('ov_reason_text');
+        const val = e.target.value;
+        if (reasonTextEl) {
+          const showText = (val === 'others');
+          reasonTextEl.style.display = showText ? 'inline-block' : 'none';
+          reasonTextEl.disabled = !showText;
+          if (!showText) reasonTextEl.value = '';
+          reasonTextEl.placeholder = 'Enter reason';
+        }
+      }
     });
 
-    function loadAdminCalendarData() {
+    // Wire change handler for radios
+    document.addEventListener('change', function(e){
+      if (e.target && e.target.name === 'ov_effect') {
+        updateOverrideRows();
+      }
+    });
+
+    // Helper to (re-)compute and set min for end date field
+    function setEndDateMin() {
+      try {
+        const ed = document.getElementById('ov_end_date');
+        if (!ed) return;
+        const startLabel = document.getElementById('ov_start_label')?.textContent || '';
+        const start = new Date(startLabel);
+        const today = new Date();
+        const base = (!isNaN(start) && start > today) ? start : today;
+        const iso = `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
+        ed.min = iso;
+      } catch(_) {}
+    }
+
+    // Enforce min on value change
+    function enforceEndDateMin() {
+      const ed = document.getElementById('ov_end_date');
+      if (!ed) return;
+      if (ed.min && ed.value && ed.value < ed.min) {
+        ed.value = ed.min;
+        try { if (typeof showToast === 'function') showToast('End day cannot be in the past.', 'error'); } catch(_) {}
+      }
+    }
+
+    // Apply min when the input is focused or clicked, and verify on change
+    document.addEventListener('focusin', function(e){ if (e.target && e.target.id === 'ov_end_date') setEndDateMin(); });
+    document.addEventListener('click', function(e){ if (e.target && e.target.id === 'ov_end_date') setEndDateMin(); });
+    document.addEventListener('change', function(e){ if (e.target && e.target.id === 'ov_end_date') enforceEndDateMin(); });
+
+    // Helper: is a JS Date before today (local)?
+    function isPastDay(d) {
+      if (!(d instanceof Date) || isNaN(d.getTime())) return false;
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const cmp = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      return cmp < today;
+    }
+
+    // Click handler on date cells to open modal (robust delegation)
+    document.addEventListener('click', function(e){
+      if (!window.ADMIN_DATE_EDIT_ENABLED) return;
+      const btn = e.target && e.target.closest ? e.target.closest('.pika-button') : null;
+      if (!btn) return;
+      // Ensure it's inside the calendar table, not prev/next buttons
+      if (!btn.closest('.pika-table')) return;
+      const year = btn.getAttribute('data-pika-year');
+      const month = btn.getAttribute('data-pika-month');
+      const day = btn.getAttribute('data-pika-day');
+      if (year && month && day) {
+        const d = new Date(year, month, day);
+        // Do not allow editing past days
+        if (isPastDay(d)) { try { if (typeof showToast === 'function') showToast('Cannot edit a past day.', 'error'); } catch(_) {} return; }
+        const dateStr = d.toDateString();
+        openOverrideModal(dateStr);
+      }
+    });
+
+    // Also handle mousedown early in capture phase to beat any other handlers
+    document.addEventListener('mousedown', function(e){
+      if (!window.ADMIN_DATE_EDIT_ENABLED) return;
+      const btn = e.target && e.target.closest ? e.target.closest('.pika-button') : null;
+      if (!btn || !btn.closest('.pika-table')) return;
+      const year = btn.getAttribute('data-pika-year');
+      const month = btn.getAttribute('data-pika-month');
+      const day = btn.getAttribute('data-pika-day');
+      if (year && month && day) {
+        // Prevent Pikaday from consuming the click if we're editing
+        e.preventDefault();
+        e.stopPropagation();
+        const d = new Date(year, month, day);
+        if (isPastDay(d)) { return; }
+        const dateStr = d.toDateString();
+        openOverrideModal(dateStr);
+      }
+    }, true);
+
+    // Preview and Apply actions
+    function postJson(url, payload){
+      return fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify(payload)
+      }).then(r => r.json());
+    }
+
+  const ovPreviewBtn = document.getElementById('ovPreviewBtn');
+  if (ovPreviewBtn) ovPreviewBtn.addEventListener('click', function(){
+    const checkedRadio = document.querySelector('input[name="ov_effect"]:checked');
+    if (!checkedRadio) { showToast('Please select a day type', 'error'); return; }
+    const sel = checkedRadio.value;
+      // Map UI selection into API effect/allowed_mode
+      let effect = sel;
+      let allowed = null;
+      if (sel === 'force_online' || sel === 'online_day') { effect = 'force_mode'; allowed = 'online'; }
+      let reason_key, reason_text;
+      if (effect === 'holiday') {
+        reason_key = 'holiday';
+        reason_text = (document.getElementById('ov_holiday_name').value || '').trim();
+      } else if (sel === 'online_day') {
+        // Online Day: no reason/notes
+        reason_key = 'online_day';
+        reason_text = '';
+      } else if (sel === 'end_year') {
+        // End of School Year → block all days in range
+        reason_key = 'end_year';
+        reason_text = '';
+      } else {
+        // Forced Online / Suspended: allow reasons
+        reason_key = document.getElementById('ov_reason_key').value;
+        const rtVal = (document.getElementById('ov_reason_text').value || '').trim();
+        reason_text = (reason_key === 'others') ? rtVal : '';
+        // If Others is selected, require a typed reason
+        if ((sel === 'block_all' || sel === 'force_online') && reason_key === 'others') {
+          if (!reason_text) {
+            showToast('Please enter a reason for Others', 'error');
+            return;
+          }
+        }
+      }
+      const dateLabel = document.getElementById('adminOverrideDate').textContent;
+      const start = new Date(dateLabel);
+      if (!(start instanceof Date) || isNaN(start.getTime())) {
+        alert('Selected date is invalid. Please pick another day.');
+        return;
+      }
+      const startIso = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+      // Validate end date when end_year
+      let endIso = null;
+      if (sel === 'end_year') {
+        const endVal = document.getElementById('ov_end_date')?.value;
+        if (!endVal) { showToast('Please pick an end day', 'error'); return; }
+        const end = new Date(endVal + 'T00:00:00');
+        if (!(end instanceof Date) || isNaN(end.getTime()) || end < start) {
+          showToast('End day must be the same or after start day', 'error'); return;
+        }
+        endIso = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
+        effect = 'block_all'; // backend: disable days for the range
+      }
+      const payload = {
+        start_date: startIso,
+        end_date: endIso,
+        effect: effect,
+        allowed_mode: effect === 'force_mode' ? allowed : null,
+        reason_key, reason_text,
+        auto_reschedule: document.getElementById('ov_auto_reschedule').checked
+      };
+      postJson('/api/admin/calendar/overrides/preview', payload).then(data => {
+        const box = document.getElementById('ov_preview');
+        box.style.display = 'block';
+        if (data && data.success) {
+          let html = `<div><strong>Preview</strong></div>`;
+          if (payload.end_date) {
+            html += `<div>Range: ${dateLabel} → ${document.getElementById('ov_end_date')?.value || ''}</div>`;
+          }
+          html += `<div>Affected bookings: ${data.affected_count}</div>`;
+          if (typeof data.reschedule_candidate_count !== 'undefined') {
+            html += `<div>Rescheduling candidates (exam/quiz): ${data.reschedule_candidate_count}</div>`;
+          }
+          box.innerHTML = html;
+        } else {
+          box.innerHTML = `<div style="color:#b91c1c">Failed to preview.</div>`;
+        }
+      }).catch(()=>{
+        const box = document.getElementById('ov_preview');
+        box.style.display = 'block';
+        box.innerHTML = `<div style="color:#b91c1c">Failed to preview.</div>`;
+      });
+    });
+
+  const ovApplyBtn = document.getElementById('ovApplyBtn');
+  if (ovApplyBtn) ovApplyBtn.addEventListener('click', async function(){
+    const checkedRadio = document.querySelector('input[name="ov_effect"]:checked');
+    if (!checkedRadio) { showToast('Please select a day type', 'error'); return; }
+    const sel = checkedRadio.value;
+      let effect = sel;
+      let allowed = null;
+      if (sel === 'force_online' || sel === 'online_day') { effect = 'force_mode'; allowed = 'online'; }
+      let reason_key, reason_text;
+      if (effect === 'holiday') {
+        reason_key = 'holiday';
+        reason_text = (document.getElementById('ov_holiday_name').value || '').trim();
+      } else if (sel === 'online_day') {
+        reason_key = 'online_day';
+        reason_text = '';
+      } else if (sel === 'end_year') {
+        reason_key = 'end_year';
+        reason_text = '';
+      } else {
+        reason_key = document.getElementById('ov_reason_key').value;
+        const rtVal2 = (document.getElementById('ov_reason_text').value || '').trim();
+        reason_text = (reason_key === 'others') ? rtVal2 : '';
+        if ((sel === 'block_all' || sel === 'force_online') && reason_key === 'others') {
+          if (!reason_text) {
+            showToast('Please enter a reason for Others', 'error');
+            return;
+          }
+        }
+      }
+      const auto_reschedule = document.getElementById('ov_auto_reschedule').checked;
+      const dateLabel = document.getElementById('adminOverrideDate').textContent;
+      const start = new Date(dateLabel);
+      if (!(start instanceof Date) || isNaN(start.getTime())) {
+        alert('Selected date is invalid. Please pick another day.');
+        return;
+      }
+
+      // Validate end date (end_year)
+      let endIso = null; let endLabel = '';
+      if (sel === 'end_year') {
+        const endVal = document.getElementById('ov_end_date')?.value;
+        if (!endVal) { showToast('Please pick an end day', 'error'); return; }
+        const end = new Date(endVal + 'T00:00:00');
+        if (!(end instanceof Date) || isNaN(end.getTime()) || end < start) {
+          showToast('End day must be the same or after start day', 'error'); return;
+        }
+        endIso = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
+        endLabel = end.toDateString();
+        effect = 'block_all';
+      }
+
+      // Themed confirmation before applying
+  const labelMap = { online_day: 'Online Day', force_online: 'Forced Online', block_all: 'Suspention', holiday: 'Holiday', end_year: 'End of School Year' };
+      const humanLabel = labelMap[sel] || 'Change';
+      const proceed = await themedConfirm(`Apply ${humanLabel}`, sel === 'end_year' ?
+        `Disable all classes from <strong>${dateLabel}</strong> to <strong>${endLabel}</strong>?` :
+        `Are you sure you want to apply "${humanLabel}" for <strong>${dateLabel}</strong>?`);
+      if (!proceed) return;
+
+      const startIso = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+      const payload = {
+        start_date: startIso,
+        end_date: endIso,
+        effect: effect,
+        allowed_mode: effect === 'force_mode' ? allowed : null,
+        reason_key, reason_text,
+        auto_reschedule
+      };
+      postJson('/api/admin/calendar/overrides/apply', payload).then(data => {
+        if (data && data.success) {
+          closeOverrideModal();
+          // refresh admin calendar data
+          if (typeof loadAdminCalendarData === 'function') {
+            loadAdminCalendarData();
+          }
+          // refresh overrides for current month to paint badges immediately
+          try {
+            const base = getVisibleMonthBaseDate();
+            fetchAdminOverridesForMonth(base);
+            // Also stamp the just-applied date immediately as a badge (fallback)
+            const immediateDateStr = dateLabel; // e.g., Sun Dec 25 2025
+            const ovItem = { effect, reason_text: reason_text, reason_key, allowed_mode: allowed };
+            addBadgeForDate(immediateDateStr, ovItem);
+            // If a range (End Year), seed global cache for all days to avoid delays across months
+            if (payload.end_date && reason_key === 'end_year') {
+              if (!window.__adminOvGlobalCache) window.__adminOvGlobalCache = {};
+              const s = new Date(startIso);
+              const e = new Date(payload.end_date);
+              for (let d = new Date(s); d <= e; d.setDate(d.getDate()+1)) {
+                const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                window.__adminOvGlobalCache[iso] = [ { effect: 'block_all', reason_key: 'end_year' } ];
+              }
+              // Persist for instant paint after page reload
+              try { localStorage.setItem('ascc_admin_ov_global_v1', JSON.stringify(window.__adminOvGlobalCache)); } catch(_) {}
+              // Draw immediately with global seed
+              if (window.adminPicker) window.adminPicker.draw();
+            }
+          } catch(e) {}
+          showToast('Changes applied', 'success');
+        } else {
+          alert('Failed to apply changes');
+        }
+      }).catch(()=> alert('Failed to apply changes'));
+
+    // Helper: add badge and day-level background directly to a specific date cell (immediate feedback)
+    function addBadgeForDate(dateStr, item) {
+      const cells = document.querySelectorAll('.pika-button');
+      for (const cell of cells) {
+        const d = new Date(
+          cell.getAttribute('data-pika-year'),
+          cell.getAttribute('data-pika-month'),
+          cell.getAttribute('data-pika-day')
+        );
+        if (d.toDateString() === dateStr) {
+          // Remove any existing badge and override day classes
+          const old = cell.querySelector('.ov-badge');
+          if (old) old.remove();
+          cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
+
+          // Create new badge
+          const badge = document.createElement('span');
+          const isOnline = (item.effect !== 'holiday' && item.effect !== 'block_all' && item.reason_key === 'online_day');
+          const isEndYear = (item.effect === 'block_all' && item.reason_key === 'end_year');
+          const cls = item.effect === 'holiday' ? 'ov-holiday' : (item.effect === 'block_all' ? (isEndYear ? 'ov-endyear' : 'ov-blocked') : (isOnline ? 'ov-online' : 'ov-force'));
+          badge.className = 'ov-badge ' + cls;
+            const text = item.effect === 'holiday'
+            ? (item.reason_text || 'Holiday')
+            : (item.effect === 'block_all'
+              ? (item.reason_key === 'end_year' ? 'End Year' : 'Suspention')
+              : (item.reason_key === 'online_day' ? 'Online Day' : 'Forced Online'));
+          badge.textContent = text;
+          badge.title = text;
+
+          // Apply cell-level background to make it visually obvious immediately
+          const dayCls = item.effect === 'holiday' ? 'day-holiday' : (item.effect === 'block_all' ? (isEndYear ? 'day-endyear' : 'day-blocked') : (isOnline ? 'day-online' : 'day-force'));
+          cell.classList.add(dayCls);
+
+          cell.style.position = 'relative';
+          cell.appendChild(badge);
+          break;
+        }
+      }
+    }
+
+    // Helper: clear all temporary override badges and background classes on the visible calendar
+    function resetCalendarHighlights() {
+      try {
+        const cells = document.querySelectorAll('.pika-table .pika-button');
+        cells.forEach(cell => {
+          // Remove any override badge
+          const b = cell.querySelector('.ov-badge');
+          if (b) b.remove();
+          // Remove background classes
+          cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
+        });
+        // Clear any selected cells
+        document.querySelectorAll('.pika-table td.is-selected').forEach(td => td.classList.remove('is-selected'));
+        // Hide tooltip if visible
+        const tooltip = document.getElementById('consultationTooltip');
+        if (tooltip) tooltip.style.display = 'none';
+        // Soft reset flag: do not change window.adminOverrides so persisted server overrides will return on next redraw
+        console.log('Admin calendar highlights reset');
+      } catch (e) {
+        console.warn('Reset calendar highlights encountered an issue:', e);
+      }
+    }
+    });
+
+    // ADMIN NOTIFICATION FUNCTIONS
+    // Mark all as read functionality
+    (function(){
+      const markAllBtn = document.getElementById('mark-all-read');
+      if (markAllBtn) {
+        markAllBtn.addEventListener('click', function() {
+          markAllAdminNotificationsAsRead();
+        });
+      }
+    })();
+
+    // Remove overrides for selected date
+    (function(){
+      const btn = document.getElementById('ovRemoveBtn');
+      if (!btn) return;
+      btn.addEventListener('click', function(){
+        const dateLabel = document.getElementById('adminOverrideDate').textContent;
+        const start = new Date(dateLabel);
+        if (!(start instanceof Date) || isNaN(start.getTime())) {
+          alert('Selected date is invalid.');
+          return;
+        }
+
+        // If there is no override for this date, do not proceed
+        try {
+          const exists = (function(){
+            const iso = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+            if (window.adminOverrides && window.adminOverrides[iso] && window.adminOverrides[iso].length > 0) return true;
+            const cells = document.querySelectorAll('.pika-button');
+            for (const cell of cells) {
+              const d = new Date(
+                cell.getAttribute('data-pika-year'),
+                cell.getAttribute('data-pika-month'),
+                cell.getAttribute('data-pika-day')
+              );
+              if (d.toDateString() === dateLabel) {
+                if (cell.querySelector('.ov-badge')) return true;
+                if (
+                  cell.classList.contains('day-holiday') ||
+                  cell.classList.contains('day-blocked') ||
+                  cell.classList.contains('day-force') ||
+                  cell.classList.contains('day-endyear')
+                ) return true;
+                break;
+              }
+            }
+            return false;
+          })();
+          if (!exists) {
+            showToast('No override on this date to remove', 'info');
+            // keep button disabled to reflect state
+            btn.disabled = true; btn.setAttribute('aria-disabled','true'); btn.style.opacity = '0.5'; btn.style.cursor = 'not-allowed';
+            return;
+          }
+        } catch (e) { /* ignore and continue */ }
+
+        // Themed confirmation before removing
+        themedConfirm('Remove Override', `Are you sure you want to remove overrides for <strong>${dateLabel}</strong>?`).then(ok => {
+          if (!ok) return;
+
+        const startIso = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+        postJson('/api/admin/calendar/overrides/remove', { start_date: startIso })
+          .then(data => {
+            if (data && data.success) {
+              // Clear badge/background for that date immediately
+              const cells = document.querySelectorAll('.pika-button');
+              for (const cell of cells) {
+                const d = new Date(
+                  cell.getAttribute('data-pika-year'),
+                  cell.getAttribute('data-pika-month'),
+                  cell.getAttribute('data-pika-day')
+                );
+                if (d.toDateString() === dateLabel) {
+                  const old = cell.querySelector('.ov-badge');
+                  if (old) old.remove();
+                  cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
+                  break;
+                }
+              }
+              // Refresh month overrides
+              const base = getVisibleMonthBaseDate();
+              fetchAdminOverridesForMonth(base);
+              // Close modal
+              closeOverrideModal();
+              showToast(data.deleted > 0 ? 'Override removed' : 'No override found', data.deleted > 0 ? 'success' : 'info');
+              // After removal, ensure Remove stays disabled for this date
+              try {
+                const removeBtn = document.getElementById('ovRemoveBtn');
+                if (removeBtn) { removeBtn.disabled = true; removeBtn.setAttribute('aria-disabled','true'); removeBtn.style.opacity = '0.5'; removeBtn.style.cursor = 'not-allowed'; }
+              } catch(e) {}
+            } else {
+              alert('Failed to remove override');
+            }
+          })
+          .catch(()=> alert('Failed to remove override'));
+        });
+      });
+    })();
+    // Themed toast + confirm helpers (aligned with site theme)
+    function ensureToastWrapper() {
+      let wrap = document.querySelector('.toast-wrapper');
+      if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.className = 'toast-wrapper';
+        document.body.appendChild(wrap);
+      }
+      return wrap;
+    }
+
+    // Always spawn a new toast; no dedupe or stacking limits
+    function showToast(message, type='info', timeout=2200) {
+      const wrap = ensureToastWrapper();
+      const toast = document.createElement('div');
+      toast.className = `ascc-toast ${type==='success'?'ascc-toast-success': type==='error'?'ascc-toast-error':'ascc-toast-info'}`;
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      toast.innerHTML = `<div>${message}</div><button class=\"ascc-toast-close\" aria-label=\"Close\">×</button>`;
+      wrap.appendChild(toast);
+      const closer = toast.querySelector('.ascc-toast-close');
+      const onClose = () => safeHideToast(toast);
+      closer.addEventListener('click', onClose);
+      setTimeout(onClose, timeout);
+    }
+
+    function safeHideToast(el) {
+      if (!el) return;
+      el.classList.add('hide');
+      setTimeout(() => { if (el && el.parentNode) el.parentNode.removeChild(el); }, 250);
+    }
+
+    function themedConfirm(title, htmlMessage) {
+      return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'ascc-confirm-overlay';
+        const dlg = document.createElement('div');
+        dlg.className = 'ascc-confirm';
+        dlg.setAttribute('role', 'dialog');
+        dlg.setAttribute('aria-modal', 'true');
+        dlg.innerHTML = `
+          <div class="ascc-confirm-header">
+            <div class="ascc-confirm-title">${title}</div>
+            <button class="ascc-confirm-close" aria-label="Close">×</button>
+          </div>
+          <div class="ascc-confirm-body">${htmlMessage}</div>
+          <div class="ascc-confirm-actions">
+            <button id="dlgCancel" class="ascc-btn ascc-btn-secondary">Cancel</button>
+            <button id="dlgOk" class="ascc-btn ascc-btn-primary">Confirm</button>
+          </div>
+        `;
+        overlay.appendChild(dlg);
+        document.body.appendChild(overlay);
+
+        const okBtn = dlg.querySelector('#dlgOk');
+        const cancelBtn = dlg.querySelector('#dlgCancel');
+        const closeBtn = dlg.querySelector('.ascc-confirm-close');
+
+        const cleanup = () => {
+          document.removeEventListener('keydown', onKey);
+          overlay.remove();
+        };
+        const close = (val) => { cleanup(); resolve(val); };
+
+        const onKey = (e) => {
+          if (e.key === 'Escape') { e.preventDefault(); close(false); }
+          if (e.key === 'Tab') {
+            // basic focus trap
+            const focusables = dlg.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+            if (focusables.length) {
+              const first = focusables[0];
+              const last = focusables[focusables.length - 1];
+              if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+              else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
+            }
+          }
+        };
+
+        closeBtn.addEventListener('click', () => close(false));
+        cancelBtn.addEventListener('click', () => close(false));
+        okBtn.addEventListener('click', () => close(true));
+        document.addEventListener('keydown', onKey);
+        // Initial focus
+        okBtn.focus();
+      });
+    }
+
+    // (Reset button removed as requested)
+
+  function loadAdminCalendarData() {
       fetch('/api/admin/all-consultations', {
         method: 'GET',
         headers: {
@@ -921,6 +2235,9 @@
         })
         .then(data => {
           console.log('Admin Real-time update - fetched data:', data.length, 'entries');
+          // Ensure overrides for this month are loaded too
+          const base = getVisibleMonthBaseDate();
+          fetchAdminOverridesForMonth(base);
           
           // Store previous booking map for comparison
           const previousBookings = new Map();
@@ -932,6 +2249,8 @@
           detailsMap.clear(); // Clear details data
           
           data.forEach(entry => {
+            // Exclude cancelled from admin tooltip/booking maps
+            if ((entry.Status || '').toLowerCase() === 'cancelled') return;
             const date = new Date(entry.Booking_Date);
             const key = date.toDateString();
             // For status coloring and modal
@@ -969,6 +2288,55 @@
             cells.forEach(cell => {
               const cellDate = new Date(cell.getAttribute('data-pika-year'), cell.getAttribute('data-pika-month'), cell.getAttribute('data-pika-day'));
               const dateStr = cellDate.toDateString();
+              const isoKey = `${cellDate.getFullYear()}-${String(cellDate.getMonth()+1).padStart(2,'0')}-${String(cellDate.getDate()).padStart(2,'0')}`;
+              // Refresh override badges/classes on update, using per-month sticky cache to avoid flicker
+              const visibleBaseNow = (function(){
+                try { return getVisibleMonthBaseDate(); } catch(_) { const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), 1); }
+              })();
+              const visKeyNow = `${visibleBaseNow.getFullYear()}-${String(visibleBaseNow.getMonth()+1).padStart(2,'0')}`;
+              const ovSource = (function(){
+                if (window.adminOverrides && typeof window.adminOverrides === 'object') return window.adminOverrides;
+                if (window.__adminOvCacheByMonth && window.__adminOvCacheByMonth[visKeyNow]) return window.__adminOvCacheByMonth[visKeyNow];
+                if (window.__adminOvCache && typeof window.__adminOvCache === 'object') return window.__adminOvCache;
+                if (window.__adminOvGlobalCache && typeof window.__adminOvGlobalCache === 'object') return window.__adminOvGlobalCache;
+                return null;
+              })();
+              if (ovSource) {
+                const oldBadge = cell.querySelector('.ov-badge');
+                if (oldBadge) oldBadge.remove();
+                cell.classList.remove('day-holiday','day-blocked','day-force','day-online','day-endyear');
+              }
+              if (ovSource && ovSource[isoKey] && ovSource[isoKey].length > 0) {
+                const items = ovSource[isoKey];
+                let chosen = null;
+                for (const ov of items) { if (ov.effect === 'holiday') { chosen = ov; break; } }
+                if (!chosen) { for (const ov of items) { if (ov.effect === 'block_all') { chosen = ov; break; } } }
+                if (!chosen) { chosen = items[0]; }
+                const badge = document.createElement('span');
+                // Distinguish Online Day vs Forced Online for clarity
+                const isOnlineDay = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day'));
+                const isEndYear = (chosen.effect === 'block_all' && (chosen.reason_key === 'end_year'));
+                const chosenCls = (chosen.effect === 'holiday'
+                  ? 'ov-holiday'
+                  : (chosen.effect === 'block_all'
+                    ? (isEndYear ? 'ov-endyear' : 'ov-blocked')
+                    : (isOnlineDay ? 'ov-online' : 'ov-force')));
+                badge.className = 'ov-badge ' + chosenCls;
+                const forceLabel2 = isOnlineDay ? 'Online Day' : 'Forced Online';
+                const labelTxt2 = (chosen.effect === 'holiday')
+                  ? (chosen.reason_text || 'Holiday')
+                  : (chosen.effect === 'block_all' ? (isEndYear ? 'End Year' : 'Suspention') : forceLabel2);
+                badge.title = chosen.label || chosen.reason_text || labelTxt2;
+                badge.textContent = labelTxt2;
+                cell.style.position = 'relative';
+                cell.appendChild(badge);
+                const dayCls = (chosen.effect === 'holiday'
+                  ? 'day-holiday'
+                  : (chosen.effect === 'block_all'
+                    ? (isEndYear ? 'day-endyear' : 'day-blocked')
+                    : (isOnlineDay ? 'day-online' : 'day-force')));
+                cell.classList.add(dayCls);
+              }
               const booking = bookingMap.get(dateStr);
               const previousBooking = previousBookings.get(dateStr);
               
@@ -1008,6 +2376,20 @@
                 }
               }
             });
+            // If current hovered cell now has no consultations, hide tooltip
+            try {
+              const tooltip = document.getElementById('consultationTooltip');
+              if (tooltip && currentHoveredCell) {
+                const c = currentHoveredCell;
+                const d = new Date(c.getAttribute('data-pika-year'), c.getAttribute('data-pika-month'), c.getAttribute('data-pika-day'));
+                const key = d.toDateString();
+                const list = detailsMap.get(key) || [];
+                if (list.length === 0) {
+                  tooltip.style.display = 'none';
+                  currentHoveredCell = null;
+                }
+              }
+            } catch(_) {}
           }
         })
         .catch(error => {
@@ -1056,7 +2438,7 @@
       }
       
       const notificationsHtml = notifications.map(notification => {
-        const timeAgo = getTimeAgo(notification.created_at);
+  const timeTs = notification.created_at;
         const unreadClass = notification.is_read ? '' : 'unread';
         
         return `
@@ -1064,7 +2446,7 @@
             <div class="notification-type ${notification.type}">${notification.type.replace('_', ' ')}</div>
             <div class="notification-title">${notification.title}</div>
             <div class="notification-message">${notification.message}</div>
-            <div class="notification-time">${timeAgo}</div>
+            <div class="notification-time" data-timeago data-ts="${timeTs}"></div>
           </div>
         `;
       }).join('');
@@ -1138,22 +2520,7 @@
       return colors[status] || '#666';
     }
 
-    function getTimeAgo(dateString) {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffInSeconds = Math.floor((now - date) / 1000);
-      if (diffInSeconds < 60) return 'Just now';
-      if (diffInSeconds < 3600) {
-        const m = Math.floor(diffInSeconds / 60);
-        return `${m} ${m === 1 ? 'min' : 'mins'} ago`;
-      }
-      if (diffInSeconds < 86400) {
-        const h = Math.floor(diffInSeconds / 3600);
-        return `${h === 1 ? '1 hr' : h + ' hrs'} ago`;
-      }
-      const d = Math.floor(diffInSeconds / 86400);
-      return `${d} ${d === 1 ? 'day' : 'days'} ago`;
-    }
+    // Live timeago handled by public/js/timeago.js
 
     // Modal functions for consultation details
     function showConsultationDetails(notificationId, bookingId) {
@@ -1279,11 +2646,26 @@
     // Initialize calendar data refresh
     loadAdminCalendarData();
 
+    // Legend panel interactions
+    (function legendPanelInit(){
+      const btn = document.getElementById('legendToggle');
+      const backdrop = document.getElementById('legendBackdrop');
+      const closeBtn = document.getElementById('legendClose');
+      if(!btn || !backdrop) return;
+      const open = () => { backdrop.classList.add('open'); backdrop.setAttribute('aria-hidden','false'); };
+      const close = () => { backdrop.classList.remove('open'); backdrop.setAttribute('aria-hidden','true'); };
+      btn.addEventListener('click', open);
+      closeBtn && closeBtn.addEventListener('click', close);
+      backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) close(); });
+      document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') close(); });
+    })();
+
     // Real-time load notifications every 3 seconds (reduced for smoother updates)
     setInterval(loadAdminNotifications, 3000);
 
     // Real-time refresh calendar data every 3 seconds (reduced for smoother updates)
     setInterval(loadAdminCalendarData, 3000);
   </script>
+  <script src="{{ asset('js/timeago.js') }}"></script>
 </body>
 </html>

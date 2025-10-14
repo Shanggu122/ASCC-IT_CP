@@ -1,3 +1,9 @@
+/* College Title Styles */
+.college-title,
+.college-title * {
+    color: #fff !important;
+    font-weight: normal !important;
+}
 * {
     margin: 0;
     padding: 0;
@@ -10,7 +16,60 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background-color: #f9f9f9;
+    /* Match login page subtle gradient */
+    background: linear-gradient(180deg, #e5e6e5 0%, #f3f5f4 60%, #f2f4f3 100%);
+}
+
+/* OTP sending overlay (light neutral fullscreen) */
+.otp-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35); /* transparent grey */
+    backdrop-filter: blur(3px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 1200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+.otp-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+/* Remove dark modal box, use simple vertical stack */
+.otp-modal {
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+}
+.otp-spinner {
+    width: 54px;
+    height: 54px;
+    border: 5px solid rgba(255, 255, 255, 0.25);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: otpSpin 1s linear infinite;
+}
+@keyframes otpSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+.otp-text {
+    color: #ffffff;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    font-size: 15px;
+    font-family: 'Segoe UI', sans-serif;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .container {
@@ -21,9 +80,11 @@ body {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
+/* Light gradient background for left panel */
+/* Dark green gradient background for left panel */
 .left-panel {
     flex: 1;
-    background: linear-gradient(to bottom right, rgba(255, 255, 255, 0.8), rgba(13, 96, 70, 0.8));
+    background: linear-gradient(135deg, #12372a 0%, #20543d 50%, #2d6e4e 100%);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -34,9 +95,10 @@ body {
 }
 
 .left-logo {
-    width: 260px; /* Increase the logo size */
-    max-width: 100%; /* Responsive: don't overflow panel */
-    margin-bottom: 3.5rem;
+    width: 340px;
+    max-width: 100%;
+    margin-bottom: 2.2rem;
+    margin-top: -1.5rem;
 }
 
 .left-panel h2 {
@@ -158,6 +220,14 @@ body {
     background-color: #105943;
 }
 
+/* Disabled / loading state */
+/* Disabled state (keep simpler now that overlay used) */
+.login-btn[disabled] {
+    background-color: #5d7a73 !important;
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
 .options-row {
     max-width: 350px; /* Match input and button width */
     width: 100%;
@@ -190,6 +260,8 @@ body {
     width: 100%;
     text-align: left;
     padding-left: 4px;
+    min-height: 18px;
+    transition: opacity 0.32s ease;
 }
 .field-success {
     color: #0b6e4f;
@@ -199,6 +271,12 @@ body {
     width: 100%;
     text-align: left;
     padding-left: 4px;
+}
+
+/* Fade class for auto-dismiss script */
+.fade-out-field-error,
+.fade-out-login-error {
+    opacity: 0;
 }
 
 /* Add this to push the form down if needed */
@@ -218,19 +296,40 @@ body {
 }
 
 .back-btn {
-    display: flex;
+    display: inline-flex; /* ensure intrinsic size respected */
     align-items: center;
     justify-content: center;
-    width: 40px; /* Slightly larger for better centering */
-    height: 40px;
+    width: 44px; /* slightly larger hit target */
+    height: 44px;
     border-radius: 50%;
     background: #0b3d2e;
     color: #fff;
-    font-size: 1.5rem; /* Larger arrow */
+    font-size: 1.5rem; /* larger arrow */
     margin-right: 1rem;
     text-decoration: none;
-    transition: background 0.2s;
+    transition:
+        background 0.2s,
+        box-shadow 0.2s;
     flex-shrink: 0;
+    cursor: pointer;
+    position: relative; /* enable z-index */
+    z-index: 5; /* sit above overlapping title */
+    user-select: none;
+    touch-action: manipulation;
+    line-height: 1; /* keep icon vertically centered */
+}
+
+.back-btn:hover {
+    background: #105943;
+}
+
+.back-btn:active {
+    background: #094130;
+}
+
+.back-btn:focus-visible {
+    outline: 3px solid #36b58b;
+    outline-offset: 2px;
 }
 
 .fp-title {

@@ -35,7 +35,7 @@
           <li><a href="{{ url('/profile-professor') }}">Profile</a></li>
           <li><a href="{{ url('/conlog-professor') }}">Consultation Log</a></li>
           <li><a href="{{ url('/messages-professor') }}">Messages</a></li>
-          <li><a href="{{ url('/logout-professor') }}">Sign Out</a></li>
+          <li><x-logout-link guard="professor" label="Sign Out" /></li>
         </ul>
       </div>
 
@@ -58,14 +58,31 @@
         </div>
     @endif
 
+    <!-- Grey overlay shown when mobile sidebar is open (professor pages) -->
+    <div id="sidebarOverlay" class="sidebar-overlay" aria-hidden="true"></div>
+
     <script>
         // Only run if hamburger exists (mobile)
         const hamburger = document.getElementById('hamburger');
         const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
         if (hamburger) {
             hamburger.addEventListener('click', () => {
                 sidebar.classList.toggle('active');
                 hamburger.classList.toggle('active');
+                if(overlay){ overlay.classList.toggle('active', sidebar.classList.contains('active')); }
+                if(document.body){
+                    if(sidebar.classList.contains('active')){ document.body.classList.add('no-scroll'); }
+                    else { document.body.classList.remove('no-scroll'); }
+                }
+            });
+        }
+        if(overlay){
+            overlay.addEventListener('click', () => {
+                sidebar.classList.remove('active');
+                hamburger && hamburger.classList.remove('active');
+                overlay.classList.remove('active');
+                document.body && document.body.classList.remove('no-scroll');
             });
         }
 
@@ -79,6 +96,8 @@
                 if (sidebar && sidebar.classList && sidebar.classList.contains('active')) {
                     sidebar.classList.remove('active');
                     hamburger.classList.remove('active');
+                    overlay && overlay.classList.remove('active');
+                    document.body && document.body.classList.remove('no-scroll');
                 }
             }
         }

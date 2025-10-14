@@ -11,14 +11,18 @@ return new class extends Migration
      */
     public function up()
     {
-        Schema::table('t_student', function ($table) {
-            $table->string('profile_picture')->nullable();
-        });
+        if (Schema::hasTable('t_student') && !Schema::hasColumn('t_student', 'profile_picture')) {
+            Schema::table('t_student', function ($table) {
+                $table->string('profile_picture')->nullable();
+            });
+        }
     }
     public function down()
     {
-        Schema::table('t_student', function ($table) {
-            $table->dropColumn('profile_picture');
-        });
+        if (Schema::hasTable('t_student') && Schema::hasColumn('t_student', 'profile_picture')) {
+            Schema::table('t_student', function ($table) {
+                $table->dropColumn('profile_picture');
+            });
+        }
     }
 };
