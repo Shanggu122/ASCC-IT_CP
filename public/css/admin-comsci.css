@@ -11,6 +11,47 @@ body {
     height: 100vh;
     background-color: #e5f0ed;
 }
+/* Ensure global auth overlay is above admin panels */
+.auth-loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.82);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 20000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+.auth-loading-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+.auth-loading-spinner {
+    width: 58px;
+    height: 58px;
+    border: 5px solid rgba(255, 255, 255, 0.18);
+    border-top-color: #36b58b;
+    border-radius: 50%;
+    animation: spin 1s linear infinite; /* match login.css */
+    margin-bottom: 18px;
+    will-change: transform;
+    transform: translateZ(0);
+}
+.auth-loading-text {
+    color: #e9f9f3;
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    font-family: 'Segoe UI', sans-serif;
+}
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
 
 /* Main Content */
 .main-content {
@@ -360,6 +401,33 @@ body {
 .assign-subjects-list label {
     display: block;
 }
+.subject-list .subject-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    transition:
+        background 0.18s ease,
+        color 0.18s ease;
+}
+.subject-list .subject-item:hover {
+    background: #f2f7f5;
+}
+.subject-list input[type='checkbox'] {
+    accent-color: #14532d;
+    width: 18px;
+    height: 18px;
+}
+.subject-list input[type='checkbox']:focus-visible + label {
+    outline: 2px solid #14532d;
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+.subject-list input[type='checkbox']:checked + label {
+    color: #0b3d2e;
+    font-weight: 600;
+}
 .assign-subjects-save {
     background: #194d36;
     color: #fff;
@@ -390,6 +458,23 @@ body {
     border: 1px solid #ccc;
     border-radius: 8px;
     font-size: 1rem;
+}
+.schedule-day,
+.schedule-time {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #0b3d2e;
+    padding: 8px 10px;
+    border-radius: 10px;
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease;
+}
+.schedule-day:focus,
+.schedule-time:focus {
+    border-color: #14532d;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(20, 83, 45, 0.15);
 }
 .edit-profile-input {
     width: 100%;
@@ -448,7 +533,7 @@ body {
     cursor: pointer;
 }
 
-.add-faculty-btn {
+.add-fab {
     position: fixed;
     bottom: 40px;
     right: 60px;
@@ -464,6 +549,133 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 10001;
+}
+
+.add-fab-menu {
+    position: fixed;
+    bottom: 100px;
+    right: 60px;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 10001;
+}
+.add-fab-menu.show {
+    display: flex;
+}
+.add-fab-item {
+    appearance: none;
+    background: #fff;
+    border: none;
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 14px;
+    color: #0b3d2e;
+    cursor: pointer;
+    border-bottom: 1px solid #eef2f7;
+}
+.add-fab-item:last-child {
+    border-bottom: none;
+}
+.add-fab-item:hover {
+    background: #f3faf7;
+}
+
+/* Mini modal for Add Student */
+.mini-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10002;
+}
+.mini-modal.show {
+    display: flex;
+}
+.mini-modal-card {
+    background: #fff;
+    width: 520px;
+    max-width: calc(100% - 32px);
+    border-radius: 14px;
+    box-shadow: 0 16px 46px rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+}
+.mini-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #12372a 0%, #01703c 100%);
+    color: #fff;
+}
+.mini-modal-title {
+    font-size: 16px;
+    font-weight: 600;
+}
+.mini-modal-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px 8px;
+}
+.mini-modal-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.mini-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* Chooser modal unified option buttons */
+.chooser-options {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.chooser-option {
+    appearance: none;
+    border: 1px solid #c3d7d0;
+    background: #f4f9f7;
+    color: #0b3d2e;
+    padding: 10px 26px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition:
+        background 0.25s,
+        box-shadow 0.25s,
+        transform 0.2s;
+    min-width: 170px;
+    text-align: center;
+}
+.chooser-option:hover {
+    background: #e7f2ee;
+    transform: translateY(-1px);
+}
+.chooser-option:active {
+    transform: translateY(0);
+}
+.chooser-option.active {
+    background: #01703c;
+    color: #fff;
+    border-color: #01703c;
+    box-shadow: 0 2px 6px rgba(1, 112, 60, 0.35);
 }
 
 /* Add Faculty Side Panel */
@@ -485,6 +697,49 @@ body {
 
 .add-faculty-panel.show {
     right: 0;
+}
+
+/* Add Student Side Panel (mirrors add-faculty-panel) */
+.add-student-panel {
+    position: fixed;
+    top: 0;
+    right: -380px;
+    width: 380px;
+    height: 100vh;
+    background: #fff;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+    transition: right 0.3s ease;
+    z-index: 10001;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-left: 3px solid #12372a;
+}
+.add-student-panel.show {
+    right: 0;
+}
+.add-student-panel .form-content {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 0;
+    gap: 0;
+    padding: 0.75rem 1rem;
+    overflow-y: auto;
+}
+.add-student-panel .left-column {
+    max-width: 320px;
+}
+.add-student-panel .panel-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding: 0.9rem 1.5rem;
+    border-top: 1px solid #e5e7eb;
+    background: #ffffff;
+    flex-shrink: 0;
+}
+.add-student-panel .input-group input {
+    width: 100%;
 }
 
 /* Panel Header */
@@ -819,7 +1074,7 @@ body {
 
 .btn-primary {
     background: #01703c;
-    color: #fff;
+    color: #ffffff;
     border: none;
 }
 .btn-primary:hover {
@@ -832,12 +1087,12 @@ body {
 }
 
 .btn-secondary {
-    background: #f5f5f5;
-    color: #444;
-    border: 1px solid #d0d0d0;
+    background: #e5f0ed;
+    color: #0b3d2e;
+    border: 1px solid #c3d7d0;
 }
 .btn-secondary:hover {
-    background: #e9ecef;
+    background: #d8ebe4;
     transform: translateY(-1px);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
 }
@@ -866,12 +1121,19 @@ body {
     background: #cf3d2e;
 }
 .delete-cancel {
-    background: #ffffff;
-    color: #12372a;
-    border: 1px solid #d0d0d0;
+    background: #e5f0ed;
+    color: #0b3d2e;
+    border: 1px solid #c3d7d0;
 }
 .delete-cancel:hover {
-    background: #e5f0ed;
+    background: #d8ebe4;
+}
+
+/* Ensure links inside styled buttons don't turn blue */
+.btn-primary a,
+.btn-secondary a {
+    color: inherit;
+    text-decoration: none;
 }
 
 /* Add Faculty Button */

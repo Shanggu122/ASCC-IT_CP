@@ -28,6 +28,13 @@ body {
     font-size: 2rem;
     color: #12372a;
 }
+/* Small italic subtitle for view-only context */
+.subtitle-view-only {
+    color: #234;
+    opacity: 0.75;
+    font-size: 0.95rem;
+    margin-top: 4px;
+}
 
 /* Tablet: reduce size and push heading down a bit to avoid navbar overlap */
 @media (min-width: 769px) and (max-width: 1280px) {
@@ -72,6 +79,11 @@ body {
     cursor: pointer;
     max-width: 300px;
     min-height: 100px;
+}
+/* Make cards non-clickable on view-only pages */
+.view-only .profile-card {
+    cursor: default !important;
+    pointer-events: none;
 }
 @media (max-width: 768px) {
     .profile-cards-grid {
@@ -135,6 +147,7 @@ body {
     align-items: center;
     gap: 0.5rem;
     cursor: pointer;
+    z-index: 5000; /* ensure chat button is above cards */
 }
 .chat-button i {
     font-size: 1.2rem;
@@ -150,7 +163,7 @@ body {
     box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
-    z-index: 1000;
+    z-index: 6000; /* above cards and chat button when open */
     transition: right 0.3s ease;
     border-left: 3px solid #12372a;
 }

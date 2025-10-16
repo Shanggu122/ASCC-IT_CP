@@ -54,10 +54,13 @@
           @csrf
           <h2>Add Faculty Member</h2>
           <input type="text" name="Prof_ID" placeholder="Faculty ID" required>
-          <input type="text" name="Name" placeholder="Full Name" required>
-          <input type="email" name="Email" placeholder="Email" required>
+          <input type="text" name="Name" placeholder="Full Name" required maxlength="50">
+          <input type="email" name="Email" placeholder="Email" required maxlength="100">
           <input type="hidden" name="Dept_ID" value="2">
-          <input type="text" name="Password" placeholder="Dummy Password" value="password1" required>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="text" id="addTempPasswordComsi" name="Password" placeholder="Dummy Password" value="password1" required style="flex:1;">
+                        <button type="button" id="btnGenTempPwComsi" style="background:#ccc; color:#222; border:none; border-radius:8px; padding:4px 8px; font-size:12px; line-height:1; white-space:nowrap;">Generate</button>
+                    </div>
           <button type="submit" style="background:#194d36; color:#fff; border:none; border-radius:8px; padding:0.5rem 1rem;">Add</button>
           <button type="button" id="closeFacultyModal" style="background:#ccc; color:#222; border:none; border-radius:8px; padding:0.5rem 1rem;">Cancel</button>
       </form>
@@ -105,6 +108,19 @@
   </div>
 
   <script>
+        // Password generator for legacy view
+        (function(){
+                    function generatePassword(len=12){
+                        const upper='ABCDEFGHJKLMNPQRSTUVWXYZ', lower='abcdefghijkmnopqrstuvwxyz', digits='23456789';
+                        const all=upper+lower+digits; let out=[upper[Math.floor(Math.random()*upper.length)],lower[Math.floor(Math.random()*lower.length)],digits[Math.floor(Math.random()*digits.length)]];
+                        while(out.length<len){ out.push(all[Math.floor(Math.random()*all.length)]); }
+                for(let i=out.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [out[i],out[j]]=[out[j],out[i]]; }
+                return out.join('');
+            }
+            const btn=document.getElementById('btnGenTempPwComsi');
+            const input=document.getElementById('addTempPasswordComsi');
+            if(btn&&input){ btn.addEventListener('click', ()=>{ input.value=generatePassword(12); }); }
+        })();
     // Simple search filter for cards
     document.getElementById('searchInput').addEventListener('input', function() {
       const filter = this.value.toLowerCase();

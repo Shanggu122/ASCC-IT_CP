@@ -806,7 +806,7 @@ Route::delete("/admin-itis/delete-professor/{prof}", [
     "deleteProfessor",
 ])
     ->name("admin.itis.professor.delete")
-    ->middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class]);
+    ->middleware(["auth:admin", "throttle:3,1"]);
 
 // Admin login routes
 Route::get("/login/admin", [AdminAuthController::class, "showLoginForm"])->name("login.admin");
@@ -838,6 +838,14 @@ Route::post("/admin-itis/add-professor", [ConsultationBookingController::class, 
     ->name("admin.itis.professor.add")
     ->middleware("auth:admin");
 
+// Add Student (compact flow) endpoints for both departments
+Route::post("/admin-itis/add-student", [ConsultationBookingController::class, "addStudent"])
+    ->name("admin.itis.student.add")
+    ->middleware(["auth:admin", "throttle:5,1"]);
+Route::post("/admin-comsci/add-student", [ConsultationBookingController::class, "addStudent"])
+    ->name("admin.comsci.student.add")
+    ->middleware(["auth:admin", "throttle:5,1"]);
+
 Route::post("/admin-itis/assign-subjects", [
     ConsultationBookingController::class,
     "assignSubjects",
@@ -854,7 +862,9 @@ Route::post("/admin-itis/edit-professor/{profId}", [
 Route::post("/admin-itis/update-professor/{profId}", [
     ConsultationBookingController::class,
     "updateProfessor",
-])->name("admin.professor.update");
+])
+    ->name("admin.professor.update")
+    ->middleware(["auth:admin", "throttle:5,1"]);
 Route::get("/admin-itis/professor-subjects/{profId}", [
     ConsultationBookingController::class,
     "getProfessorSubjects",
@@ -867,25 +877,22 @@ Route::post("/admin-comsci/edit-professor/{profId}", [
 Route::post("/admin-comsci/update-professor/{profId}", [
     ConsultationBookingController::class,
     "updateProfessor",
-])->name("admin.comsci.professor.update");
+])
+    ->name("admin.comsci.professor.update")
+    ->middleware(["auth:admin", "throttle:5,1"]);
 Route::get("/admin-comsci/professor-subjects/{profId}", [
     ConsultationBookingController::class,
     "getProfessorSubjects",
 ])->name("admin.comsci.professor.subjects");
 
-Route::delete("/admin-itis/delete-professor/{prof}", [
-    ConsultationBookingController::class,
-    "deleteProfessor",
-])
-    ->name("admin.itis.professor.delete")
-    ->middleware("auth:admin");
+// (duplicate removed; ITIS delete route defined above with throttle)
 
 Route::delete("/admin-comsci/delete-professor/{prof}", [
     ConsultationBookingController::class,
     "deleteProfessor",
 ])
     ->name("admin.comsci.professor.delete")
-    ->middleware("auth:admin");
+    ->middleware(["auth:admin", "throttle:3,1"]);
 
 Route::get("/notifications", [NotificationController::class, "index"])->name("notifications.index");
 Route::get("/notifications/{id}", [NotificationController::class, "show"])->name(

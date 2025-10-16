@@ -12,9 +12,12 @@
 <body>
   @include('components.navbarprof')
   
-  <div class="main-content">
+  <div class="main-content view-only">
     <div class="header">
-      <h1>Computer Science Department</h1>
+      <div>
+        <h1>Computer Science Department</h1>
+        <div class="subtitle-view-only"><em>Faculty directory (view only)</em></div>
+      </div>
     </div>
     
     <div class="search-container">
