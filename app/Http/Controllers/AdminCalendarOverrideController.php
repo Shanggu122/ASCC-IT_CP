@@ -602,6 +602,7 @@ class AdminCalendarOverrideController extends Controller
         }
 
         // After processing, if this is a Suspention (block_all), notify professors and affected students
+        // IMPORTANT: Do NOT notify professors/students for End Year ranges
         try {
             if (($data["effect"] ?? null) === "block_all") {
                 $title = "Suspention of Class";
@@ -635,16 +636,23 @@ class AdminCalendarOverrideController extends Controller
 
                 $message = "No classes {$rangeText} due to {$reasonTxt}. {$reschedText}";
 
-                // Notify ALL professors regardless of scope
-                $profRecipients = DB::table("professors")->pluck("Prof_ID")->toArray();
-                foreach ($profRecipients as $pid) {
-                    Notification::createSystem((int) $pid, $title, $message, "suspention_day");
-                }
+                // Skip sending notifications if this block_all represents End Year
+                $rkLower = strtolower((string) ($data["reason_key"] ?? ""));
+                $rtLower = strtolower((string) ($data["reason_text"] ?? ""));
+                $isEndYear = $rkLower === "end_year" || strpos($rtLower, "end year") !== false;
 
-                // Notify ALL students, even without bookings on the affected dates
-                $studentRecipients = DB::table("t_student")->pluck("Stud_ID")->toArray();
-                foreach ($studentRecipients as $sid) {
-                    Notification::createSystem((int) $sid, $title, $message, "suspention_day");
+                if (!$isEndYear) {
+                    // Notify ALL professors regardless of scope
+                    $profRecipients = DB::table("professors")->pluck("Prof_ID")->toArray();
+                    foreach ($profRecipients as $pid) {
+                        Notification::createSystem((int) $pid, $title, $message, "suspention_day");
+                    }
+
+                    // Notify ALL students, even without bookings on the affected dates
+                    $studentRecipients = DB::table("t_student")->pluck("Stud_ID")->toArray();
+                    foreach ($studentRecipients as $sid) {
+                        Notification::createSystem((int) $sid, $title, $message, "suspention_day");
+                    }
                 }
             }
         } catch (\Throwable $e) {

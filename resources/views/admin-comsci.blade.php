@@ -14,6 +14,12 @@
 <body>
   @include('components.navbar-admin')
 
+  <!-- Global full-screen loading overlay (reuses login styles) -->
+  <div id="globalLoading" class="auth-loading-overlay" aria-hidden="true">
+    <div class="auth-loading-spinner" role="status" aria-live="polite"></div>
+    <div class="auth-loading-text">Please wait…</div>
+  </div>
+
   <div class="main-content">
     <div class="header">
       <h1>Computer Science Faculty</h1>
@@ -42,7 +48,25 @@
     </div>
   </div>
 
-  <button id="addFacultyBtn" class="add-faculty-btn">+</button>
+  <button id="addChooserBtn" class="add-fab">+</button>
+  <!-- Centered chooser modal for Add options -->
+    <div id="addChooserModal" class="mini-modal" aria-hidden="true">
+      <div class="mini-modal-card" role="dialog" aria-modal="true" aria-labelledby="chooserTitle">
+        <div class="mini-modal-header">
+          <div class="mini-modal-title" id="chooserTitle">Add</div>
+          <button type="button" class="mini-modal-close" data-close-chooser>&times;</button>
+        </div>
+        <div class="mini-modal-body">
+          <div class="chooser-options">
+            <button type="button" class="chooser-option" data-open-add="faculty">Add Faculty</button>
+            <button type="button" class="chooser-option" data-open-add="student">Add Student</button>
+          </div>
+        </div>
+        <div class="mini-modal-actions">
+          <button type="button" class="btn-secondary" data-close-chooser>Close</button>
+        </div>
+      </div>
+    </div>
 
   <!-- Panel Overlay -->
   <div class="panel-overlay"></div>
@@ -64,25 +88,32 @@
         </div>
         <div class="input-group">
           <label class="input-label">Full Name</label>
-          <input type="text" name="Name" placeholder="Enter full name" required>
+          <input type="text" name="Name" placeholder="Enter full name" required maxlength="50">
         </div>
         <div class="input-group">
           <label class="input-label">Email Address</label>
-          <input type="email" name="Email" placeholder="Enter email address" required>
+          <input type="email" name="Email" placeholder="Enter email address" required maxlength="100">
         </div>
   <input type="hidden" name="Dept_ID" value="2">
         <div class="input-group">
           <label class="input-label">Temporary Password</label>
-          <input type="text" name="Password" value="password1" required>
+          <div class="password-row" style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="addTempPasswordComsci" name="Password" value="password1" required style="flex:1;">
+            <button type="button" id="btnGenTempPwComsci" class="btn-secondary" style="white-space:nowrap; padding:4px 8px; font-size:12px; line-height:1;">Generate</button>
+          </div>
         </div>
 
         <!-- Subject Assignment -->
         <div class="section-title" style="margin-top: 1rem;">Subject Assignment</div>
         <div class="subject-list">
           @foreach($subjects as $subject)
+          @php
+            $sid = is_object($subject) ? ($subject->Subject_ID ?? '') : (is_array($subject) ? ($subject['Subject_ID'] ?? '') : '');
+            $sname = is_object($subject) ? ($subject->Subject_Name ?? '') : (is_array($subject) ? ($subject['Subject_Name'] ?? '') : '');
+          @endphp
           <div class="subject-item">
-            <input type="checkbox" name="subjects[]" value="{{ $subject->Subject_ID }}" id="subject_{{ $subject->Subject_ID }}">
-            <label for="subject_{{ $subject->Subject_ID }}" class="subject-name">{{ $subject->Subject_Name }}</label>
+            <input type="checkbox" name="subjects[]" value="{{ $sid }}" id="subject_{{ $sid }}">
+            <label for="subject_{{ $sid }}" class="subject-name">{{ $sname }}</label>
           </div>
           @endforeach
         </div>
@@ -202,6 +233,44 @@
     </div>
   </form>
 
+  <!-- Add Student Side Panel (compact) -->
+    <form id="addStudentPanel" class="add-student-panel" method="POST" action="{{ route('admin.comsci.student.add') }}">
+      @csrf
+      <div class="panel-header">
+        <h2>Add Student</h2>
+        <button type="button" id="closeAddStudentPanel" class="close-panel-btn">&times;</button>
+      </div>
+      <div class="form-content">
+        <div class="left-column">
+          <div class="input-group">
+            <label class="input-label">Student ID</label>
+            <input type="text" name="Stud_ID" placeholder="Enter student ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Full Name</label>
+            <input type="text" name="Name" placeholder="Enter full name" required maxlength="50">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Email Address</label>
+            <input type="email" name="Email" placeholder="Enter email address" required maxlength="100">
+          </div>
+          <input type="hidden" name="Dept_ID" value="2">
+          <div class="input-group">
+            <label class="input-label">Temporary Password</label>
+            <div class="password-row" style="display:flex; gap:8px; align-items:center;">
+              <input type="text" id="addStudentTempPasswordComsci" name="Password" value="password1" required style="flex:1;">
+              <button type="button" id="btnGenTempPwStudentComsci" class="btn-secondary" style="white-space:nowrap; padding:4px 8px; font-size:12px; line-height:1;">Generate</button>
+            </div>
+          </div>
+        </div>
+        <div class="right-column"></div>
+      </div>
+      <div class="panel-actions">
+        <button type="button" class="btn-secondary" onclick="ModalManager.close('addStudent')">Cancel</button>
+        <button type="submit" class="btn-primary">Add Student</button>
+      </div>
+    </form>
+
   <!-- Edit Faculty Panel Overlay -->
   <div class="edit-panel-overlay"></div>
 
@@ -223,16 +292,20 @@
           </div>
           <div class="input-group">
             <label class="input-label">Full Name</label>
-            <input type="text" name="Name" id="editName" placeholder="Enter full name" required>
+            <input type="text" name="Name" id="editName" placeholder="Enter full name" required maxlength="50">
           </div>
 
           <!-- Subject Assignment -->
           <div class="section-title" style="margin-top: 1rem;">Subject Assignment</div>
           <div class="subject-list" id="editSubjectList">
             @foreach($subjects as $subject)
+            @php
+              $sid = is_object($subject) ? ($subject->Subject_ID ?? '') : (is_array($subject) ? ($subject['Subject_ID'] ?? '') : '');
+              $sname = is_object($subject) ? ($subject->Subject_Name ?? '') : (is_array($subject) ? ($subject['Subject_Name'] ?? '') : '');
+            @endphp
             <div class="subject-item">
-              <input type="checkbox" name="subjects[]" value="{{ $subject->Subject_ID }}" id="edit_subject_{{ $subject->Subject_ID }}">
-              <label for="edit_subject_{{ $subject->Subject_ID }}" class="subject-name">{{ $subject->Subject_Name }}</label>
+              <input type="checkbox" name="subjects[]" value="{{ $sid }}" id="edit_subject_{{ $sid }}">
+              <label for="edit_subject_{{ $sid }}" class="subject-name">{{ $sname }}</label>
             </div>
             @endforeach
           </div>
@@ -384,6 +457,23 @@
   </div>
 
   <script>
+    // Generate a random, readable password (12 chars)
+    function generatePassword(len=12){
+      const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+      const lower = 'abcdefghijkmnopqrstuvwxyz';
+      const digits = '23456789';
+      const all = upper + lower + digits;
+      let out = [upper[Math.floor(Math.random()*upper.length)], lower[Math.floor(Math.random()*lower.length)], digits[Math.floor(Math.random()*digits.length)]];
+      while(out.length < len){ out.push(all[Math.floor(Math.random()*all.length)]); }
+      for(let i=out.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [out[i],out[j]]=[out[j],out[i]]; }
+      return out.join('');
+    }
+    (function bindGenPwComsci(){
+      const btn = document.getElementById('btnGenTempPwComsci');
+      const input = document.getElementById('addTempPasswordComsci');
+      if(!btn||!input) return;
+      btn.addEventListener('click', ()=>{ input.value = generatePassword(12); input.dispatchEvent(new Event('input',{bubbles:true})); });
+    })();
     function showNotification(message, isError = false) {
       const notif = document.getElementById('notification');
       if(!notif) return;
@@ -397,6 +487,34 @@
       const notif = document.getElementById('notification');
       if(notif) notif.style.display='none';
     }
+    // --- Anti-spam helpers (prevent rapid double clicks/submits) ---
+    function guardRapidClicks(selector, holdMs = 1000){
+      document.addEventListener('click', function(e){
+        const btn = e.target && e.target.closest ? e.target.closest(selector) : null;
+        if(!btn) return;
+        if(btn.dataset.clickLocked === '1'){
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        btn.dataset.clickLocked = '1';
+        if(typeof btn.disabled !== 'undefined') btn.disabled = true;
+        setTimeout(()=>{ if(btn){ btn.dataset.clickLocked='0'; if(typeof btn.disabled !== 'undefined') btn.disabled = false; } }, holdMs);
+      }, true);
+    }
+    function lockSubmitButton(formEl){
+      const submitBtn = formEl.querySelector('.panel-actions .btn-primary[type="submit"], .panel-actions .btn-primary');
+      if(submitBtn){
+        submitBtn.disabled = true;
+        submitBtn.setAttribute('aria-busy','true');
+      }
+      return submitBtn;
+    }
+    function unlockSubmitButton(btn){
+      if(!btn) return;
+      btn.disabled = false;
+      btn.removeAttribute('aria-busy');
+    }
     // Modal/Panel Management System
     const ModalManager = {
       activeModal: null,
@@ -406,8 +524,14 @@
         addFaculty: {
           element: null,
           overlay: null,
-          triggers: ['addFacultyBtn'],
+          triggers: [],
           closers: ['closeAddFacultyPanel']
+        },
+        addStudent: {
+          element: null,
+          overlay: null,
+          triggers: [],
+          closers: []
         },
         editFaculty: {
           element: null,
@@ -423,13 +547,17 @@
         }
       },
       
-      init() {
+  init() {
         // Initialize modal elements
         this.modals.addFaculty.element = document.getElementById('addFacultyPanel');
         this.modals.addFaculty.overlay = document.querySelector('.panel-overlay');
-        this.modals.editFaculty.element = document.getElementById('editFacultyPanel');
+  this.modals.editFaculty.element = document.getElementById('editFacultyPanel');
         this.modals.editFaculty.overlay = document.querySelector('.edit-panel-overlay');
         this.modals.deleteConfirm.element = document.getElementById('deleteOverlay');
+    // Add Student is now a side panel, reuse panel overlay
+    this.modals.addStudent.element = document.getElementById('addStudentPanel');
+    this.modals.addStudent.overlay = document.querySelector('.panel-overlay');
+    this.modals.addStudent.closers = ['closeAddStudentPanel'];
         
         // Bind events
         this.bindEvents();
@@ -466,12 +594,17 @@
         
         // Bind overlay clicks
         if (this.modals.addFaculty.overlay) {
-          this.modals.addFaculty.overlay.addEventListener('click', () => this.close('addFaculty'));
+          this.modals.addFaculty.overlay.addEventListener('click', () => {
+            this.close('addFaculty');
+            this.close('addStudent');
+          });
         }
         
         if (this.modals.editFaculty.overlay) {
           this.modals.editFaculty.overlay.addEventListener('click', () => this.close('editFaculty'));
         }
+
+        // Student panel closers are auto-wired via closers
         
         // Bind other modal overlays
         const deleteModal = this.modals.deleteConfirm.element;
@@ -516,6 +649,11 @@
             const firstInput = modal.element.querySelector('input');
             if (firstInput) firstInput.focus();
           }, 300);
+        } else if (modalKey === 'addStudent') {
+          if(modal.overlay) modal.overlay.classList.add('show');
+          modal.element.classList.add('show');
+          document.body.style.overflow = 'hidden';
+          setTimeout(()=>{ const first = modal.element.querySelector('input'); if(first) first.focus(); }, 100);
         } else {
           modal.element.classList.add('show');
         }
@@ -541,6 +679,12 @@
           // Reset form
           const form = document.getElementById('editFacultyForm');
           if (form) form.reset();
+        } else if (modalKey === 'addStudent') {
+          if(modal.overlay) modal.overlay.classList.remove('show');
+          modal.element.classList.remove('show');
+          document.body.style.overflow = 'auto';
+          const form = document.getElementById('addStudentPanel');
+          if(form) form.reset();
         } else {
           modal.element.classList.remove('show');
         }
@@ -726,8 +870,10 @@
         console.log('No schedule data to populate - schedule value:', schedule); // Debug log
       }
       
-      // Load and populate subject assignments
-      loadProfessorSubjects(profId);
+      // Load and populate subject assignments, then snapshot initial state
+      loadProfessorSubjects(profId).then(()=>{
+        setEditInitialSnapshot();
+      });
     }
 
     function clearScheduleFields() {
@@ -770,7 +916,7 @@
 
     function loadProfessorSubjects(profId) {
       // Fetch professor's current subject assignments
-      fetch(`/admin-comsci/professor-subjects/${profId}`, {
+      return fetch(`/admin-comsci/professor-subjects/${profId}`, {
         method: 'GET',
         headers: {
           'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
@@ -793,6 +939,55 @@
       });
     }
 
+    // ---- Dirty tracking for Edit form ----
+    function getEditFormSnapshot(){
+      const form = document.getElementById('editFacultyForm');
+      if(!form) return '';
+      const snap = {
+        Name: form.querySelector('#editName')?.value || '',
+        sched: {
+          d1: form.querySelector('select[name="edit_day_1"]')?.value || '',
+          s1: form.querySelector('input[name="edit_start_time_1"]')?.value || '',
+          e1: form.querySelector('input[name="edit_end_time_1"]')?.value || '',
+          d2: form.querySelector('select[name="edit_day_2"]')?.value || '',
+          s2: form.querySelector('input[name="edit_start_time_2"]')?.value || '',
+          e2: form.querySelector('input[name="edit_end_time_2"]')?.value || '',
+          d3: form.querySelector('select[name="edit_day_3"]')?.value || '',
+          s3: form.querySelector('input[name="edit_start_time_3"]')?.value || '',
+          e3: form.querySelector('input[name="edit_end_time_3"]')?.value || '',
+        },
+        subjects: Array.from(document.querySelectorAll('#editSubjectList input[type="checkbox"]:checked')).map(cb=>cb.value).sort()
+      };
+      try{ return JSON.stringify(snap); }catch(_){ return '' }
+    }
+    function toggleEditSubmitEnabled(enabled){
+      const form = document.getElementById('editFacultyForm');
+      const btn = form?.querySelector('.panel-actions .btn-primary');
+      if(btn){ btn.disabled = !enabled; }
+    }
+    function setEditInitialSnapshot(){
+      const form = document.getElementById('editFacultyForm');
+      if(!form) return;
+      form.dataset.initialSnapshot = getEditFormSnapshot();
+      form.dataset.dirty = '0';
+      toggleEditSubmitEnabled(false);
+    }
+    function refreshEditDirty(){
+      const form = document.getElementById('editFacultyForm');
+      if(!form) return;
+      const cur = getEditFormSnapshot();
+      const dirty = (cur !== (form.dataset.initialSnapshot||''));
+      form.dataset.dirty = dirty ? '1' : '0';
+      toggleEditSubmitEnabled(dirty);
+    }
+    // Bind change listeners once
+    (function bindEditDirtyListeners(){
+      const form = document.getElementById('editFacultyForm');
+      if(!form) return;
+      form.addEventListener('input', refreshEditDirty, true);
+      form.addEventListener('change', refreshEditDirty, true);
+    })();
+
     // --- Delete from Edit Modal ---
     document.querySelector('.delete-prof-btn-modal').onclick = function() {
       ModalManager.close('editFaculty');
@@ -811,6 +1006,10 @@
     // Handle edit form submission
     document.getElementById('editFacultyForm').addEventListener('submit', function(e) {
       e.preventDefault();
+      if(this.dataset.dirty !== '1'){
+        showNotification('No changes to update', true);
+        return;
+      }
       
       const formData = new FormData(this);
       
@@ -887,6 +1086,15 @@
       // Debug log
       console.log('Schedule being sent:', scheduleInput.value);
       
+  // Anti-spam: prevent duplicate submissions while request is in-flight
+  if(this.dataset.submitting === '1') return;
+  // 5-second cooldown per click
+  if(this.dataset.cooldown === '1') return;
+  this.dataset.cooldown = '1';
+  setTimeout(()=>{ this.dataset.cooldown = '0'; }, 5000);
+  this.dataset.submitting = '1';
+  const submitBtnRef = lockSubmitButton(this);
+
       // Submit the form via fetch to handle the response
       fetch(this.action, {
         method: 'POST',
@@ -921,6 +1129,10 @@
       .catch(error => {
         console.error('Error:', error);
         showNotification('Error updating professor', true);
+      })
+      .finally(()=>{
+        this.dataset.submitting = '0';
+        unlockSubmitButton(submitBtnRef);
       });
     });
 
@@ -929,6 +1141,8 @@
       ModalManager.init();
       initRealtimeAdminComsci();
       enhanceAddProfessorForm();
+      setupAddChooserModal();
+      enhanceAddStudentPanel();
     });
 
     // Use fetch for add professor to prevent full reload (server event will update others)
@@ -944,6 +1158,10 @@
         if(form.dataset.ajaxDone) return; // avoid double
         e.preventDefault();
         const fd = new FormData(form);
+        const overlay = document.getElementById('globalLoading');
+        if(overlay){ overlay.classList.add('active'); overlay.setAttribute('aria-hidden','false'); }
+        // Allow the overlay to paint before starting the request so the spinner animates
+        requestAnimationFrame(() => {
         fetch(form.action, {method:'POST', body: fd, headers:{
             'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,
             'Accept':'application/json',
@@ -967,8 +1185,49 @@
               showNotification(msg, true);
             }
           })
-          .catch(err=>{ console.error(err); showNotification('Request failed: '+(err&&err.message?err.message:'Unexpected error'), true); });
+          .catch(err=>{ console.error(err); showNotification('Request failed: '+(err&&err.message?err.message:'Unexpected error'), true); })
+          .finally(()=>{ if(overlay){ overlay.classList.remove('active'); overlay.setAttribute('aria-hidden','true'); } });
+        });
       }, true);
+    }
+
+    function enhanceAddStudentPanel(){
+      const form = document.getElementById('addStudentPanel');
+      if(!form) return;
+      const genBtn = document.getElementById('btnGenTempPwStudentComsci');
+      const pwInput = document.getElementById('addStudentTempPasswordComsci');
+      if(genBtn && pwInput){ genBtn.addEventListener('click', ()=>{ pwInput.value = generatePassword(12); pwInput.dispatchEvent(new Event('input',{bubbles:true})); }); }
+      form.addEventListener('submit', function(e){
+        if(form.dataset.ajaxDone) return;
+        e.preventDefault();
+        const overlay = document.getElementById('globalLoading');
+        if(overlay){ overlay.classList.add('active'); overlay.setAttribute('aria-hidden','false'); }
+        requestAnimationFrame(()=>{
+          fetch(form.action,{method:'POST', body: new FormData(form), headers:{ 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content, 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest' }})
+            .then(async r=>{ try{ return await r.json(); } catch(e){ showNotification('Unexpected server response', true); throw e; } })
+            .then(data=>{ if(data.success){ showNotification('Student added successfully'); ModalManager.close('addStudent'); } else { let msg = data.message || 'Failed to add student'; if(data.errors){ try{ const all = Object.values(data.errors).flat(); if(all.length) msg = all.join(' • ');}catch(_){ }} showNotification(msg, true); } })
+            .catch(err=>{ console.error(err); showNotification('Request failed: '+(err&&err.message?err.message:'Unexpected error'), true); })
+            .finally(()=>{ if(overlay){ overlay.classList.remove('active'); overlay.setAttribute('aria-hidden','true'); } });
+        });
+      }, true);
+    }
+
+    function setupAddChooserModal(){
+      const fab = document.getElementById('addChooserBtn');
+      const modal = document.getElementById('addChooserModal');
+      if(!fab || !modal) return;
+      function toggle(force){ const open = force!==undefined?force:!modal.classList.contains('show'); modal.classList.toggle('show', open); modal.setAttribute('aria-hidden', open? 'false':'true'); }
+      fab.addEventListener('click', ()=> toggle(true));
+      modal.querySelectorAll('[data-close-chooser]').forEach(btn=> btn.addEventListener('click', ()=> toggle(false)));
+      modal.addEventListener('click', (e)=>{ if(e.target === modal) toggle(false); });
+      modal.querySelectorAll('[data-open-add]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const type = btn.getAttribute('data-open-add');
+          toggle(false);
+          if(type==='faculty') ModalManager.open('addFaculty');
+          if(type==='student') ModalManager.open('addStudent');
+        });
+      });
     }
 
     function addOrUpdateCard(p){
@@ -1031,11 +1290,21 @@
       }
     }
 
-    // Intercept delete form submit to show notice immediately without full reload
+    // Intercept delete form submit to show notice immediately without full reload (with anti-spam)
     document.addEventListener('submit', function(e){
       const form = e.target;
       if(form && form.id === 'deleteForm'){
-        e.preventDefault();
+  if(form.dataset.submitting === '1'){ e.preventDefault(); return; }
+  // 5-second cooldown per click
+  if(form.dataset.cooldown === '1'){ e.preventDefault(); return; }
+  e.preventDefault();
+  form.dataset.cooldown = '1';
+  setTimeout(()=>{ form.dataset.cooldown = '0'; }, 5000);
+  form.dataset.submitting = '1';
+  const confirmBtn = form.querySelector('.delete-confirm');
+  const cancelBtn = form.querySelector('.delete-cancel');
+  if(confirmBtn){ confirmBtn.disabled = true; confirmBtn.setAttribute('aria-busy','true'); }
+        if(cancelBtn){ cancelBtn.disabled = true; }
         fetch(form.action, {method:'POST', headers:{'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}, body: new FormData(form)})
           .then(r=> r.ok ? r.json().catch(()=>({success:true})) : Promise.reject(r))
           .then(()=>{ 
@@ -1045,9 +1314,19 @@
             if(card) card.remove();
             ModalManager.close('deleteConfirm'); showNotification('Professor deleted successfully');
           })
-          .catch(()=>{ ModalManager.close('deleteConfirm'); showNotification('Deletion failed', true); });
+          .catch(()=>{ ModalManager.close('deleteConfirm'); showNotification('Deletion failed', true); })
+          .finally(()=>{
+            form.dataset.submitting = '0';
+            if(confirmBtn){ confirmBtn.disabled = false; confirmBtn.removeAttribute('aria-busy'); }
+            if(cancelBtn){ cancelBtn.disabled = false; }
+          });
       }
     }, true);
+
+    // Apply lightweight click guards for Cancel/Open Delete in edit panel and delete cancel
+    guardRapidClicks('.panel-actions .btn-secondary', 5000);
+    guardRapidClicks('.delete-prof-btn-modal', 5000);
+    guardRapidClicks('#deleteForm .delete-cancel', 5000);
   </script>
 </body>
 </html>

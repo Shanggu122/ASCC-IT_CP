@@ -28,6 +28,13 @@ body {
     font-size: 2rem;
     color: #12372a;
 }
+/* Small italic subtitle for view-only context */
+.subtitle-view-only {
+    color: #234;
+    opacity: 0.75;
+    font-size: 0.95rem;
+    margin-top: 4px;
+}
 
 /* Search */
 .search-container {
@@ -54,6 +61,11 @@ body {
     max-width: 300px;
     min-height: 100px; /* match IT&IS card height for consistent boxes */
     cursor: pointer;
+}
+/* Make cards non-clickable on view-only pages */
+.view-only .profile-card {
+    cursor: default !important;
+    pointer-events: none;
 }
 .profile-card img {
     width: 60px;
@@ -126,6 +138,7 @@ body {
     align-items: center;
     gap: 0.5rem;
     cursor: pointer;
+    z-index: 5000; /* ensure button is above cards */
 }
 .chat-button i {
     font-size: 1.2rem;
@@ -141,7 +154,7 @@ body {
     box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
-    z-index: 2000; /* above sidebar overlay (1500) */
+    z-index: 6000; /* above cards and chat button */
     transition: right 0.3s ease;
     border-left: 3px solid #12372a;
 }

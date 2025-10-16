@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use App\Models\Notification;
 use App\Models\Professor;
 use App\Models\Subject;
@@ -15,6 +16,9 @@ use App\Events\ProfessorAdded;
 use App\Events\ProfessorDeleted;
 use App\Events\ProfessorUpdated;
 use App\Services\CalendarOverrideService;
+use App\Mail\ProfessorWelcomeMail;
+use App\Mail\StudentWelcomeMail;
+use App\Models\User;
 
 class ConsultationBookingController extends Controller
 {
@@ -337,6 +341,103 @@ class ConsultationBookingController extends Controller
             );
     }
 
+    /**
+     * Add a new student (compact flow from admin ITIS/ComSci pages).
+     * Accepts: Stud_ID (<=9 numeric), Name (<=50), Email (<=100), Dept_ID (IT/CS or 1/2), Password (min:6)
+     * Returns JSON: { success: bool, student?: object, message?: string, errors?: object }
+     */
+    public function addStudent(Request $request)
+    {
+        try {
+            $validated = $request->validate(
+                [
+                    "Stud_ID" => "required|string|max:9|unique:t_student,Stud_ID",
+                    "Name" => "required|string|max:50",
+                    "Email" => "required|email|max:100|unique:t_student,Email",
+                    "Dept_ID" => "required",
+                    "Password" => "required|string|min:6",
+                ],
+                [
+                    "Stud_ID.unique" => "Student ID already exists.",
+                    "Email.unique" => "Email is already registered to another student.",
+                ],
+            );
+
+            // Normalize Dept_ID to legacy codes used by app/tests: IT or CS
+            $dept = $validated["Dept_ID"];
+            // Accept numeric (1=ITIS -> IT, 2=ComSci -> CS) or strings
+            if (is_numeric($dept)) {
+                $dept = (int) $dept === 1 ? "IT" : ((int) $dept === 2 ? "CS" : (string) $dept);
+            } else {
+                $upper = strtoupper((string) $dept);
+                if ($upper === "1" || $upper === "ITIS") {
+                    $dept = "IT";
+                } elseif ($upper === "2" || $upper === "COMSCI" || $upper === "CS") {
+                    $dept = "CS";
+                } else {
+                    $dept = $upper;
+                }
+            }
+
+            $plainPassword = $validated["Password"];
+
+            // Create the student (t_student) using the existing User model mapping
+            $student = User::create([
+                "Stud_ID" => $validated["Stud_ID"],
+                "Name" => $validated["Name"],
+                "Dept_ID" => $dept,
+                "Email" => $validated["Email"],
+                // Match current login behavior: passwords may be plain or hashed; we'll hash for new records
+                "Password" => Hash::make($plainPassword),
+                "profile_picture" => null,
+            ]);
+
+            // Prepare minimal payload for UI
+            $payload = [
+                "Stud_ID" => $student->Stud_ID,
+                "Name" => $student->Name,
+                "Dept_ID" => $student->Dept_ID,
+                "Email" => $student->Email,
+                "profile_picture" => $student->profile_picture,
+            ];
+
+            // Send welcome email to student
+            try {
+                $loginUrl = route("login");
+                Mail::to($student->Email)->send(
+                    new StudentWelcomeMail(
+                        $student->Name,
+                        $student->Email,
+                        $plainPassword,
+                        $loginUrl,
+                    ),
+                );
+            } catch (\Throwable $e) {
+                Log::warning("Student welcome email failed", [
+                    "stud_id" => $student->Stud_ID,
+                    "err" => $e->getMessage(),
+                ]);
+            }
+
+            return response()->json(["success" => true, "student" => $payload]);
+        } catch (\Illuminate\Validation\ValidationException $ve) {
+            return response()->json(
+                [
+                    "success" => false,
+                    "message" => "Validation failed",
+                    "errors" => $ve->errors(),
+                ],
+                422,
+            );
+        } catch (\Throwable $e) {
+            Log::error("Add student failed", ["error" => $e->getMessage()]);
+            return response()->json(
+                ["success" => false, "message" => "Failed to add student"],
+                500,
+            );
+        }
+    }
+
     public function showBookingForm()
     {
         $professors = \App\Models\Professor::with("subjects")->where("Dept_ID", 1)->get();
@@ -456,25 +557,69 @@ class ConsultationBookingController extends Controller
 
             // Validate basic fields. Prof_ID field in form is ignored for update of PK.
             $validated = $request->validate([
-                "Name" => "required|string|max:255",
+                "Name" => "required|string|max:50",
                 "Schedule" => "nullable|string",
                 "subjects" => "array",
                 "subjects.*" => "integer|exists:t_subject,Subject_ID",
             ]);
 
-            $professor->Name = $validated["Name"];
-            if (array_key_exists("Schedule", $validated)) {
-                $professor->Schedule = $validated["Schedule"];
+            // Determine if anything actually changed
+            $newName = $validated["Name"];
+            $newSchedule = array_key_exists("Schedule", $validated)
+                ? $validated["Schedule"] ?? null
+                : null;
+
+            $hasAttrChange = false;
+            if ($professor->Name !== $newName) {
+                $hasAttrChange = true;
             }
-            $professor->save();
+            if (array_key_exists("Schedule", $validated)) {
+                $curSched = (string) ($professor->Schedule ?? "");
+                $newSched = (string) ($newSchedule ?? "");
+                if ($curSched !== $newSched) {
+                    $hasAttrChange = true;
+                }
+            }
 
-            // Broadcast update
-            event(new ProfessorUpdated($professor));
-
-            // Sync subject assignments
+            $hasSubjectsChange = false;
             if ($request->has("subjects")) {
+                $newSubjects = collect($validated["subjects"] ?? [])
+                    ->map(fn($v) => (int) $v)
+                    ->unique()
+                    ->sort()
+                    ->values();
+                $currentSubjects = $professor
+                    ->subjects()
+                    ->pluck("t_subject.Subject_ID")
+                    ->map(fn($v) => (int) $v)
+                    ->unique()
+                    ->sort()
+                    ->values();
+                $hasSubjectsChange = $newSubjects->toJson() !== $currentSubjects->toJson();
+            }
+
+            if (!$hasAttrChange && !$hasSubjectsChange) {
+                return response()->json([
+                    "success" => false,
+                    "message" => "No changes detected",
+                ]);
+            }
+
+            // Apply changes
+            if ($hasAttrChange) {
+                $professor->Name = $newName;
+                if (array_key_exists("Schedule", $validated)) {
+                    $professor->Schedule = $newSchedule;
+                }
+                $professor->save();
+            }
+
+            if ($hasSubjectsChange) {
                 $professor->subjects()->sync($validated["subjects"] ?? []);
             }
+
+            // Broadcast update (only if anything changed)
+            event(new ProfessorUpdated($professor));
 
             return response()->json([
                 "success" => true,
@@ -512,8 +657,8 @@ class ConsultationBookingController extends Controller
             $validated = $request->validate(
                 [
                     "Prof_ID" => "required|integer|unique:professors,Prof_ID",
-                    "Name" => "required|string|max:255",
-                    "Email" => "required|email",
+                    "Name" => "required|string|max:50",
+                    "Email" => "required|email|max:100",
                     "Dept_ID" => "required|integer",
                     "Password" => "required|string|min:6",
                     "Schedule" => "nullable|string",
@@ -540,6 +685,21 @@ class ConsultationBookingController extends Controller
 
             // Broadcast new professor
             event(new ProfessorAdded($professor));
+
+            // Send welcome email with temporary password
+            try {
+                $loginUrl = route("login.professor");
+                Mail::to($validated["Email"])->send(
+                    new ProfessorWelcomeMail(
+                        $validated["Name"],
+                        $validated["Email"],
+                        $validated["Password"], // pass plain temp password
+                        $loginUrl,
+                    ),
+                );
+            } catch (\Throwable $mailEx) {
+                Log::error("Professor welcome email failed: " . $mailEx->getMessage());
+            }
 
             if ($request->wantsJson()) {
                 return response()->json([
