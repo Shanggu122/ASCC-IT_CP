@@ -381,13 +381,23 @@
 
     <div class="chat-overlay" id="chatOverlay">
       <div class="chat-header">
-        <span>AI Chat Assistant</span>
+        <span>ASCC-IT</span>
         <button class="close-btn" onclick="toggleChat()">×</button>
       </div>
       <div class="chat-body" id="chatBody">
         <div class="message bot">Hi! How can I help you today?</div>
         <div id="chatBox"></div>
       </div>
+      <div id="quickReplies" class="quick-replies">
+        <button type="button" class="quick-reply" data-message="How do I book a consultation?">How do I book?</button>
+        <button type="button" class="quick-reply" data-message="What are the consultation statuses?">Statuses?</button>
+        <button type="button" class="quick-reply" data-message="How can I reschedule my consultation?">Reschedule</button>
+        <button type="button" class="quick-reply" data-message="Can I cancel my booking?">Cancel booking</button>
+        <button type="button" class="quick-reply" data-message="How do I contact my professor after booking?">Contact professor</button>
+      </div>
+      <button type="button" id="quickRepliesToggle" class="quick-replies-toggle" style="display:none" title="Show FAQs">
+        <i class='bx bx-help-circle'></i>
+      </button>
 
       <form id="chatForm">
         <input type="text" id="message" placeholder="Type your message" required>
@@ -800,7 +810,7 @@
           const isEndYearLbl = (chosen.effect === 'block_all') && (!isLeaveLbl) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label||'') || /end\s*year/i.test(chosen.reason_text||''));
           badge.textContent = chosen.effect === 'holiday'
             ? (chosen.reason_text || 'Holiday')
-            : (chosen.effect === 'block_all' ? (isLeaveLbl ? 'Leave' : (isEndYearLbl ? 'End Year' : 'Suspention')) : forceLabel);
+            : (chosen.effect === 'block_all' ? (isLeaveLbl ? 'Leave' : (isEndYearLbl ? 'End Year' : 'Suspension')) : forceLabel);
           btn.style.position = 'relative';
           btn.appendChild(badge);
           // Apply tint for force_mode/online-day; and for holiday we want violet tile even if disabled.
@@ -816,7 +826,7 @@
             btn.setAttribute('disabled','disabled');
             btn.setAttribute('aria-disabled','true');
             btn.style.pointerEvents='none';
-            // For Suspention (block_all): dark-grey tile; for Holiday: violet tile
+            // For Suspension (block_all): dark-grey tile; for Holiday: violet tile
             if (chosen.effect === 'block_all') {
               const isLeave = (chosen.reason_key === 'prof_leave' || /leave/i.test(chosen.label||''));
               const isEndYear = (!isLeave) && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label||'') || /end\s*year/i.test(chosen.reason_text||''));
@@ -1532,73 +1542,116 @@ window.__preloadedProfOverrides = @json($preloadedOverrides ?? []);
   input.addEventListener('input', filter);
 })();
 
-// === Chatbot ===
+// === Chatbot (dashboard parity) ===
 function toggleChat() {
-    document.getElementById("chatOverlay").classList.toggle("open");
+  const overlay = document.getElementById('chatOverlay');
+  overlay.classList.toggle('open');
+  const isOpen = overlay.classList.contains('open');
+  document.body.classList.toggle('chat-open', isOpen);
+  // If the bell exists on this page, dim it while chat is open
+  const bell = document.getElementById('mobileNotificationBell');
+  if (bell) {
+    if (isOpen) {
+      bell.style.zIndex = '0';
+      bell.style.pointerEvents = 'none';
+      bell.style.opacity = '0';
+    } else {
+      bell.style.zIndex = '';
+      bell.style.pointerEvents = '';
+      bell.style.opacity = '';
+    }
+  }
 }
 
-const csrfToken = document
-    .querySelector('meta[name="csrf-token"]')
-    .getAttribute("content");
-const chatForm = document.getElementById("chatForm");
-const input = document.getElementById("message");
-if(input){
-  input.setAttribute('maxlength','250');
-  input.setAttribute('autocomplete','off');
-  input.setAttribute('spellcheck','false');
+const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+const chatForm = document.getElementById('chatForm');
+const input = document.getElementById('message');
+if (input) {
+  input.setAttribute('maxlength', '250');
+  input.setAttribute('autocomplete', 'off');
+  input.setAttribute('spellcheck', 'false');
 }
-const chatBody = document.getElementById("chatBody");
+const chatBody = document.getElementById('chatBody');
+const quickReplies = document.getElementById('quickReplies');
+const quickRepliesToggle = document.getElementById('quickRepliesToggle');
 
-function sanitize(raw){
-  if(!raw) return '';
+function sendQuick(text) {
+  if (!text) return;
+  input.value = text;
+  chatForm.dispatchEvent(new Event('submit'));
+}
+
+quickReplies?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.quick-reply');
+  if (btn) {
+    sendQuick(btn.dataset.message);
+  }
+});
+
+quickRepliesToggle?.addEventListener('click', () => {
+  if (quickReplies) {
+    quickReplies.style.display = 'flex';
+    quickRepliesToggle.style.display = 'none';
+  }
+});
+
+function sanitize(raw) {
+  if (!raw) return '';
   return raw
-    .replace(/\/*.*?\*\//g,'')
-    .replace(/--+/g,' ')
-    .replace(/[;`'"<>]/g,' ')
-    .replace(/\s+/g,' ')
+    .replace(/\/*.*?\*\//g, '')
+    .replace(/--+/g, ' ')
+    .replace(/[;`'"<>]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim()
-    .slice(0,250);
+    .slice(0, 250);
 }
 
-chatForm.addEventListener("submit", async function (e) {
+if (chatForm)
+  chatForm.addEventListener('submit', async function (e) {
     e.preventDefault();
     const text = sanitize(input.value);
     if (!text) return;
 
-    const um = document.createElement("div");
-    um.classList.add("message", "user");
+    // hide quick replies on first real interaction
+    if (quickReplies && quickReplies.style.display !== 'none') {
+      quickReplies.style.display = 'none';
+      if (quickRepliesToggle) quickRepliesToggle.style.display = 'flex';
+    }
+
+    const um = document.createElement('div');
+    um.classList.add('message', 'user');
     um.innerText = text;
     chatBody.appendChild(um);
     chatBody.scrollTop = chatBody.scrollHeight;
-    input.value = "";
+    input.value = '';
 
-    const res = await fetch("/chat", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            "X-CSRF-TOKEN": csrfToken,
-        },
-        body: JSON.stringify({ message: text }),
+    const res = await fetch('/chat', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrfToken,
+      },
+      body: JSON.stringify({ message: text }),
     });
 
     if (!res.ok) {
-        const err = await res.json();
-        const bm = document.createElement("div");
-        bm.classList.add("message", "bot");
-        bm.innerText = err.message || "Server error.";
-        chatBody.appendChild(bm);
-        return;
+      const err = await res.json();
+      const bm = document.createElement('div');
+      bm.classList.add('message', 'bot');
+      bm.innerText = err.message || 'Server error.';
+      chatBody.appendChild(bm);
+      return;
     }
 
     const { reply } = await res.json();
-    const bm = document.createElement("div");
-    bm.classList.add("message", "bot");
+    const bm = document.createElement('div');
+    bm.classList.add('message', 'bot');
     bm.innerText = reply;
     chatBody.appendChild(bm);
     chatBody.scrollTop = chatBody.scrollHeight;
-});
+  });
   </script>
 
   <!-- Notification Div -->
@@ -1665,7 +1718,7 @@ chatForm.addEventListener("submit", async function (e) {
       div.className='profile-card';
       div.setAttribute('onclick','openModal(this)');
       div.dataset.name = data.Name;
-  const imgPath = data.profile_photo_url || (data.profile_picture ? ('{{ asset('storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}');
+  const imgPath = data.profile_photo_url || (data.profile_picture ? ('{{ url('/storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}');
       div.dataset.img = imgPath;
       div.setAttribute('data-prof-id', data.Prof_ID);
       div.dataset.schedule = data.Schedule || 'No schedule set';
@@ -1680,7 +1733,7 @@ chatForm.addEventListener("submit", async function (e) {
       if(card){
         card.dataset.name = data.Name;
         card.dataset.schedule = data.Schedule || 'No schedule set';
-  const imgPath = data.profile_photo_url || (data.profile_picture ? ('{{ asset('storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}');
+  const imgPath = data.profile_photo_url || (data.profile_picture ? ('{{ url('/storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}');
         card.dataset.img = imgPath;
         card.querySelector('.profile-name').textContent = data.Name;
         const imgEl = card.querySelector('img'); if(imgEl) imgEl.src = imgPath;

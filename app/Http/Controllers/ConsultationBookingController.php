@@ -363,19 +363,19 @@ class ConsultationBookingController extends Controller
                 ],
             );
 
-            // Normalize Dept_ID to legacy codes used by app/tests: IT or CS
-            $dept = $validated["Dept_ID"];
-            // Accept numeric (1=ITIS -> IT, 2=ComSci -> CS) or strings
-            if (is_numeric($dept)) {
-                $dept = (int) $dept === 1 ? "IT" : ((int) $dept === 2 ? "CS" : (string) $dept);
+            // Normalize Dept_ID to numeric codes used by DB: 1 (IT/ITIS), 2 (CS/ComSci)
+            $deptRaw = $validated["Dept_ID"];
+            if (is_numeric($deptRaw)) {
+                $dept = (int) $deptRaw;
             } else {
-                $upper = strtoupper((string) $dept);
-                if ($upper === "1" || $upper === "ITIS") {
-                    $dept = "IT";
-                } elseif ($upper === "2" || $upper === "COMSCI" || $upper === "CS") {
-                    $dept = "CS";
+                $upper = strtoupper((string) $deptRaw);
+                if ($upper === "IT" || $upper === "ITIS" || $upper === "1") {
+                    $dept = 1;
+                } elseif ($upper === "CS" || $upper === "COMSCI" || $upper === "2") {
+                    $dept = 2;
                 } else {
-                    $dept = $upper;
+                    // Fallback: try integer cast; default to 1 (IT) if invalid
+                    $dept = is_numeric($deptRaw) ? (int) $deptRaw : 1;
                 }
             }
 
@@ -396,7 +396,7 @@ class ConsultationBookingController extends Controller
             $payload = [
                 "Stud_ID" => $student->Stud_ID,
                 "Name" => $student->Name,
-                "Dept_ID" => $student->Dept_ID,
+                "Dept_ID" => (int) $student->Dept_ID,
                 "Email" => $student->Email,
                 "profile_picture" => $student->profile_picture,
             ];

@@ -61,7 +61,7 @@ class NotificationController extends Controller
                 if ($reasonTxt === "") {
                     $reasonTxt = "administrative reasons";
                 }
-                $title = "Suspention of Class";
+                $title = "Suspension of Class";
                 $message = "No classes {$rangeText} due to {$reasonTxt}.";
                 // Defensive: skip any that read as End Year
                 if (preg_match("/end\s*year/i", $reasonTxt)) {
@@ -157,7 +157,7 @@ class NotificationController extends Controller
                             "user_id" => $userId,
                             "booking_id" => null,
                             "type" => "suspention_day",
-                            "title" => "Suspention of Class",
+                            "title" => "Suspension of Class",
                             "message" => $msg,
                             "is_read" => false,
                             "created_at" => now(),
@@ -263,7 +263,7 @@ class NotificationController extends Controller
                 if ($reasonTxt === "") {
                     $reasonTxt = "administrative reasons";
                 }
-                $title = "Suspention of Class";
+                $title = "Suspension of Class";
                 $message = "No classes {$rangeText} due to {$reasonTxt}.";
                 if (preg_match("/end\s*year/i", $reasonTxt)) {
                     continue;
@@ -358,7 +358,7 @@ class NotificationController extends Controller
                             "user_id" => $professorId,
                             "booking_id" => null,
                             "type" => "suspention_day",
-                            "title" => "Suspention of Class",
+                            "title" => "Suspension of Class",
                             "message" => $msg,
                             "is_read" => false,
                             "created_at" => now(),

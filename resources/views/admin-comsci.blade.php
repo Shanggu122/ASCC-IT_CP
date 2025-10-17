@@ -10,6 +10,7 @@
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/admin-navbar.css') }}">
   <link rel="stylesheet" href="{{ asset('css/admin-comsci.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/confirm-modal.css') }}">
 </head>
 <body>
   @include('components.navbar-admin')
@@ -72,7 +73,7 @@
   <div class="panel-overlay"></div>
 
   <!-- Add Faculty Side Panel -->
-  <form id="addFacultyPanel" class="add-faculty-panel" method="POST" action="{{ route('admin.comsci.professor.add') }}">
+  <form id="addFacultyPanel" class="add-faculty-panel" method="POST" action="{{ route('admin.comsci.professor.add') }}" autocomplete="off">
     @csrf
     <div class="panel-header">
       <h2>Add Faculty Member</h2>
@@ -84,7 +85,8 @@
       <div class="left-column">
         <div class="input-group">
           <label class="input-label">Faculty ID</label>
-          <input type="text" name="Prof_ID" placeholder="Enter faculty ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)">
+          <input type="text" id="addProfIdComsci" name="Prof_ID_display" placeholder="Enter faculty ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-autocomplete="none">
+          <input type="hidden" name="Prof_ID" id="hiddenAddProfIdComsci" value="">
         </div>
         <div class="input-group">
           <label class="input-label">Full Name</label>
@@ -276,7 +278,7 @@
 
   <!-- Edit Faculty Panel -->
   <div id="editFacultyPanel" class="edit-faculty-panel">
-    <form id="editFacultyForm" method="POST" action="">
+  <form id="editFacultyForm" method="POST" action="" autocomplete="off">
       @csrf
       <div class="panel-header">
         <h2>Edit Faculty Member</h2>
@@ -288,7 +290,7 @@
         <div class="left-column">
           <div class="input-group">
             <label class="input-label">Faculty ID</label>
-            <input type="text" name="Prof_ID" id="editProfId" placeholder="Enter faculty ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)">
+            <input type="text" name="Prof_ID" id="editProfId" placeholder="Enter faculty ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-autocomplete="none">
           </div>
           <div class="input-group">
             <label class="input-label">Full Name</label>
@@ -1120,6 +1122,9 @@
             card.dataset.name = newName;
             if(card.querySelector('.profile-name')) card.querySelector('.profile-name').textContent = newName;
             // Schedule updated via event; keep local dataset for instant UX
+            const schedHidden = this.querySelector('input[name="Schedule"]');
+            const newSched = schedHidden ? schedHidden.value : '';
+            card.setAttribute('data-sched', newSched && newSched.trim() !== '' ? newSched : 'No schedule set');
           }
           ModalManager.close('editFaculty');
         } else {
@@ -1143,6 +1148,18 @@
       enhanceAddProfessorForm();
       setupAddChooserModal();
       enhanceAddStudentPanel();
+      // Prevent browser history dropdown on Faculty ID and keep hidden field in sync (COMSCI)
+      try{
+        const addDisp = document.getElementById('addProfIdComsci');
+        const addHid  = document.getElementById('hiddenAddProfIdComsci');
+        if(addDisp && addHid){
+          addDisp.setAttribute('autocomplete','one-time-code');
+          addDisp.addEventListener('focus', ()=>{ addDisp.readOnly = true; setTimeout(()=>{ addDisp.readOnly = false; }, 80); });
+          addDisp.addEventListener('input', ()=>{ addHid.value = (addDisp.value||'').replace(/\D/g,'').slice(0,9); });
+        }
+        const editDisp = document.getElementById('editProfId');
+        if(editDisp){ editDisp.setAttribute('autocomplete','one-time-code'); editDisp.addEventListener('focus', ()=>{ editDisp.readOnly = true; setTimeout(()=>{ editDisp.readOnly = false; }, 80); }); }
+      }catch(_){ }
     });
 
     // Use fetch for add professor to prevent full reload (server event will update others)
@@ -1157,6 +1174,45 @@
       form.addEventListener('submit', function(e){
         if(form.dataset.ajaxDone) return; // avoid double
         e.preventDefault();
+        // Ensure hidden Prof_ID is synced from display before sending
+        try{
+          const disp = document.getElementById('addProfIdComsci');
+          const hid = document.getElementById('hiddenAddProfIdComsci');
+          if(disp && hid){ hid.value = (disp.value||'').replace(/\D/g,'').slice(0,9); }
+        }catch(_){ }
+        // Build Schedule from day/time inputs (Schedule 1-3) before sending
+        try {
+          const day1 = form.querySelector('[name="day_1"]').value;
+          const st1 = form.querySelector('[name="start_time_1"]').value;
+          const en1 = form.querySelector('[name="end_time_1"]').value;
+          const day2 = form.querySelector('[name="day_2"]').value;
+          const st2 = form.querySelector('[name="start_time_2"]').value;
+          const en2 = form.querySelector('[name="end_time_2"]').value;
+          const day3 = form.querySelector('[name="day_3"]').value;
+          const st3 = form.querySelector('[name="start_time_3"]').value;
+          const en3 = form.querySelector('[name="end_time_3"]').value;
+
+          const rows = [
+            {day: day1, start: st1, end: en1},
+            {day: day2, start: st2, end: en2},
+            {day: day3, start: st3, end: en3}
+          ];
+          const toMinutes = (t)=>{ if(!t) return 0; const [h,m] = t.split(':'); return parseInt(h||'0')*60 + parseInt(m||'0'); };
+          const fmt12 = (t)=>{ const [h,m] = (t||'0:00').split(':'); const hn = parseInt(h||'0'); const ampm = hn>=12? 'PM':'AM'; const dh = hn>12? hn-12 : (hn===0?12:hn); return `${dh}:${m} ${ampm}`; };
+          const out = [];
+          for(const r of rows){
+            if(r.day && r.start && r.end){
+              if(toMinutes(r.end) <= toMinutes(r.start)){
+                showNotification(`End time must be after start time for ${r.day}`, true);
+                return; // abort submit
+              }
+              out.push(`${r.day}: ${fmt12(r.start)}-${fmt12(r.end)}`);
+            }
+          }
+          let schedInput = form.querySelector('input[name="Schedule"][type="hidden"]');
+          if(!schedInput){ schedInput = document.createElement('input'); schedInput.type = 'hidden'; schedInput.name = 'Schedule'; form.appendChild(schedInput); }
+          schedInput.value = out.length ? out.join('\n') : '';
+        } catch(_) { /* ignore build errors; server will validate */ }
         const fd = new FormData(form);
         const overlay = document.getElementById('globalLoading');
         if(overlay){ overlay.classList.add('active'); overlay.setAttribute('aria-hidden','false'); }
@@ -1197,18 +1253,54 @@
       const genBtn = document.getElementById('btnGenTempPwStudentComsci');
       const pwInput = document.getElementById('addStudentTempPasswordComsci');
       if(genBtn && pwInput){ genBtn.addEventListener('click', ()=>{ pwInput.value = generatePassword(12); pwInput.dispatchEvent(new Event('input',{bubbles:true})); }); }
+      // Intercept Cancel and Close to confirm when fields have values
+      const cancelBtn = form.querySelector('.panel-actions .btn-secondary');
+      const closeBtn = document.getElementById('closeAddStudentPanel');
+      const hasEdits = ()=>{
+        const id = (form.querySelector('input[name="Stud_ID"]')?.value||'').trim();
+        const name = (form.querySelector('input[name="Name"]')?.value||'').trim();
+        const email = (form.querySelector('input[name="Email"]')?.value||'').trim();
+        const pwd = (form.querySelector('input[name="Password"]')?.value||'').trim();
+        return !!(id || name || email || pwd);
+      };
+      async function onCancelAttempt(e){
+        if(e){ e.preventDefault(); e.stopPropagation(); }
+        if(!hasEdits()){ ModalManager.close('addStudent'); return; }
+        const ok = await adminConfirm('Confirm cancel', 'Are you sure you want to cancel adding a student? Your changes will not be saved.', 'Yes, cancel', 'No, keep editing');
+        if(ok) ModalManager.close('addStudent');
+      }
+      if(cancelBtn){
+        // Override inline onclick to route through our confirm
+        cancelBtn.onclick = onCancelAttempt;
+      }
+      if(closeBtn){
+        // Capture before ModalManager listener to prevent immediate close
+        closeBtn.addEventListener('click', onCancelAttempt, true);
+      }
       form.addEventListener('submit', function(e){
         if(form.dataset.ajaxDone) return;
         e.preventDefault();
-        const overlay = document.getElementById('globalLoading');
-        if(overlay){ overlay.classList.add('active'); overlay.setAttribute('aria-hidden','false'); }
-        requestAnimationFrame(()=>{
-          fetch(form.action,{method:'POST', body: new FormData(form), headers:{ 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content, 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest' }})
-            .then(async r=>{ try{ return await r.json(); } catch(e){ showNotification('Unexpected server response', true); throw e; } })
-            .then(data=>{ if(data.success){ showNotification('Student added successfully'); ModalManager.close('addStudent'); } else { let msg = data.message || 'Failed to add student'; if(data.errors){ try{ const all = Object.values(data.errors).flat(); if(all.length) msg = all.join(' • ');}catch(_){ }} showNotification(msg, true); } })
-            .catch(err=>{ console.error(err); showNotification('Request failed: '+(err&&err.message?err.message:'Unexpected error'), true); })
-            .finally(()=>{ if(overlay){ overlay.classList.remove('active'); overlay.setAttribute('aria-hidden','true'); } });
-        });
+        (async ()=>{
+          const studId = (form.querySelector('input[name="Stud_ID"]')?.value||'').trim();
+          const name = (form.querySelector('input[name="Name"]')?.value||'').trim();
+          const email = (form.querySelector('input[name="Email"]')?.value||'').trim();
+          const msg = `<div>Please confirm the student details:</div><ul style="margin:10px 0 0 18px; padding:0; list-style:disc;">
+            <li><strong>ID:</strong> ${studId || '<em>—</em>'}</li>
+            <li><strong>Name:</strong> ${name || '<em>—</em>'}</li>
+            <li><strong>Email:</strong> ${email || '<em>—</em>'}</li>
+          </ul>`;
+          const ok = await adminConfirm('Add Student', msg, 'Yes, add student', 'Keep editing');
+          if(!ok) return;
+          const overlay = document.getElementById('globalLoading');
+          if(overlay){ overlay.classList.add('active'); overlay.setAttribute('aria-hidden','false'); }
+          requestAnimationFrame(()=>{
+            fetch(form.action,{method:'POST', body: new FormData(form), headers:{ 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content, 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest' }})
+              .then(async r=>{ try{ return await r.json(); } catch(e){ showNotification('Unexpected server response', true); throw e; } })
+              .then(data=>{ if(data.success){ showNotification('Student added successfully'); ModalManager.close('addStudent'); } else { let msg = data.message || 'Failed to add student'; if(data.errors){ try{ const all = Object.values(data.errors).flat(); if(all.length) msg = all.join(' • ');}catch(_){ }} showNotification(msg, true); } })
+              .catch(err=>{ console.error(err); showNotification('Request failed: '+(err&&err.message?err.message:'Unexpected error'), true); })
+              .finally(()=>{ if(overlay){ overlay.classList.remove('active'); overlay.setAttribute('aria-hidden','true'); } });
+          });
+        })();
       }, true);
     }
 
@@ -1327,6 +1419,30 @@
     guardRapidClicks('.panel-actions .btn-secondary', 5000);
     guardRapidClicks('.delete-prof-btn-modal', 5000);
     guardRapidClicks('#deleteForm .delete-cancel', 5000);
+
+    // Reusable green-themed confirm modal
+    function adminConfirm(title, html, okText='Confirm', cancelText='Cancel'){
+      return new Promise(resolve=>{
+        const overlay=document.createElement('div'); overlay.className='confirm-overlay';
+        const dlg=document.createElement('div'); dlg.className='confirm-modal'; dlg.setAttribute('role','dialog'); dlg.setAttribute('aria-modal','true');
+        dlg.innerHTML = `
+          <div class="confirm-header"><i class='bx bx-help-circle'></i><div>${title||'Please confirm'}</div></div>
+          <div class="confirm-body">${html||'Are you sure?'}</div>
+          <div class="confirm-actions">
+            <button type="button" class="btn-cancel-red" id="admCancelBtn">${cancelText}</button>
+            <button type="button" class="btn-confirm-green" id="admOkBtn">${okText}</button>
+          </div>`;
+        overlay.appendChild(dlg); document.body.appendChild(overlay);
+        requestAnimationFrame(()=> overlay.classList.add('active'));
+        const okBtn = dlg.querySelector('#admOkBtn');
+        const cancelBtn = dlg.querySelector('#admCancelBtn');
+        function cleanup(){ overlay.classList.remove('active'); setTimeout(()=> overlay.remove(), 120); }
+        okBtn.addEventListener('click', ()=>{ cleanup(); resolve(true); });
+        cancelBtn.addEventListener('click', ()=>{ cleanup(); resolve(false); });
+        overlay.addEventListener('click', (e)=>{ if(!dlg.contains(e.target)){ cleanup(); resolve(false); }});
+        document.addEventListener('keydown', function esc(e){ if(e.key==='Escape'){ e.preventDefault(); cleanup(); resolve(false); document.removeEventListener('keydown', esc);} });
+      });
+    }
   </script>
 </body>
 </html>

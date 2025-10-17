@@ -49,7 +49,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspention";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspension";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -113,7 +113,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspention";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspension";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -174,7 +174,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspention";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspension";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -230,7 +230,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = "Suspention";
+                    $label = "Suspension";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -601,11 +601,11 @@ class AdminCalendarOverrideController extends Controller
             }
         }
 
-        // After processing, if this is a Suspention (block_all), notify professors and affected students
+        // After processing, if this is a Suspension (block_all), notify professors and affected students
         // IMPORTANT: Do NOT notify professors/students for End Year ranges
         try {
             if (($data["effect"] ?? null) === "block_all") {
-                $title = "Suspention of Class";
+                $title = "Suspension of Class";
 
                 $startHuman = Carbon::parse($startDate)->format("M d, Y");
                 $endHuman = Carbon::parse($endDate)->format("M d, Y");
