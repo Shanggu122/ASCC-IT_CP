@@ -76,7 +76,7 @@ class CardItis extends Controller
                         if ($ov->effect === "holiday") {
                             $label = $ov->reason_text ?: "Holiday";
                         } elseif ($ov->effect === "block_all") {
-                            $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspention";
+                            $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspension";
                         } elseif ($ov->effect === "force_mode") {
                             $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                         }

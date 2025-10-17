@@ -51,13 +51,23 @@
   <!-- Chat Overlay Panel -->
   <div class="chat-overlay" id="chatOverlay">
     <div class="chat-header">
-      <span>AI Chat Assistant</span>
+      <span>ASCC-IT</span>
       <button class="close-btn" onclick="toggleChat()">×</button>
     </div>
     <div class="chat-body" id="chatBody">
       <div class="message bot">Hi! How can I help you today?</div> 
       <div id="chatBox"></div>
     </div>
+    <div id="quickReplies" class="quick-replies">
+      <button type="button" class="quick-reply" data-message="How do I book a consultation?">How do I book?</button>
+      <button type="button" class="quick-reply" data-message="What are the consultation statuses?">Statuses?</button>
+      <button type="button" class="quick-reply" data-message="How can I reschedule my consultation?">Reschedule</button>
+      <button type="button" class="quick-reply" data-message="Can I cancel my booking?">Cancel booking</button>
+      <button type="button" class="quick-reply" data-message="How do I contact my professor after booking?">Contact professor</button>
+    </div>
+    <button type="button" id="quickRepliesToggle" class="quick-replies-toggle" style="display:none" title="Show FAQs">
+      <i class='bx bx-help-circle'></i>
+    </button>
     
     <form id="chatForm">
       <input type="text" id="message" placeholder="Type your message" required>
@@ -67,6 +77,15 @@
 
   <script src="{{ asset('js/itis.js') }}"></script>
   <script>
+    function toggleChat(){
+      const overlay = document.getElementById('chatOverlay');
+      if(!overlay) return;
+      overlay.classList.toggle('open');
+      const isOpen = overlay.classList.contains('open');
+      document.body.classList.toggle('chat-open', isOpen);
+      const bell = document.getElementById('mobileNotificationBell');
+      if(bell){ bell.style.zIndex = isOpen ? '0' : ''; bell.style.pointerEvents = isOpen ? 'none' : ''; bell.style.opacity = isOpen ? '0' : ''; }
+    }
     function sanitize(raw){
       if(!raw) return '';
       return raw
@@ -75,7 +94,7 @@
         .replace(/[;`'"<>]/g,' ')
         .replace(/\s+/g,' ')
         .trim()
-        .slice(0,100);
+        .slice(0,250);
     }
 
     function filterColleagues() {
@@ -146,18 +165,55 @@
       }
     }
 
-    // Chat form sanitization on submit
+    // Chatbot (dashboard parity): quick replies + fetch backend
     document.addEventListener('DOMContentLoaded', function(){
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
       const form = document.getElementById('chatForm');
       const msg = document.getElementById('message');
-      if(form && msg){
+      const chatBody = document.getElementById('chatBody');
+      const quickReplies = document.getElementById('quickReplies');
+      const quickRepliesToggle = document.getElementById('quickRepliesToggle');
+
+      if(msg){
         msg.setAttribute('maxlength','250');
         msg.setAttribute('autocomplete','off');
         msg.setAttribute('spellcheck','false');
-        form.addEventListener('submit', function(e){
-          const cleaned = sanitize(msg.value);
-          if(!cleaned){ e.preventDefault(); msg.value=''; return; }
-          msg.value = cleaned;
+      }
+
+      function sendQuick(text){ if(!text||!msg||!form) return; msg.value = text; form.dispatchEvent(new Event('submit')); }
+      quickReplies?.addEventListener('click', (e)=>{ const btn=e.target.closest('.quick-reply'); if(btn){ sendQuick(btn.dataset.message); } });
+      quickRepliesToggle?.addEventListener('click', ()=>{ if(quickReplies){ quickReplies.style.display='flex'; quickRepliesToggle.style.display='none'; } });
+
+      if(form && msg && chatBody){
+        form.addEventListener('submit', async function(e){
+          e.preventDefault();
+          const text = sanitize(msg.value);
+          if(!text) return;
+
+          // hide quick replies on first interaction
+          if(quickReplies && quickReplies.style.display !== 'none'){
+            quickReplies.style.display = 'none';
+            if(quickRepliesToggle) quickRepliesToggle.style.display = 'flex';
+          }
+
+          const um = document.createElement('div');
+          um.classList.add('message','user');
+          um.innerText = text;
+          chatBody.appendChild(um);
+          chatBody.scrollTop = chatBody.scrollHeight;
+          msg.value = '';
+
+          try{
+            const res = await fetch('/chat', {
+              method:'POST', credentials: 'same-origin',
+              headers:{ 'Accept':'application/json','Content-Type':'application/json','X-CSRF-TOKEN':csrfToken },
+              body: JSON.stringify({ message: text })
+            });
+            let reply = 'Server error.';
+            if(res.ok){ const data = await res.json(); reply = data.reply || reply; }
+            else { try{ const err = await res.json(); reply = err.message || reply; }catch(_){} }
+            const bm = document.createElement('div'); bm.classList.add('message','bot'); bm.innerText = reply; chatBody.appendChild(bm); chatBody.scrollTop = chatBody.scrollHeight;
+          }catch(_){ const bm=document.createElement('div'); bm.classList.add('message','bot'); bm.innerText='Network error.'; chatBody.appendChild(bm); }
         });
       }
     });

@@ -138,7 +138,8 @@ body {
     align-items: center;
     gap: 0.5rem;
     cursor: pointer;
-    z-index: 5000; /* ensure button is above cards */
+    /* Place below navbar/sidebar overlay on mobile (match student dashboard) */
+    z-index: 800;
 }
 .chat-button i {
     font-size: 1.2rem;
@@ -154,7 +155,8 @@ body {
     box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
-    z-index: 6000; /* above cards and chat button */
+    /* Render behind sidebar (z-index:1000) and its overlay (z-index:900) */
+    z-index: 800;
     transition: right 0.3s ease;
     border-left: 3px solid #12372a;
 }
@@ -186,6 +188,49 @@ body {
     flex-direction: column;
     padding: 1rem;
     overflow-y: auto;
+}
+.quick-replies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+    border-top: 1px solid #ddd;
+    background: #fff;
+}
+.quick-reply {
+    background: #12372a;
+    color: #fff;
+    border: none;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    line-height: 1.2;
+    transition: background 0.25s;
+}
+.quick-reply:hover {
+    background: #0e4e23;
+}
+.quick-replies-toggle {
+    position: absolute;
+    bottom: 85px;
+    right: 14px;
+    background: #12372a;
+    color: #fff;
+    border: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    transition: background 0.25s;
+    font-size: 20px;
+}
+.quick-replies-toggle:hover {
+    background: #0e4e23;
 }
 .chat-overlay .message.bot {
     margin: 0.5rem 0;

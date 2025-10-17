@@ -532,7 +532,7 @@
                   <div class="legend-item"><span class="legend-swatch swatch-approved"></span>Approved <i class='bx bx-check-circle legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-completed"></span>Completed <i class='bx bx-badge-check legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-rescheduled"></span>Rescheduled <i class='bx bx-calendar-edit legend-icon' aria-hidden="true"></i></div>
-                  <div class="legend-item"><span class="legend-swatch swatch-suspended"></span>Suspention of class <i class='bx bx-block legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-suspended"></span>Suspension of class <i class='bx bx-block legend-icon' aria-hidden="true"></i></div>
                 </div>
               </div>
               <div class="legend-section">
@@ -809,7 +809,7 @@
                 const labelTxt = (chosen.effect === 'holiday')
                   ? (chosen.reason_text || 'Holiday')
                   : (chosen.effect === 'block_all'
-                    ? (isEndYear ? 'End Year' : 'Suspention')
+                    ? (isEndYear ? 'End Year' : 'Suspension')
                     : forceLabel);
                 badge.title = chosen.label || chosen.reason_text || labelTxt;
                 badge.textContent = labelTxt;
@@ -1444,7 +1444,7 @@
           <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">
             <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="online_day"> Online Day</label>
             <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="force_online"> Forced Online</label>
-            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="block_all"> Suspention</label>
+            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="block_all"> Suspension</label>
             <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="holiday"> Holiday</label>
             <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="end_year"> End of School Year</label>
           </div>
@@ -1914,7 +1914,7 @@
       }
 
       // Themed confirmation before applying
-  const labelMap = { online_day: 'Online Day', force_online: 'Forced Online', block_all: 'Suspention', holiday: 'Holiday', end_year: 'End of School Year' };
+  const labelMap = { online_day: 'Online Day', force_online: 'Forced Online', block_all: 'Suspension', holiday: 'Holiday', end_year: 'End of School Year' };
       const humanLabel = labelMap[sel] || 'Change';
       const proceed = await themedConfirm(`Apply ${humanLabel}`, sel === 'end_year' ?
         `Disable all classes from <strong>${dateLabel}</strong> to <strong>${endLabel}</strong>?` :
@@ -1990,7 +1990,7 @@
             const text = item.effect === 'holiday'
             ? (item.reason_text || 'Holiday')
             : (item.effect === 'block_all'
-              ? (item.reason_key === 'end_year' ? 'End Year' : 'Suspention')
+              ? (item.reason_key === 'end_year' ? 'End Year' : 'Suspension')
               : (item.reason_key === 'online_day' ? 'Online Day' : 'Forced Online'));
           badge.textContent = text;
           badge.title = text;
@@ -2325,7 +2325,7 @@
                 const forceLabel2 = isOnlineDay ? 'Online Day' : 'Forced Online';
                 const labelTxt2 = (chosen.effect === 'holiday')
                   ? (chosen.reason_text || 'Holiday')
-                  : (chosen.effect === 'block_all' ? (isEndYear ? 'End Year' : 'Suspention') : forceLabel2);
+                  : (chosen.effect === 'block_all' ? (isEndYear ? 'End Year' : 'Suspension') : forceLabel2);
                 badge.title = chosen.label || chosen.reason_text || labelTxt2;
                 badge.textContent = labelTxt2;
                 cell.style.position = 'relative';

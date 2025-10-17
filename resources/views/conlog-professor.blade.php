@@ -374,13 +374,23 @@
     <!-- Chat Overlay Panel -->
     <div class="chat-overlay" id="chatOverlay">
       <div class="chat-header">
-        <span>AI Chat Assistant</span>
+        <span>ASCC-IT</span>
         <button class="close-btn" onclick="toggleChat()">×</button>
       </div>
       <div class="chat-body" id="chatBody">
         <div class="message bot">Hi! How can I help you today?</div>
         <div id="chatBox"></div>
       </div>
+      <div id="quickReplies" class="quick-replies">
+        <button type="button" class="quick-reply" data-message="How do I book a consultation?">How do I book?</button>
+        <button type="button" class="quick-reply" data-message="What are the consultation statuses?">Statuses?</button>
+        <button type="button" class="quick-reply" data-message="How can I reschedule my consultation?">Reschedule</button>
+        <button type="button" class="quick-reply" data-message="Can I cancel my booking?">Cancel booking</button>
+        <button type="button" class="quick-reply" data-message="How do I contact my professor after booking?">Contact professor</button>
+      </div>
+      <button type="button" id="quickRepliesToggle" class="quick-replies-toggle" style="display:none" title="Show FAQs">
+        <i class='bx bx-help-circle'></i>
+      </button>
       <form id="chatForm">
         <input type="text" id="message" placeholder="Type your message" required
                autocomplete="off" spellcheck="false" maxlength="250"
@@ -1046,22 +1056,53 @@ function closeProfessorModal() {
     (function(){
       const chatForm = document.getElementById('chatForm');
       const chatInput = document.getElementById('message');
+      const chatBody = document.getElementById('chatBody');
+      const quickReplies = document.getElementById('quickReplies');
+      const quickRepliesToggle = document.getElementById('quickRepliesToggle');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+      
+      // toggleChat parity (also dim mobile bell if present)
+      window.toggleChat = function(){
+        const overlay = document.getElementById('chatOverlay');
+        if(!overlay) return;
+        overlay.classList.toggle('open');
+        const isOpen = overlay.classList.contains('open');
+        document.body.classList.toggle('chat-open', isOpen);
+        const bell = document.getElementById('mobileNotificationBell');
+        if(bell){ bell.style.zIndex = isOpen ? '0' : ''; bell.style.pointerEvents = isOpen ? 'none' : ''; bell.style.opacity = isOpen ? '0' : ''; }
+      }
+
       if(!chatForm || !chatInput) return;
       chatInput.addEventListener('input', () => {
         const raw = chatInput.value;
         const cleaned = sanitize(raw);
         if(cleaned !== raw) chatInput.value = cleaned;
       });
-      chatForm.addEventListener('submit', (e) => {
+      function sendQuick(text){ if(!text) return; chatInput.value = text; chatForm.dispatchEvent(new Event('submit')); }
+      quickReplies?.addEventListener('click',(e)=>{ const btn=e.target.closest('.quick-reply'); if(btn){ sendQuick(btn.dataset.message); } });
+      quickRepliesToggle?.addEventListener('click',()=>{ if(quickReplies){ quickReplies.style.display='flex'; quickRepliesToggle.style.display='none'; } });
+      chatForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
         const raw = chatInput.value;
         const cleaned = sanitize(raw);
-        if(!cleaned){
-          e.preventDefault();
-          chatInput.value='';
-          chatInput.focus();
-          return;
+        if(!cleaned){ chatInput.value=''; chatInput.focus(); return; }
+        chatInput.value = cleaned;
+
+        if(quickReplies && quickReplies.style.display !== 'none'){
+          quickReplies.style.display = 'none';
+          if(quickRepliesToggle) quickRepliesToggle.style.display = 'flex';
         }
-        if(cleaned !== raw) chatInput.value = cleaned;
+
+        // Show user bubble
+        if(chatBody){ const um = document.createElement('div'); um.classList.add('message','user'); um.innerText = cleaned; chatBody.appendChild(um); chatBody.scrollTop = chatBody.scrollHeight; }
+        chatInput.value = '';
+
+        try{
+          const res = await fetch('/chat', { method:'POST', credentials:'same-origin', headers:{ 'Accept':'application/json','Content-Type':'application/json','X-CSRF-TOKEN':csrfToken }, body: JSON.stringify({ message: cleaned }) });
+          let reply = 'Server error.';
+          if(res.ok){ const data = await res.json(); reply = data.reply || reply; } else { try{ const err = await res.json(); reply = err.message || reply; }catch(_){} }
+          if(chatBody){ const bm = document.createElement('div'); bm.classList.add('message','bot'); bm.innerText = reply; chatBody.appendChild(bm); chatBody.scrollTop = chatBody.scrollHeight; }
+        }catch(_){ if(chatBody){ const bm = document.createElement('div'); bm.classList.add('message','bot'); bm.innerText = 'Network error.'; chatBody.appendChild(bm); } }
       });
       chatInput.addEventListener('keydown', (e)=>{
         if(e.key==='Enter' && !e.shiftKey){
@@ -1516,7 +1557,7 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
     }
 
     // PDF DOWNLOAD FEATURE
-    function generateAndDownloadPdf(){
+    async function generateAndDownloadPdf(){
       try {
         const rows = Array.from(document.querySelectorAll('.table-row')).filter(r => !r.classList.contains('table-header'));
         const data = [];
@@ -1534,7 +1575,7 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
             status: cells[6]?.innerText.trim() || ''
           });
         });
-        if (data.length === 0){ alert('No consultation to print.'); return; }
+  if (data.length === 0){ showProfessorModal('No consultation to print.'); return; }
         // sort by date then student
         data.sort((a,b)=> parseDate(a.date) - parseDate(b.date) || a.student.localeCompare(b.student));
         // Prepare payload for server
@@ -1546,30 +1587,48 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           mode: d.mode,
           status: d.status
         }));
-        fetch("{{ route('conlog-professor.pdf') }}", {
+        
+        // Generate the PDF on the server
+        const res = await fetch("{{ route('conlog-professor.pdf') }}", {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
           },
           body: JSON.stringify({ logs: payload })
-        }).then(res => {
-          if(!res.ok) throw new Error('Failed to generate PDF');
-          return res.blob();
-        }).then(blob => {
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'consultation_logs.pdf';
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setTimeout(()=>window.URL.revokeObjectURL(url), 1500);
-        }).catch(e => {
-          console.error(e); alert('PDF generation failed.');
         });
+        if(!res.ok) throw new Error('Failed to generate PDF');
+        const blob = await res.blob();
+
+        // Preferred: Native Save As dialog so you can rename in File Manager
+        const defaultName = `consultation_logs_${new Date().toISOString().slice(0,10)}.pdf`;
+        if (window.showSaveFilePicker) {
+          try {
+            const handle = await window.showSaveFilePicker({
+              suggestedName: defaultName,
+              types: [{ description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            return; // done after user clicks Save
+          } catch (pickerErr) {
+            // If user cancels, do nothing; if unsupported error, fall through to fallback
+            if (pickerErr && pickerErr.name === 'AbortError') return;
+          }
+        }
+
+        // Fallback: standard download with suggested filename
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = defaultName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(()=>window.URL.revokeObjectURL(url), 1500);
       } catch(err){
-        console.error('Export error', err); alert('Failed to prepare data.');
+        console.error('Export error', err); showProfessorModal('Failed to prepare data.');
       }
     }
     function parseDate(str){ const d = new Date(str); return isNaN(d)? Infinity : d; }

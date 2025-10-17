@@ -29,7 +29,7 @@ class StudentWelcomeMail extends Mailable
 
     public function build()
     {
-        return $this->subject("Your ASCC Student Account Details")
+        return $this->subject("Your ASCC-IT Student Account Details")
             ->view("emails.student-welcome")
             ->with([
                 "studentName" => $this->studentName,

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Welcome to ASCC</title>
+  <title>Welcome to ASCC-IT</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Arial, sans-serif; color:#1f2937; }
     .container { max-width: 640px; margin: 0 auto; padding: 24px; background: #ffffff; }
@@ -19,7 +19,7 @@
 </head>
 <body>
   <div class="container">
-    <div class="header">Welcome to ASCC</div>
+    <div class="header">Welcome to ASCC-IT</div>
     <div class="subheader">Dear {{ $studentName }},</div>
 
     <p>Your student account has been created. Please find your temporary credentials below. For your security, kindly sign in and change your password after your first login.</p>
