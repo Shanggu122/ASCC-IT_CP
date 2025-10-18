@@ -35,6 +35,10 @@ use App\Http\Controllers\ProfessorConsultationPdfController;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon; // added for availability endpoint
 use Carbon\CarbonPeriod;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
+use App\Mail\UpcomingConsultationReminder;
+use Illuminate\Support\Str;
 
 Route::get("/", [LandingController::class, "index"])->name("landing");
 
@@ -635,6 +639,197 @@ Route::post("/api/consultations/update-status", function (Request $request) {
         ]);
     }
 });
+
+// ---------- DEV: Testing page to demo the 1-hour reminder email ----------
+// Guard to avoid exposing in production deployments
+if (config("app.debug")) {
+    Route::match(["get", "post"], "/dev/test/reminder", function (Request $request) {
+        $data = [
+            "to" => $request->input("to", "johnpaullariba22@gmail.com"),
+            "professor_name" => $request->input("professor_name", "Professor John Paul Lariba"),
+            "professor_email" => $request->input("professor_email", "johnpaullariba22@gmail.com"),
+            "student_name" => $request->input("student_name", "Jane Doe"),
+            "subject_name" => $request->input("subject_name", "Web Development"),
+            "type_name" => $request->input("type_name", "Tutoring"),
+            "mode" => $request->input("mode", "online"),
+            "date" => $request->input("date") ?: Carbon::now("Asia/Manila")->format("D M d Y"),
+            "use_booking_id" => $request->input("use_booking_id")
+                ? (int) $request->input("use_booking_id")
+                : null,
+        ];
+
+        $sent = false;
+        $error = null;
+        $previewHtml = null;
+        $acceptUrl = null;
+        $reschedUrl = null;
+        $createdBookingId = null;
+        $profId = null;
+
+        if ($request->isMethod("post")) {
+            try {
+                // If an existing booking id is provided, load it and its professor
+                if ($data["use_booking_id"]) {
+                    $row = DB::table("t_consultation_bookings as b")
+                        ->leftJoin("t_student as s", "s.Stud_ID", "=", "b.Stud_ID")
+                        ->leftJoin("t_subject as subj", "subj.Subject_ID", "=", "b.Subject_ID")
+                        ->leftJoin("professors as p", "p.Prof_ID", "=", "b.Prof_ID")
+                        ->select(
+                            "b.*",
+                            "s.Name as student_name",
+                            "subj.Subject_Name as subject_name",
+                            "p.Name as professor_name",
+                            "p.Prof_ID as prof_id",
+                        )
+                        ->where("b.Booking_ID", $data["use_booking_id"])
+                        ->first();
+                    if (!$row) {
+                        throw new \RuntimeException("Booking ID not found.");
+                    }
+                    $createdBookingId = (int) $row->Booking_ID;
+                    $profId = (int) $row->Prof_ID;
+                    $data["student_name"] = $row->student_name ?: $data["student_name"];
+                    $data["subject_name"] = $row->subject_name ?: $data["subject_name"];
+                    $data["date"] = $row->Booking_Date ?: $data["date"];
+                    $data["type_name"] = $row->Custom_Type ?: $data["type_name"];
+                    $data["professor_name"] = $row->professor_name ?: $data["professor_name"];
+                } else {
+                    // Create or find professor
+                    $prof = DB::table("professors")
+                        ->where("Email", $data["professor_email"])
+                        ->first();
+                    if ($prof) {
+                        $profId = (int) $prof->Prof_ID;
+                        // ensure name up-to-date
+                        if (
+                            !empty($data["professor_name"]) &&
+                            $prof->Name !== $data["professor_name"]
+                        ) {
+                            DB::table("professors")
+                                ->where("Prof_ID", $profId)
+                                ->update(["Name" => $data["professor_name"]]);
+                        }
+                    } else {
+                        $profId = (int) ((DB::table("professors")->max("Prof_ID") ?? 0) + 1);
+                        DB::table("professors")->insert([
+                            "Prof_ID" => $profId,
+                            "Name" => $data["professor_name"],
+                            "Email" => $data["professor_email"],
+                            "Dept_ID" => 1,
+                            "Password" => bcrypt("tempPass!23"),
+                            "Schedule" => "Mon 9:00-11:00\nWed 14:00-16:00",
+                            "is_active" => 1,
+                        ]);
+                    }
+
+                    // Create or find student
+                    $studentEmail = "student.demo+" . Str::lower(Str::random(5)) . "@example.com";
+                    $studentId =
+                        (string) ((DB::table("t_student")->max("Stud_ID") ?? 202400000) + 1);
+                    DB::table("t_student")->insertOrIgnore([
+                        "Stud_ID" => $studentId,
+                        "Name" => $data["student_name"],
+                        "Email" => $studentEmail,
+                        "Password" => bcrypt("demo12345"),
+                        "Dept_ID" => 1,
+                    ]);
+
+                    // Create or find subject
+                    $subject = DB::table("t_subject")
+                        ->where("Subject_Name", $data["subject_name"])
+                        ->first();
+                    if (!$subject) {
+                        $subjectId =
+                            (int) ((DB::table("t_subject")->max("Subject_ID") ?? 1000) + 1);
+                        DB::table("t_subject")->insert([
+                            "Subject_ID" => $subjectId,
+                            "Subject_Name" => $data["subject_name"],
+                        ]);
+                    } else {
+                        $subjectId = (int) $subject->Subject_ID;
+                    }
+
+                    // Determine a valid consultation type ID
+                    $consultTypeId = DB::table("t_consultation_types")
+                        ->where("Consult_Type", $data["type_name"])
+                        ->value("Consult_type_ID");
+                    $customType = null;
+                    if (!$consultTypeId) {
+                        $othersId = DB::table("t_consultation_types")
+                            ->where("Consult_Type", "Others")
+                            ->value("Consult_type_ID");
+                        $fallbackId =
+                            $othersId ?:
+                            DB::table("t_consultation_types")
+                                ->orderBy("Consult_type_ID", "asc")
+                                ->value("Consult_type_ID");
+                        $consultTypeId = $fallbackId;
+                        // Preserve the provided type label as custom when we fell back
+                        $customType = $data["type_name"];
+                    }
+
+                    // Create booking for today with pending status
+                    $createdBookingId = DB::table("t_consultation_bookings")->insertGetId([
+                        "Stud_ID" => $studentId,
+                        "Prof_ID" => $profId,
+                        "Consult_type_ID" => $consultTypeId,
+                        "Custom_Type" => $customType,
+                        "Subject_ID" => $subjectId,
+                        "Booking_Date" => $data["date"],
+                        "Mode" => $data["mode"],
+                        "Status" => "pending",
+                        "Created_At" => now(),
+                    ]);
+                }
+
+                // Compose and send the email
+                $mailable = new UpcomingConsultationReminder(
+                    $data["student_name"],
+                    $data["subject_name"],
+                    $data["type_name"],
+                    $data["date"],
+                    $createdBookingId,
+                    $profId,
+                    $data["professor_name"],
+                );
+
+                // Precompute signed URLs for the page preview
+                $acceptUrl = URL::signedRoute("consultation.email.accept", [
+                    "bookingId" => $createdBookingId,
+                    "profId" => $profId,
+                ]);
+                $reschedUrl = URL::signedRoute("consultation.email.reschedule.form", [
+                    "bookingId" => $createdBookingId,
+                    "profId" => $profId,
+                ]);
+
+                // Send to the target address
+                Mail::to($data["to"])->send($mailable);
+                $sent = true;
+
+                // Try rendering preview HTML
+                try {
+                    $previewHtml = $mailable->render();
+                } catch (\Throwable $e) {
+                    $previewHtml = null;
+                }
+            } catch (\Throwable $e) {
+                $error = $e->getMessage();
+            }
+        }
+
+        return view("dev.test-reminder", [
+            "data" => $data,
+            "sent" => $sent,
+            "error" => $error,
+            "previewHtml" => $previewHtml,
+            "acceptUrl" => $acceptUrl,
+            "reschedUrl" => $reschedUrl,
+            "bookingId" => $createdBookingId,
+            "profId" => $profId,
+        ]);
+    })->name("dev.test.reminder");
+}
 
 // Student cancel booking within 1 hour (pending only)
 Route::post("/api/student/consultations/cancel", function (Request $request) {
