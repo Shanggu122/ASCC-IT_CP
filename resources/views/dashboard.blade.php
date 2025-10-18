@@ -250,7 +250,7 @@
                   <div class="legend-item"><span class="legend-swatch swatch-approved"></span>Approved <i class='bx bx-check-circle legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-completed"></span>Completed <i class='bx bx-badge-check legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-rescheduled"></span>Rescheduled <i class='bx bx-calendar-edit legend-icon' aria-hidden="true"></i></div>
-                  <div class="legend-item"><span class="legend-swatch swatch-suspended"></span>Suspention of class <i class='bx bx-block legend-icon' aria-hidden="true"></i></div>
+                  <div class="legend-item"><span class="legend-swatch swatch-suspended"></span>Suspension of class <i class='bx bx-block legend-icon' aria-hidden="true"></i></div>
                 </div>
               </div>
               <div class="legend-section">
@@ -309,7 +309,6 @@
         <button type="button" class="quick-reply" data-message="What are the consultation statuses?">Statuses?</button>
         <button type="button" class="quick-reply" data-message="How can I reschedule my consultation?">Reschedule</button>
         <button type="button" class="quick-reply" data-message="Can I cancel my booking?">Cancel booking</button>
-        <button type="button" class="quick-reply" data-message="When is my next consultation?">Next consultation</button>
         <button type="button" class="quick-reply" data-message="How do I contact my professor after booking?">Contact professor</button>
       </div>
       <button type="button" id="quickRepliesToggle" class="quick-replies-toggle" style="display:none" title="Show FAQs">
@@ -482,7 +481,7 @@
             }
             if (!chosen) { return; }
             const badge = document.createElement('span');
-            // Badge class: distinguish Online Day vs Forced Online; End Year distinct from Suspention
+            // Badge class: distinguish Online Day vs Forced Online; End Year distinct from Suspension
             let chosenCls;
             if (chosen.effect === 'holiday') {
               chosenCls = 'ov-holiday';
@@ -498,7 +497,7 @@
             const forceLabel = (chosen.effect === 'force_mode' && (chosen.reason_key === 'online_day')) ? 'Online Day' : 'Forced Online';
             badge.title = chosen.label || chosen.reason_text || (chosen.effect === 'force_mode' ? forceLabel : chosen.effect);
             const isEndYearLbl = (chosen.effect === 'block_all') && ((chosen.reason_key === 'end_year') || /end\s*year/i.test(chosen.label || '') || /end\s*year/i.test(chosen.reason_text || ''));
-            badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (isEndYearLbl ? 'End Year' : 'Suspention') : forceLabel);
+            badge.textContent = chosen.effect === 'holiday' ? (chosen.reason_text || 'Holiday') : (chosen.effect === 'block_all' ? (isEndYearLbl ? 'End Year' : 'Suspension') : forceLabel);
             cell.style.position = 'relative';
             cell.appendChild(badge);
             // Cell background class, with Online Day distinct from Forced Online
@@ -877,13 +876,13 @@
       }
       
       const notificationsHtml = notifications.map(notification => {
-        const isSuspention = notification.type === 'suspention_day';
+  const isSuspention = notification.type === 'suspention_day';
         const typeLabel = isSuspention
-          ? 'SUSPENTION'
+          ? 'SUSPENSION'
           : ((notification.type || '').replace('_',' ').toUpperCase());
-        // For suspention system notice, show a clear title; otherwise keep existing rule
+  // For suspension system notice, show a clear title; otherwise keep existing rule
         const cleanTitle = isSuspention
-          ? 'Suspention of Class'
+          ? 'Suspension of Class'
           : (notification.title.includes('Consultation') ? 'Consultation' : notification.title);
         
         return `

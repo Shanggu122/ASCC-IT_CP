@@ -15,7 +15,9 @@ body {
 }
 
 /* Back to landing button (top-left) */
-.left-panel { position: relative; }
+.left-panel {
+    position: relative;
+}
 .back-to-landing {
     position: absolute;
     top: 16px;
@@ -27,9 +29,20 @@ body {
     text-decoration: none;
     padding: 0;
 }
-.back-to-landing i { font-size: 36px; line-height: 1; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
-.back-to-landing:hover { opacity: 0.9; transform: translateX(-1px); }
-.back-to-landing:focus-visible { outline: 3px solid #ffffff; outline-offset: 2px; border-radius: 4px; }
+.back-to-landing i {
+    font-size: 36px;
+    line-height: 1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.back-to-landing:hover {
+    opacity: 0.9;
+    transform: translateX(-1px);
+}
+.back-to-landing:focus-visible {
+    outline: 3px solid #ffffff;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
 
 /* College Title Styling */
 .college-title,
@@ -491,7 +504,7 @@ body {
 
     .container {
         flex-direction: column;
-        width: 95vw;
+        width: 90vw; /* slightly narrower so it doesn't touch edges */
         max-width: 430px;
         min-height: 120vh; /* Make container longer for scrolling */
         height: auto;
@@ -543,7 +556,28 @@ body {
 
     .input-group input {
         font-size: 15px;
-        padding: 10px 12px;
+        padding: 12px 14px; /* a bit more padding default */
+    }
+
+    /* Mobile tuning for floating label stacks to avoid overlap */
+    .float-stack input {
+        padding: 22px 48px 10px 16px; /* extra top for label; right space for eye */
+        background: #e9e9e9; /* slightly lighter for mobile contrast */
+    }
+    .float-stack.password-group input {
+        padding-right: 70px;
+    }
+    .float-stack label {
+        top: 14px;
+        left: 16px;
+        font-size: 14px;
+    }
+    .float-stack input:focus + label,
+    .float-stack input:not(:placeholder-shown) + label,
+    .float-stack input.filled + label,
+    .float-stack input:-webkit-autofill + label {
+        top: 6px;
+        font-size: 11px;
     }
 
     .login-btn {
@@ -573,5 +607,13 @@ body {
 
     .options-row a {
         font-size: 12px; /* Make the option font smaller on mobile */
+    }
+
+    /* Ensure the eye icon sits above input background but below label hover effect */
+    .float-stack .toggle-password {
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 1;
     }
 }

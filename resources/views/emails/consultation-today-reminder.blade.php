@@ -20,7 +20,7 @@
         </p>
         <p style="margin:0 0 10px;font-size:12px;color:#555;">Signed links remain valid unless the booking details change.</p>
         <p style="margin:28px 0 8px;font-size:12px;color:#777;">If already handled in the system, no further action is required.</p>
-        <p style="margin-top:34px;">Regards,<br>ASCC Consultation Portal</p>
+  <p style="margin-top:34px;">Regards,<br>ASCC-IT</p>
       </td>
     </tr>
   </table>

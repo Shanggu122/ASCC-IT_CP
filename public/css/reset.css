@@ -97,13 +97,13 @@ body {
 }
 
 .input-group {
-    margin-bottom: 1.2rem;
+    margin-bottom: 0.8rem;
     position: relative;
     max-width: 350px; /* Set max width */
     width: 100%;
     margin-left: auto; /* Center horizontally */
     margin-right: auto;
-    margin-top: 2rem; /* Add space above the input group */
+    margin-top: 1rem; /* Reduced spacing above */
 }
 
 .input-group input {
@@ -120,6 +120,19 @@ body {
     outline: none;
 }
 
+/* Highlight invalid input without moving layout */
+.input-group input.input-invalid {
+    border-color: #dc3545 !important;
+}
+
+/* Success message coloring for fixed-position message slot */
+.field-ok {
+    color: #1e8f5a;
+}
+.field-error.field-ok {
+    color: #1e8f5a;
+}
+
 .password-group {
     position: relative;
 }
@@ -131,6 +144,16 @@ body {
     cursor: pointer;
     font-size: 20px;
     color: #777;
+}
+
+/* Reserve space under groups that show absolute-positioned messages */
+.input-group.with-error-space {
+    padding-bottom: 28px;
+}
+@media (max-width: 480px) {
+    .input-group.with-error-space {
+        padding-bottom: 32px;
+    }
 }
 
 .options {
@@ -188,17 +211,20 @@ body {
     min-height: 32px;
 }
 
-/* Field level validation error (added for reset password page) */
+/* Field level validation error (inline, preserves layout) */
 .field-error {
     color: #dc3545;
     font-size: 14px;
-    margin-top: 6px;
+    margin-top: 4px;
     font-weight: 500;
     width: 100%;
     text-align: left;
     padding-left: 4px;
-    min-height: 18px;
+    min-height: 12px; /* smaller reserved space */
     transition: opacity 0.32s ease;
+}
+.field-error.hidden {
+    visibility: hidden;
 }
 
 .fade-out-field-error,
@@ -208,7 +234,7 @@ body {
 
 /* Add this to push the form down if needed */
 .right-panel form {
-    margin-top: 2.5rem; /* Reduced space above the form */
+    margin-top: 2rem; /* slightly closer to header */
     width: 100%;
 }
 

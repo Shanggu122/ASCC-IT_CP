@@ -84,12 +84,22 @@
     <!-- Chat Overlay Panel -->
     <div class="chat-overlay" id="chatOverlay">
       <div class="chat-header">
-        <span>AI Chat Assistant</span>
+        <span>ASCC-IT</span>
         <button class="close-btn" onclick="closePanel('chatOverlay')">×</button>
       </div>
       <div class="chat-body" id="chatBody">
         <div class="message bot">Hi! How can I help you today?</div>
       </div>
+      <div id="quickReplies" class="quick-replies">
+        <button type="button" class="quick-reply" data-message="How do I book a consultation?">How do I book?</button>
+        <button type="button" class="quick-reply" data-message="What are the consultation statuses?">Statuses?</button>
+        <button type="button" class="quick-reply" data-message="How can I reschedule my consultation?">Reschedule</button>
+        <button type="button" class="quick-reply" data-message="Can I cancel my booking?">Cancel booking</button>
+        <button type="button" class="quick-reply" data-message="How do I contact my professor after booking?">Contact professor</button>
+      </div>
+      <button type="button" id="quickRepliesToggle" class="quick-replies-toggle" style="display:none" title="Show FAQs">
+        <i class='bx bx-help-circle'></i>
+      </button>
       <form id="chatForm">
         <input type="text" id="userInput" placeholder="Type your message..." required>
         <button type="submit">Send</button>
@@ -342,12 +352,28 @@ document.addEventListener('DOMContentLoaded', function() {
   const chatForm = document.getElementById('chatForm');
   const input = document.getElementById('userInput');  // Profile uses userInput instead of message
   const chatBody = document.getElementById('chatBody');
+  const quickReplies = document.getElementById('quickReplies');
+  const quickRepliesToggle = document.getElementById('quickRepliesToggle');
 
   if (chatForm && input && chatBody && csrfToken) {
+    // input hardening
+    input.setAttribute('maxlength','250');
+    input.setAttribute('autocomplete','off');
+    input.setAttribute('spellcheck','false');
+
+    function sendQuick(text){ if(!text) return; input.value = text; chatForm.dispatchEvent(new Event('submit')); }
+    quickReplies?.addEventListener('click',(e)=>{ const btn=e.target.closest('.quick-reply'); if(btn){ sendQuick(btn.dataset.message); } });
+    quickRepliesToggle?.addEventListener('click',()=>{ if(quickReplies){ quickReplies.style.display='flex'; quickRepliesToggle.style.display='none'; } });
     chatForm.addEventListener('submit', async function(e) {
       e.preventDefault();
       const text = input.value.trim();
       if (!text) return;
+
+      // hide quick replies on first interaction
+      if(quickReplies && quickReplies.style.display !== 'none'){
+        quickReplies.style.display = 'none';
+        if(quickRepliesToggle) quickRepliesToggle.style.display = 'flex';
+      }
 
       // show user message
       const um = document.createElement('div');

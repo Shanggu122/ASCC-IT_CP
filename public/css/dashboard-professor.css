@@ -56,7 +56,7 @@ body {
     box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
     display: flex;
     flex-direction: column;
-    z-index: 1000;
+    z-index: 20000; /* ensure above calendar and other overlays */
     transition: right 0.3s ease;
     border-left: 3px solid #12372a;
 }
@@ -131,6 +131,32 @@ body {
     background-color: #0e4e23;
 }
 
+/* Ensure #chatForm styles are applied explicitly */
+#chatForm {
+    display: flex;
+    padding: 1rem;
+    border-top: 1px solid #ccc;
+    background-color: #ffffff;
+}
+#chatForm input[type='text'] {
+    flex: 1;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-right: 0.5rem;
+    outline: none;
+}
+#chatForm button {
+    background-color: #12372a;
+    color: #ffffff;
+    border: none;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
 .message.user {
     align-self: flex-end;
     background-color: #d0e6ff;
@@ -144,6 +170,51 @@ body {
     font-size: 14px;
     text-align: left;
     display: inline-block;
+}
+
+/* Quick Replies (parity with student) */
+.quick-replies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+    border-top: 1px solid #ddd;
+    background: #fff;
+}
+.quick-reply {
+    background: #12372a;
+    color: #fff;
+    border: none;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    line-height: 1.2;
+    transition: background 0.25s;
+}
+.quick-reply:hover {
+    background: #0e4e23;
+}
+.quick-replies-toggle {
+    position: absolute;
+    bottom: 85px;
+    right: 14px;
+    background: #12372a;
+    color: #fff;
+    border: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    transition: background 0.25s;
+    font-size: 20px;
+}
+.quick-replies-toggle:hover {
+    background: #0e4e23;
 }
 
 /* Legend styling */
@@ -431,6 +502,14 @@ body {
         bottom: 18px !important;
     }
     .pika-table .pika-button {
+        /* Make chat overlay full width on mobile and keep it above content */
+        .chat-overlay {
+            width: 100%;
+            right: -100%;
+        }
+        .chat-overlay.open {
+            right: 0;
+        }
         user-select: none;
     }
     .pika-button.has-multiple-bookings::before,

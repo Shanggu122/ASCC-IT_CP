@@ -32,6 +32,10 @@ class NotificationController extends Controller
                 ->where(function ($q) {
                     $q->whereNull("reason_key")->orWhere("reason_key", "!=", "prof_leave");
                 })
+                // Exclude End Year from student autogeneration
+                ->where(function ($q) {
+                    $q->whereNull("reason_key")->orWhere("reason_key", "!=", "end_year");
+                })
                 ->where("end_date", ">=", $today)
                 ->orderBy("start_date", "asc")
                 ->limit(10)
@@ -57,8 +61,12 @@ class NotificationController extends Controller
                 if ($reasonTxt === "") {
                     $reasonTxt = "administrative reasons";
                 }
-                $title = "Suspention of Class";
+                $title = "Suspension of Class";
                 $message = "No classes {$rangeText} due to {$reasonTxt}.";
+                // Defensive: skip any that read as End Year
+                if (preg_match("/end\s*year/i", $reasonTxt)) {
+                    continue;
+                }
                 // Idempotent check by (user_id, type, message)
                 $exists = Notification::where("user_id", $userId)
                     ->where("type", "suspention_day")
@@ -107,6 +115,9 @@ class NotificationController extends Controller
                 ->where(function ($q) {
                     $q->whereNull("reason_key")->orWhere("reason_key", "!=", "prof_leave");
                 })
+                ->where(function ($q) {
+                    $q->whereNull("reason_key")->orWhere("reason_key", "!=", "end_year");
+                })
                 ->where("end_date", ">=", $today)
                 ->orderBy("start_date", "asc")
                 ->limit(3)
@@ -133,6 +144,9 @@ class NotificationController extends Controller
                     $reasonTxt = "administrative reasons";
                 }
                 $msg = "No classes {$rangeText} due to {$reasonTxt}.";
+                if (preg_match("/end\s*year/i", $reasonTxt)) {
+                    continue;
+                }
                 $existsInList = $ordered->contains(function ($n) use ($msg) {
                     return ($n->type ?? "") === "suspention_day" && ($n->message ?? "") === $msg;
                 });
@@ -143,7 +157,7 @@ class NotificationController extends Controller
                             "user_id" => $userId,
                             "booking_id" => null,
                             "type" => "suspention_day",
-                            "title" => "Suspention of Class",
+                            "title" => "Suspension of Class",
                             "message" => $msg,
                             "is_read" => false,
                             "created_at" => now(),
@@ -220,6 +234,10 @@ class NotificationController extends Controller
                 ->where(function ($q) {
                     $q->whereNull("scope_type")->orWhere("scope_type", "!=", "professor");
                 })
+                // Exclude End Year from professor autogeneration
+                ->where(function ($q) {
+                    $q->whereNull("reason_key")->orWhere("reason_key", "!=", "end_year");
+                })
                 ->where("end_date", ">=", $today)
                 ->orderBy("start_date", "asc")
                 ->limit(10)
@@ -245,8 +263,11 @@ class NotificationController extends Controller
                 if ($reasonTxt === "") {
                     $reasonTxt = "administrative reasons";
                 }
-                $title = "Suspention of Class";
+                $title = "Suspension of Class";
                 $message = "No classes {$rangeText} due to {$reasonTxt}.";
+                if (preg_match("/end\s*year/i", $reasonTxt)) {
+                    continue;
+                }
                 // Idempotent check by (user_id, type, message)
                 $exists = Notification::where("user_id", $professorId)
                     ->where("type", "suspention_day")
@@ -295,6 +316,9 @@ class NotificationController extends Controller
                 ->where(function ($q) {
                     $q->whereNull("scope_type")->orWhere("scope_type", "!=", "professor");
                 })
+                ->where(function ($q) {
+                    $q->whereNull("reason_key")->orWhere("reason_key", "!=", "end_year");
+                })
                 ->where("end_date", ">=", $today)
                 ->orderBy("start_date", "asc")
                 ->limit(3)
@@ -321,6 +345,9 @@ class NotificationController extends Controller
                     $reasonTxt = "administrative reasons";
                 }
                 $msg = "No classes {$rangeText} due to {$reasonTxt}.";
+                if (preg_match("/end\s*year/i", $reasonTxt)) {
+                    continue;
+                }
                 $existsInList = $ordered->contains(function ($n) use ($msg) {
                     return ($n->type ?? "") === "suspention_day" && ($n->message ?? "") === $msg;
                 });
@@ -331,7 +358,7 @@ class NotificationController extends Controller
                             "user_id" => $professorId,
                             "booking_id" => null,
                             "type" => "suspention_day",
-                            "title" => "Suspention of Class",
+                            "title" => "Suspension of Class",
                             "message" => $msg,
                             "is_read" => false,
                             "created_at" => now(),

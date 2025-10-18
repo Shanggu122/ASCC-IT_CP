@@ -308,6 +308,30 @@ body {
     background-color: white;
 }
 
+/* Parity: style the form with id=chatForm (used in markup) */
+#chatForm {
+    display: flex;
+    padding: 1rem;
+    border-top: 1px solid #ccc;
+    background-color: #ffffff;
+}
+#chatForm input[type='text'] {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+}
+#chatForm button {
+    background-color: #12372a;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    margin-left: 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
 .chat-input input {
     flex: 1;
     padding: 0.5rem;
@@ -340,9 +364,18 @@ body {
 }
 
 .message.user {
-    background-color: #d0f0c0;
     align-self: flex-end;
-    text-align: right;
+    background-color: #d0e6ff; /* match student */
+    color: #000;
+    padding: 0.6rem 0.8rem;
+    margin: 0.5rem 0;
+    margin-right: 0.5rem;
+    border-radius: 12px;
+    border-bottom-right-radius: 0px;
+    max-width: 80%;
+    font-size: 14px;
+    text-align: left; /* match student */
+    display: inline-block;
 }
 
 .close-btn {
@@ -638,6 +671,51 @@ body {
 .container {
     display: flex;
     height: 100vh;
+}
+
+/* Quick Replies (chatbot) */
+.quick-replies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+    border-top: 1px solid #ddd;
+    background: #fff;
+}
+.quick-reply {
+    background: #12372a;
+    color: #fff;
+    border: none;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    line-height: 1.2;
+    transition: background 0.25s;
+}
+.quick-reply:hover {
+    background: #0e4e23;
+}
+.quick-replies-toggle {
+    position: absolute;
+    bottom: 85px;
+    right: 14px;
+    background: #12372a;
+    color: #fff;
+    border: none;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    transition: background 0.25s;
+    font-size: 20px;
+}
+.quick-replies-toggle:hover {
+    background: #0e4e23;
 }
 
 .main-container {

@@ -10,9 +10,16 @@
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/admin-navbar.css') }}">
   <link rel="stylesheet" href="{{ asset('css/admin-comsci.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/confirm-modal.css') }}">
 </head>
 <body>
   @include('components.navbar-admin')
+
+  <!-- Global full-screen loading overlay (reuses login styles) -->
+  <div id="globalLoading" class="auth-loading-overlay" aria-hidden="true">
+    <div class="auth-loading-spinner" role="status" aria-live="polite"></div>
+    <div class="auth-loading-text">Please wait…</div>
+  </div>
 
   <div class="main-content">
     <div class="header">
@@ -42,13 +49,31 @@
     </div>
   </div>
 
-  <button id="addFacultyBtn" class="add-faculty-btn">+</button>
+  <button id="addChooserBtn" class="add-fab">+</button>
+  <!-- Centered chooser modal for Add options -->
+    <div id="addChooserModal" class="mini-modal" aria-hidden="true">
+      <div class="mini-modal-card" role="dialog" aria-modal="true" aria-labelledby="chooserTitle">
+        <div class="mini-modal-header">
+          <div class="mini-modal-title" id="chooserTitle">Add</div>
+          <button type="button" class="mini-modal-close" data-close-chooser>&times;</button>
+        </div>
+        <div class="mini-modal-body">
+          <div class="chooser-options">
+            <button type="button" class="chooser-option" data-open-add="faculty">Add Faculty</button>
+            <button type="button" class="chooser-option" data-open-add="student">Add Student</button>
+          </div>
+        </div>
+        <div class="mini-modal-actions">
+          <button type="button" class="btn-secondary" data-close-chooser>Close</button>
+        </div>
+      </div>
+    </div>
 
   <!-- Panel Overlay -->
   <div class="panel-overlay"></div>
 
   <!-- Add Faculty Side Panel -->
-  <form id="addFacultyPanel" class="add-faculty-panel" method="POST" action="{{ route('admin.comsci.professor.add') }}">
+  <form id="addFacultyPanel" class="add-faculty-panel" method="POST" action="{{ route('admin.comsci.professor.add') }}" autocomplete="off">
     @csrf
     <div class="panel-header">
       <h2>Add Faculty Member</h2>
@@ -60,29 +85,37 @@
       <div class="left-column">
         <div class="input-group">
           <label class="input-label">Faculty ID</label>
-          <input type="text" name="Prof_ID" placeholder="Enter faculty ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)">
+          <input type="text" id="addProfIdComsci" name="Prof_ID_display" placeholder="Enter faculty ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-autocomplete="none">
+          <input type="hidden" name="Prof_ID" id="hiddenAddProfIdComsci" value="">
         </div>
         <div class="input-group">
           <label class="input-label">Full Name</label>
-          <input type="text" name="Name" placeholder="Enter full name" required>
+          <input type="text" name="Name" placeholder="Enter full name" required maxlength="50">
         </div>
         <div class="input-group">
           <label class="input-label">Email Address</label>
-          <input type="email" name="Email" placeholder="Enter email address" required>
+          <input type="email" name="Email" placeholder="Enter email address" required maxlength="100">
         </div>
   <input type="hidden" name="Dept_ID" value="2">
         <div class="input-group">
           <label class="input-label">Temporary Password</label>
-          <input type="text" name="Password" value="password1" required>
+          <div class="password-row" style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="addTempPasswordComsci" name="Password" value="password1" required style="flex:1;">
+            <button type="button" id="btnGenTempPwComsci" class="btn-secondary" style="white-space:nowrap; padding:4px 8px; font-size:12px; line-height:1;">Generate</button>
+          </div>
         </div>
 
         <!-- Subject Assignment -->
         <div class="section-title" style="margin-top: 1rem;">Subject Assignment</div>
         <div class="subject-list">
           @foreach($subjects as $subject)
+          @php
+            $sid = is_object($subject) ? ($subject->Subject_ID ?? '') : (is_array($subject) ? ($subject['Subject_ID'] ?? '') : '');
+            $sname = is_object($subject) ? ($subject->Subject_Name ?? '') : (is_array($subject) ? ($subject['Subject_Name'] ?? '') : '');
+          @endphp
           <div class="subject-item">
-            <input type="checkbox" name="subjects[]" value="{{ $subject->Subject_ID }}" id="subject_{{ $subject->Subject_ID }}">
-            <label for="subject_{{ $subject->Subject_ID }}" class="subject-name">{{ $subject->Subject_Name }}</label>
+            <input type="checkbox" name="subjects[]" value="{{ $sid }}" id="subject_{{ $sid }}">
+            <label for="subject_{{ $sid }}" class="subject-name">{{ $sname }}</label>
           </div>
           @endforeach
         </div>
@@ -202,12 +235,50 @@
     </div>
   </form>
 
+  <!-- Add Student Side Panel (compact) -->
+    <form id="addStudentPanel" class="add-student-panel" method="POST" action="{{ route('admin.comsci.student.add') }}">
+      @csrf
+      <div class="panel-header">
+        <h2>Add Student</h2>
+        <button type="button" id="closeAddStudentPanel" class="close-panel-btn">&times;</button>
+      </div>
+      <div class="form-content">
+        <div class="left-column">
+          <div class="input-group">
+            <label class="input-label">Student ID</label>
+            <input type="text" name="Stud_ID" placeholder="Enter student ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Full Name</label>
+            <input type="text" name="Name" placeholder="Enter full name" required maxlength="50">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Email Address</label>
+            <input type="email" name="Email" placeholder="Enter email address" required maxlength="100">
+          </div>
+          <input type="hidden" name="Dept_ID" value="2">
+          <div class="input-group">
+            <label class="input-label">Temporary Password</label>
+            <div class="password-row" style="display:flex; gap:8px; align-items:center;">
+              <input type="text" id="addStudentTempPasswordComsci" name="Password" value="password1" required style="flex:1;">
+              <button type="button" id="btnGenTempPwStudentComsci" class="btn-secondary" style="white-space:nowrap; padding:4px 8px; font-size:12px; line-height:1;">Generate</button>
+            </div>
+          </div>
+        </div>
+        <div class="right-column"></div>
+      </div>
+      <div class="panel-actions">
+        <button type="button" class="btn-secondary" onclick="ModalManager.close('addStudent')">Cancel</button>
+        <button type="submit" class="btn-primary">Add Student</button>
+      </div>
+    </form>
+
   <!-- Edit Faculty Panel Overlay -->
   <div class="edit-panel-overlay"></div>
 
   <!-- Edit Faculty Panel -->
   <div id="editFacultyPanel" class="edit-faculty-panel">
-    <form id="editFacultyForm" method="POST" action="">
+  <form id="editFacultyForm" method="POST" action="" autocomplete="off">
       @csrf
       <div class="panel-header">
         <h2>Edit Faculty Member</h2>
@@ -219,20 +290,24 @@
         <div class="left-column">
           <div class="input-group">
             <label class="input-label">Faculty ID</label>
-            <input type="text" name="Prof_ID" id="editProfId" placeholder="Enter faculty ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)">
+            <input type="text" name="Prof_ID" id="editProfId" placeholder="Enter faculty ID" required inputmode="numeric" maxlength="9" pattern="\d{1,9}" oninput="this.value=this.value.replace(/\D/g,'').slice(0,9)" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-autocomplete="none">
           </div>
           <div class="input-group">
             <label class="input-label">Full Name</label>
-            <input type="text" name="Name" id="editName" placeholder="Enter full name" required>
+            <input type="text" name="Name" id="editName" placeholder="Enter full name" required maxlength="50">
           </div>
 
           <!-- Subject Assignment -->
           <div class="section-title" style="margin-top: 1rem;">Subject Assignment</div>
           <div class="subject-list" id="editSubjectList">
             @foreach($subjects as $subject)
+            @php
+              $sid = is_object($subject) ? ($subject->Subject_ID ?? '') : (is_array($subject) ? ($subject['Subject_ID'] ?? '') : '');
+              $sname = is_object($subject) ? ($subject->Subject_Name ?? '') : (is_array($subject) ? ($subject['Subject_Name'] ?? '') : '');
+            @endphp
             <div class="subject-item">
-              <input type="checkbox" name="subjects[]" value="{{ $subject->Subject_ID }}" id="edit_subject_{{ $subject->Subject_ID }}">
-              <label for="edit_subject_{{ $subject->Subject_ID }}" class="subject-name">{{ $subject->Subject_Name }}</label>
+              <input type="checkbox" name="subjects[]" value="{{ $sid }}" id="edit_subject_{{ $sid }}">
+              <label for="edit_subject_{{ $sid }}" class="subject-name">{{ $sname }}</label>
             </div>
             @endforeach
           </div>
@@ -384,6 +459,23 @@
   </div>
 
   <script>
+    // Generate a random, readable password (12 chars)
+    function generatePassword(len=12){
+      const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+      const lower = 'abcdefghijkmnopqrstuvwxyz';
+      const digits = '23456789';
+      const all = upper + lower + digits;
+      let out = [upper[Math.floor(Math.random()*upper.length)], lower[Math.floor(Math.random()*lower.length)], digits[Math.floor(Math.random()*digits.length)]];
+      while(out.length < len){ out.push(all[Math.floor(Math.random()*all.length)]); }
+      for(let i=out.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [out[i],out[j]]=[out[j],out[i]]; }
+      return out.join('');
+    }
+    (function bindGenPwComsci(){
+      const btn = document.getElementById('btnGenTempPwComsci');
+      const input = document.getElementById('addTempPasswordComsci');
+      if(!btn||!input) return;
+      btn.addEventListener('click', ()=>{ input.value = generatePassword(12); input.dispatchEvent(new Event('input',{bubbles:true})); });
+    })();
     function showNotification(message, isError = false) {
       const notif = document.getElementById('notification');
       if(!notif) return;
@@ -397,6 +489,34 @@
       const notif = document.getElementById('notification');
       if(notif) notif.style.display='none';
     }
+    // --- Anti-spam helpers (prevent rapid double clicks/submits) ---
+    function guardRapidClicks(selector, holdMs = 1000){
+      document.addEventListener('click', function(e){
+        const btn = e.target && e.target.closest ? e.target.closest(selector) : null;
+        if(!btn) return;
+        if(btn.dataset.clickLocked === '1'){
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        btn.dataset.clickLocked = '1';
+        if(typeof btn.disabled !== 'undefined') btn.disabled = true;
+        setTimeout(()=>{ if(btn){ btn.dataset.clickLocked='0'; if(typeof btn.disabled !== 'undefined') btn.disabled = false; } }, holdMs);
+      }, true);
+    }
+    function lockSubmitButton(formEl){
+      const submitBtn = formEl.querySelector('.panel-actions .btn-primary[type="submit"], .panel-actions .btn-primary');
+      if(submitBtn){
+        submitBtn.disabled = true;
+        submitBtn.setAttribute('aria-busy','true');
+      }
+      return submitBtn;
+    }
+    function unlockSubmitButton(btn){
+      if(!btn) return;
+      btn.disabled = false;
+      btn.removeAttribute('aria-busy');
+    }
     // Modal/Panel Management System
     const ModalManager = {
       activeModal: null,
@@ -406,8 +526,14 @@
         addFaculty: {
           element: null,
           overlay: null,
-          triggers: ['addFacultyBtn'],
+          triggers: [],
           closers: ['closeAddFacultyPanel']
+        },
+        addStudent: {
+          element: null,
+          overlay: null,
+          triggers: [],
+          closers: []
         },
         editFaculty: {
           element: null,
@@ -423,13 +549,17 @@
         }
       },
       
-      init() {
+  init() {
         // Initialize modal elements
         this.modals.addFaculty.element = document.getElementById('addFacultyPanel');
         this.modals.addFaculty.overlay = document.querySelector('.panel-overlay');
-        this.modals.editFaculty.element = document.getElementById('editFacultyPanel');
+  this.modals.editFaculty.element = document.getElementById('editFacultyPanel');
         this.modals.editFaculty.overlay = document.querySelector('.edit-panel-overlay');
         this.modals.deleteConfirm.element = document.getElementById('deleteOverlay');
+    // Add Student is now a side panel, reuse panel overlay
+    this.modals.addStudent.element = document.getElementById('addStudentPanel');
+    this.modals.addStudent.overlay = document.querySelector('.panel-overlay');
+    this.modals.addStudent.closers = ['closeAddStudentPanel'];
         
         // Bind events
         this.bindEvents();
@@ -466,12 +596,17 @@
         
         // Bind overlay clicks
         if (this.modals.addFaculty.overlay) {
-          this.modals.addFaculty.overlay.addEventListener('click', () => this.close('addFaculty'));
+          this.modals.addFaculty.overlay.addEventListener('click', () => {
+            this.close('addFaculty');
+            this.close('addStudent');
+          });
         }
         
         if (this.modals.editFaculty.overlay) {
           this.modals.editFaculty.overlay.addEventListener('click', () => this.close('editFaculty'));
         }
+
+        // Student panel closers are auto-wired via closers
         
         // Bind other modal overlays
         const deleteModal = this.modals.deleteConfirm.element;
@@ -516,6 +651,11 @@
             const firstInput = modal.element.querySelector('input');
             if (firstInput) firstInput.focus();
           }, 300);
+        } else if (modalKey === 'addStudent') {
+          if(modal.overlay) modal.overlay.classList.add('show');
+          modal.element.classList.add('show');
+          document.body.style.overflow = 'hidden';
+          setTimeout(()=>{ const first = modal.element.querySelector('input'); if(first) first.focus(); }, 100);
         } else {
           modal.element.classList.add('show');
         }
@@ -541,6 +681,12 @@
           // Reset form
           const form = document.getElementById('editFacultyForm');
           if (form) form.reset();
+        } else if (modalKey === 'addStudent') {
+          if(modal.overlay) modal.overlay.classList.remove('show');
+          modal.element.classList.remove('show');
+          document.body.style.overflow = 'auto';
+          const form = document.getElementById('addStudentPanel');
+          if(form) form.reset();
         } else {
           modal.element.classList.remove('show');
         }
@@ -620,13 +766,28 @@
         const daySel = document.querySelector(`select[name="${prefix}day_${idx}"]`);
         const startInp = document.querySelector(`input[name="${prefix}start_time_${idx}"]`);
         const endInp = document.querySelector(`input[name="${prefix}end_time_${idx}"]`);
-        if(daySel) daySel.value = '';
-        if(startInp) startInp.value = '';
-        if(endInp) endInp.value = '';
+        if(daySel){
+          daySel.value = '';
+          // Dispatch events so dirty tracking picks up the change
+          daySel.dispatchEvent(new Event('input', { bubbles: true }));
+          daySel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if(startInp){
+          startInp.value = '';
+          startInp.dispatchEvent(new Event('input', { bubbles: true }));
+          startInp.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if(endInp){
+          endInp.value = '';
+          endInp.dispatchEvent(new Event('input', { bubbles: true }));
+          endInp.dispatchEvent(new Event('change', { bubbles: true }));
+        }
         const label = document.querySelector(`.schedule-label button.schedule-clear-btn[data-scope="${scope}"][data-index="${idx}"]`);
         const row = label ? label.closest('.schedule-label')?.nextElementSibling : null;
         if(row && row.classList){ row.classList.add('cleared'); setTimeout(()=>row.classList.remove('cleared'), 800); }
         try{ showNotification(`Schedule ${idx} cleared${scope==='edit'?' (Edit)':''}`); }catch(_){ }
+        // Ensure dirty state reflects the removal immediately
+        try{ if(typeof refreshEditDirty === 'function') refreshEditDirty(); }catch(_){ }
       }catch(_){ }
     }
 
@@ -726,8 +887,10 @@
         console.log('No schedule data to populate - schedule value:', schedule); // Debug log
       }
       
-      // Load and populate subject assignments
-      loadProfessorSubjects(profId);
+      // Load and populate subject assignments, then snapshot initial state
+      loadProfessorSubjects(profId).then(()=>{
+        setEditInitialSnapshot();
+      });
     }
 
     function clearScheduleFields() {
@@ -770,7 +933,7 @@
 
     function loadProfessorSubjects(profId) {
       // Fetch professor's current subject assignments
-      fetch(`/admin-comsci/professor-subjects/${profId}`, {
+      return fetch(`/admin-comsci/professor-subjects/${profId}`, {
         method: 'GET',
         headers: {
           'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
@@ -793,17 +956,68 @@
       });
     }
 
+    // ---- Dirty tracking for Edit form ----
+    function getEditFormSnapshot(){
+      const form = document.getElementById('editFacultyForm');
+      if(!form) return '';
+      const snap = {
+        Name: form.querySelector('#editName')?.value || '',
+        sched: {
+          d1: form.querySelector('select[name="edit_day_1"]')?.value || '',
+          s1: form.querySelector('input[name="edit_start_time_1"]')?.value || '',
+          e1: form.querySelector('input[name="edit_end_time_1"]')?.value || '',
+          d2: form.querySelector('select[name="edit_day_2"]')?.value || '',
+          s2: form.querySelector('input[name="edit_start_time_2"]')?.value || '',
+          e2: form.querySelector('input[name="edit_end_time_2"]')?.value || '',
+          d3: form.querySelector('select[name="edit_day_3"]')?.value || '',
+          s3: form.querySelector('input[name="edit_start_time_3"]')?.value || '',
+          e3: form.querySelector('input[name="edit_end_time_3"]')?.value || '',
+        },
+        subjects: Array.from(document.querySelectorAll('#editSubjectList input[type="checkbox"]:checked')).map(cb=>cb.value).sort()
+      };
+      try{ return JSON.stringify(snap); }catch(_){ return '' }
+    }
+    function toggleEditSubmitEnabled(enabled){
+      const form = document.getElementById('editFacultyForm');
+      const btn = form?.querySelector('.panel-actions .btn-primary');
+      if(btn){ btn.disabled = !enabled; }
+    }
+    function setEditInitialSnapshot(){
+      const form = document.getElementById('editFacultyForm');
+      if(!form) return;
+      form.dataset.initialSnapshot = getEditFormSnapshot();
+      form.dataset.dirty = '0';
+      toggleEditSubmitEnabled(false);
+    }
+    function refreshEditDirty(){
+      const form = document.getElementById('editFacultyForm');
+      if(!form) return;
+      const cur = getEditFormSnapshot();
+      const dirty = (cur !== (form.dataset.initialSnapshot||''));
+      form.dataset.dirty = dirty ? '1' : '0';
+      toggleEditSubmitEnabled(dirty);
+    }
+    // Bind change listeners once
+    (function bindEditDirtyListeners(){
+      const form = document.getElementById('editFacultyForm');
+      if(!form) return;
+      form.addEventListener('input', refreshEditDirty, true);
+      form.addEventListener('change', refreshEditDirty, true);
+    })();
+
     // --- Delete from Edit Modal ---
     document.querySelector('.delete-prof-btn-modal').onclick = function() {
       ModalManager.close('editFaculty');
       showDeleteModal(currentProfId);
     };
-
     // --- Delete Modal Logic ---
     function showDeleteModal(profId) {
-      var form = document.getElementById('deleteForm');
-      form.action = '/admin-comsci/delete-professor/' + profId;
+      const form = document.getElementById('deleteForm');
+      if(form){
+        form.action = '/admin-comsci/delete-professor/' + profId;
+      }
       ModalManager.open('deleteConfirm');
+      try{ if(typeof refreshEditDirty === 'function') refreshEditDirty(); }catch(_){ }
     }
 
   // Removed legacy addFacultyPanel submit listener (handled by enhanceAddProfessorForm)
@@ -811,7 +1025,18 @@
     // Handle edit form submission
     document.getElementById('editFacultyForm').addEventListener('submit', function(e) {
       e.preventDefault();
+      if(this.dataset.dirty !== '1'){
+        showNotification('No changes to update', true);
+        return;
+      }
       
+      // Ensure hidden Prof_ID mirrors the visible field before validating
+      try{
+        const disp = this.querySelector('#editProfId');
+        const hid  = this.querySelector('input[name="Prof_ID"][type="hidden"]');
+        if(disp && hid){ hid.value = (disp.value||'').replace(/\D/g,'').slice(0,9); }
+      }catch(_){ }
+
       const formData = new FormData(this);
       
       // Validate required fields
@@ -819,10 +1044,12 @@
       let isValid = true;
       
       requiredFields.forEach(field => {
-        const input = this.querySelector(`[name="${field}"]`);
-        if (!input || !input.value.trim()) {
+        const inputs = Array.from(this.querySelectorAll(`[name="${field}"]`));
+        const anyFilled = inputs.some(i => (i && (i.value||'').trim() !== ''));
+        if(!anyFilled){
           isValid = false;
-          input?.focus();
+          const vis = inputs.find(i => i.offsetParent !== null) || inputs[0];
+          vis?.focus();
           return;
         }
       });
@@ -887,6 +1114,15 @@
       // Debug log
       console.log('Schedule being sent:', scheduleInput.value);
       
+  // Anti-spam: prevent duplicate submissions while request is in-flight
+  if(this.dataset.submitting === '1') return;
+  // 5-second cooldown per click
+  if(this.dataset.cooldown === '1') return;
+  this.dataset.cooldown = '1';
+  setTimeout(()=>{ this.dataset.cooldown = '0'; }, 5000);
+  this.dataset.submitting = '1';
+  const submitBtnRef = lockSubmitButton(this);
+
       // Submit the form via fetch to handle the response
       fetch(this.action, {
         method: 'POST',
@@ -912,6 +1148,9 @@
             card.dataset.name = newName;
             if(card.querySelector('.profile-name')) card.querySelector('.profile-name').textContent = newName;
             // Schedule updated via event; keep local dataset for instant UX
+            const schedHidden = this.querySelector('input[name="Schedule"]');
+            const newSched = schedHidden ? schedHidden.value : '';
+            card.setAttribute('data-sched', newSched && newSched.trim() !== '' ? newSched : 'No schedule set');
           }
           ModalManager.close('editFaculty');
         } else {
@@ -921,6 +1160,10 @@
       .catch(error => {
         console.error('Error:', error);
         showNotification('Error updating professor', true);
+      })
+      .finally(()=>{
+        this.dataset.submitting = '0';
+        unlockSubmitButton(submitBtnRef);
       });
     });
 
@@ -929,6 +1172,52 @@
       ModalManager.init();
       initRealtimeAdminComsci();
       enhanceAddProfessorForm();
+      setupAddChooserModal();
+      enhanceAddStudentPanel();
+      // Defensive: ensure no overlay is accidentally left open blocking clicks
+      try {
+        const gl = document.getElementById('globalLoading');
+        if (gl) { gl.classList.remove('active'); gl.setAttribute('aria-hidden','true'); }
+        document.body.style.overflow = 'auto';
+        document.querySelectorAll('.panel-overlay.show, .edit-panel-overlay.show, #addChooserModal.show, #deleteOverlay.show').forEach(el=>{
+          el.classList.remove('show');
+          if(el.setAttribute) el.setAttribute('aria-hidden','true');
+        });
+        // Clear any lingering confirm overlays
+        document.querySelectorAll('.confirm-overlay.active').forEach(el=>{
+          el.classList.remove('active');
+          setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 120);
+        });
+        // Safety: if an overlay is shown without its panel, remove it
+        const addPanelShown = !!document.querySelector('.add-faculty-panel.show, .add-student-panel.show');
+        const editPanelShown = !!document.querySelector('.edit-faculty-panel.show');
+        const panelOverlay = document.querySelector('.panel-overlay');
+        const editOverlay = document.querySelector('.edit-panel-overlay');
+        if(panelOverlay && panelOverlay.classList.contains('show') && !addPanelShown){ panelOverlay.classList.remove('show'); panelOverlay.setAttribute('aria-hidden','true'); }
+        if(editOverlay && editOverlay.classList.contains('show') && !editPanelShown){ editOverlay.classList.remove('show'); editOverlay.setAttribute('aria-hidden','true'); }
+      } catch(_) { /* ignore */ }
+      // Global Esc failsafe: close any open overlays/modals if stuck
+      document.addEventListener('keydown', function(e){
+        if(e.key !== 'Escape') return;
+        try{
+          ['#addChooserModal','#deleteOverlay'].forEach(sel=>{ const el=document.querySelector(sel); if(el&&el.classList.contains('show')){ el.classList.remove('show'); el.setAttribute('aria-hidden','true'); }});
+          document.querySelectorAll('.panel-overlay.show, .edit-panel-overlay.show').forEach(el=>{ el.classList.remove('show'); el.setAttribute('aria-hidden','true'); });
+          document.querySelectorAll('.confirm-overlay.active').forEach(el=>{ el.classList.remove('active'); setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 120); });
+          document.body.style.overflow='auto';
+        }catch(_){ }
+      }, true);
+      // Prevent browser history dropdown on Faculty ID and keep hidden field in sync (COMSCI)
+      try{
+        const addDisp = document.getElementById('addProfIdComsci');
+        const addHid  = document.getElementById('hiddenAddProfIdComsci');
+        if(addDisp && addHid){
+          addDisp.setAttribute('autocomplete','one-time-code');
+          addDisp.addEventListener('focus', ()=>{ addDisp.readOnly = true; setTimeout(()=>{ addDisp.readOnly = false; }, 80); });
+          addDisp.addEventListener('input', ()=>{ addHid.value = (addDisp.value||'').replace(/\D/g,'').slice(0,9); });
+        }
+        const editDisp = document.getElementById('editProfId');
+        if(editDisp){ editDisp.setAttribute('autocomplete','one-time-code'); editDisp.addEventListener('focus', ()=>{ editDisp.readOnly = true; setTimeout(()=>{ editDisp.readOnly = false; }, 80); }); }
+      }catch(_){ }
     });
 
     // Use fetch for add professor to prevent full reload (server event will update others)
@@ -943,7 +1232,50 @@
       form.addEventListener('submit', function(e){
         if(form.dataset.ajaxDone) return; // avoid double
         e.preventDefault();
+        // Ensure hidden Prof_ID is synced from display before sending
+        try{
+          const disp = document.getElementById('addProfIdComsci');
+          const hid = document.getElementById('hiddenAddProfIdComsci');
+          if(disp && hid){ hid.value = (disp.value||'').replace(/\D/g,'').slice(0,9); }
+        }catch(_){ }
+        // Build Schedule from day/time inputs (Schedule 1-3) before sending
+        try {
+          const day1 = form.querySelector('[name="day_1"]').value;
+          const st1 = form.querySelector('[name="start_time_1"]').value;
+          const en1 = form.querySelector('[name="end_time_1"]').value;
+          const day2 = form.querySelector('[name="day_2"]').value;
+          const st2 = form.querySelector('[name="start_time_2"]').value;
+          const en2 = form.querySelector('[name="end_time_2"]').value;
+          const day3 = form.querySelector('[name="day_3"]').value;
+          const st3 = form.querySelector('[name="start_time_3"]').value;
+          const en3 = form.querySelector('[name="end_time_3"]').value;
+
+          const rows = [
+            {day: day1, start: st1, end: en1},
+            {day: day2, start: st2, end: en2},
+            {day: day3, start: st3, end: en3}
+          ];
+          const toMinutes = (t)=>{ if(!t) return 0; const [h,m] = t.split(':'); return parseInt(h||'0')*60 + parseInt(m||'0'); };
+          const fmt12 = (t)=>{ const [h,m] = (t||'0:00').split(':'); const hn = parseInt(h||'0'); const ampm = hn>=12? 'PM':'AM'; const dh = hn>12? hn-12 : (hn===0?12:hn); return `${dh}:${m} ${ampm}`; };
+          const out = [];
+          for(const r of rows){
+            if(r.day && r.start && r.end){
+              if(toMinutes(r.end) <= toMinutes(r.start)){
+                showNotification(`End time must be after start time for ${r.day}`, true);
+                return; // abort submit
+              }
+              out.push(`${r.day}: ${fmt12(r.start)}-${fmt12(r.end)}`);
+            }
+          }
+          let schedInput = form.querySelector('input[name="Schedule"][type="hidden"]');
+          if(!schedInput){ schedInput = document.createElement('input'); schedInput.type = 'hidden'; schedInput.name = 'Schedule'; form.appendChild(schedInput); }
+          schedInput.value = out.length ? out.join('\n') : '';
+        } catch(_) { /* ignore build errors; server will validate */ }
         const fd = new FormData(form);
+        const overlay = document.getElementById('globalLoading');
+        if(overlay){ overlay.classList.add('active'); overlay.setAttribute('aria-hidden','false'); }
+        // Allow the overlay to paint before starting the request so the spinner animates
+        requestAnimationFrame(() => {
         fetch(form.action, {method:'POST', body: fd, headers:{
             'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,
             'Accept':'application/json',
@@ -967,8 +1299,85 @@
               showNotification(msg, true);
             }
           })
-          .catch(err=>{ console.error(err); showNotification('Request failed: '+(err&&err.message?err.message:'Unexpected error'), true); });
+          .catch(err=>{ console.error(err); showNotification('Request failed: '+(err&&err.message?err.message:'Unexpected error'), true); })
+          .finally(()=>{ if(overlay){ overlay.classList.remove('active'); overlay.setAttribute('aria-hidden','true'); } });
+        });
       }, true);
+    }
+
+    function enhanceAddStudentPanel(){
+      const form = document.getElementById('addStudentPanel');
+      if(!form) return;
+      const genBtn = document.getElementById('btnGenTempPwStudentComsci');
+      const pwInput = document.getElementById('addStudentTempPasswordComsci');
+      if(genBtn && pwInput){ genBtn.addEventListener('click', ()=>{ pwInput.value = generatePassword(12); pwInput.dispatchEvent(new Event('input',{bubbles:true})); }); }
+      // Intercept Cancel and Close to confirm when fields have values
+      const cancelBtn = form.querySelector('.panel-actions .btn-secondary');
+      const closeBtn = document.getElementById('closeAddStudentPanel');
+      const hasEdits = ()=>{
+        const id = (form.querySelector('input[name="Stud_ID"]')?.value||'').trim();
+        const name = (form.querySelector('input[name="Name"]')?.value||'').trim();
+        const email = (form.querySelector('input[name="Email"]')?.value||'').trim();
+        const pwd = (form.querySelector('input[name="Password"]')?.value||'').trim();
+        return !!(id || name || email || pwd);
+      };
+      async function onCancelAttempt(e){
+        if(e){ e.preventDefault(); e.stopPropagation(); }
+        if(!hasEdits()){ ModalManager.close('addStudent'); return; }
+        const ok = await adminConfirm('Confirm cancel', 'Are you sure you want to cancel adding a student? Your changes will not be saved.', 'Yes, cancel', 'No, keep editing');
+        if(ok) ModalManager.close('addStudent');
+      }
+      if(cancelBtn){
+        // Override inline onclick to route through our confirm
+        cancelBtn.onclick = onCancelAttempt;
+      }
+      if(closeBtn){
+        // Capture before ModalManager listener to prevent immediate close
+        closeBtn.addEventListener('click', onCancelAttempt, true);
+      }
+      form.addEventListener('submit', function(e){
+        if(form.dataset.ajaxDone) return;
+        e.preventDefault();
+        (async ()=>{
+          const studId = (form.querySelector('input[name="Stud_ID"]')?.value||'').trim();
+          const name = (form.querySelector('input[name="Name"]')?.value||'').trim();
+          const email = (form.querySelector('input[name="Email"]')?.value||'').trim();
+          const msg = `<div>Please confirm the student details:</div><ul style="margin:10px 0 0 18px; padding:0; list-style:disc;">
+            <li><strong>ID:</strong> ${studId || '<em>—</em>'}</li>
+            <li><strong>Name:</strong> ${name || '<em>—</em>'}</li>
+            <li><strong>Email:</strong> ${email || '<em>—</em>'}</li>
+          </ul>`;
+          const ok = await adminConfirm('Add Student', msg, 'Yes, add student', 'Keep editing');
+          if(!ok) return;
+          const overlay = document.getElementById('globalLoading');
+          if(overlay){ overlay.classList.add('active'); overlay.setAttribute('aria-hidden','false'); }
+          requestAnimationFrame(()=>{
+            fetch(form.action,{method:'POST', body: new FormData(form), headers:{ 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content, 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest' }})
+              .then(async r=>{ try{ return await r.json(); } catch(e){ showNotification('Unexpected server response', true); throw e; } })
+              .then(data=>{ if(data.success){ showNotification('Student added successfully'); ModalManager.close('addStudent'); } else { let msg = data.message || 'Failed to add student'; if(data.errors){ try{ const all = Object.values(data.errors).flat(); if(all.length) msg = all.join(' • ');}catch(_){ }} showNotification(msg, true); } })
+              .catch(err=>{ console.error(err); showNotification('Request failed: '+(err&&err.message?err.message:'Unexpected error'), true); })
+              .finally(()=>{ if(overlay){ overlay.classList.remove('active'); overlay.setAttribute('aria-hidden','true'); } });
+          });
+        })();
+      }, true);
+    }
+
+    function setupAddChooserModal(){
+      const fab = document.getElementById('addChooserBtn');
+      const modal = document.getElementById('addChooserModal');
+      if(!fab || !modal) return;
+      function toggle(force){ const open = force!==undefined?force:!modal.classList.contains('show'); modal.classList.toggle('show', open); modal.setAttribute('aria-hidden', open? 'false':'true'); }
+      fab.addEventListener('click', ()=> toggle(true));
+      modal.querySelectorAll('[data-close-chooser]').forEach(btn=> btn.addEventListener('click', ()=> toggle(false)));
+      modal.addEventListener('click', (e)=>{ if(e.target === modal) toggle(false); });
+      modal.querySelectorAll('[data-open-add]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const type = btn.getAttribute('data-open-add');
+          toggle(false);
+          if(type==='faculty') ModalManager.open('addFaculty');
+          if(type==='student') ModalManager.open('addStudent');
+        });
+      });
     }
 
     function addOrUpdateCard(p){
@@ -1031,11 +1440,21 @@
       }
     }
 
-    // Intercept delete form submit to show notice immediately without full reload
+    // Intercept delete form submit to show notice immediately without full reload (with anti-spam)
     document.addEventListener('submit', function(e){
       const form = e.target;
       if(form && form.id === 'deleteForm'){
-        e.preventDefault();
+  if(form.dataset.submitting === '1'){ e.preventDefault(); return; }
+  // 5-second cooldown per click
+  if(form.dataset.cooldown === '1'){ e.preventDefault(); return; }
+  e.preventDefault();
+  form.dataset.cooldown = '1';
+  setTimeout(()=>{ form.dataset.cooldown = '0'; }, 5000);
+  form.dataset.submitting = '1';
+  const confirmBtn = form.querySelector('.delete-confirm');
+  const cancelBtn = form.querySelector('.delete-cancel');
+  if(confirmBtn){ confirmBtn.disabled = true; confirmBtn.setAttribute('aria-busy','true'); }
+        if(cancelBtn){ cancelBtn.disabled = true; }
         fetch(form.action, {method:'POST', headers:{'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}, body: new FormData(form)})
           .then(r=> r.ok ? r.json().catch(()=>({success:true})) : Promise.reject(r))
           .then(()=>{ 
@@ -1045,9 +1464,43 @@
             if(card) card.remove();
             ModalManager.close('deleteConfirm'); showNotification('Professor deleted successfully');
           })
-          .catch(()=>{ ModalManager.close('deleteConfirm'); showNotification('Deletion failed', true); });
+          .catch(()=>{ ModalManager.close('deleteConfirm'); showNotification('Deletion failed', true); })
+          .finally(()=>{
+            form.dataset.submitting = '0';
+            if(confirmBtn){ confirmBtn.disabled = false; confirmBtn.removeAttribute('aria-busy'); }
+            if(cancelBtn){ cancelBtn.disabled = false; }
+          });
       }
     }, true);
+
+    // Apply lightweight click guards for Cancel/Open Delete in edit panel and delete cancel
+    guardRapidClicks('.panel-actions .btn-secondary', 5000);
+    guardRapidClicks('.delete-prof-btn-modal', 5000);
+    guardRapidClicks('#deleteForm .delete-cancel', 5000);
+
+    // Reusable green-themed confirm modal
+    function adminConfirm(title, html, okText='Confirm', cancelText='Cancel'){
+      return new Promise(resolve=>{
+        const overlay=document.createElement('div'); overlay.className='confirm-overlay';
+        const dlg=document.createElement('div'); dlg.className='confirm-modal'; dlg.setAttribute('role','dialog'); dlg.setAttribute('aria-modal','true');
+        dlg.innerHTML = `
+          <div class="confirm-header"><i class='bx bx-help-circle'></i><div>${title||'Please confirm'}</div></div>
+          <div class="confirm-body">${html||'Are you sure?'}</div>
+          <div class="confirm-actions">
+            <button type="button" class="btn-cancel-red" id="admCancelBtn">${cancelText}</button>
+            <button type="button" class="btn-confirm-green" id="admOkBtn">${okText}</button>
+          </div>`;
+        overlay.appendChild(dlg); document.body.appendChild(overlay);
+        requestAnimationFrame(()=> overlay.classList.add('active'));
+        const okBtn = dlg.querySelector('#admOkBtn');
+        const cancelBtn = dlg.querySelector('#admCancelBtn');
+        function cleanup(){ overlay.classList.remove('active'); setTimeout(()=> overlay.remove(), 120); }
+        okBtn.addEventListener('click', ()=>{ cleanup(); resolve(true); });
+        cancelBtn.addEventListener('click', ()=>{ cleanup(); resolve(false); });
+        overlay.addEventListener('click', (e)=>{ if(!dlg.contains(e.target)){ cleanup(); resolve(false); }});
+        document.addEventListener('keydown', function esc(e){ if(e.key==='Escape'){ e.preventDefault(); cleanup(); resolve(false); document.removeEventListener('keydown', esc);} });
+      });
+    }
   </script>
 </body>
 </html>

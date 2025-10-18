@@ -49,7 +49,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspention";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspension";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -113,7 +113,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspention";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspension";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -174,7 +174,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspention";
+                    $label = $ov->reason_key === "prof_leave" ? "Leave" : "Suspension";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -230,7 +230,7 @@ class AdminCalendarOverrideController extends Controller
                 if ($ov->effect === "holiday") {
                     $label = $ov->reason_text ?: "Holiday";
                 } elseif ($ov->effect === "block_all") {
-                    $label = "Suspention";
+                    $label = "Suspension";
                 } elseif ($ov->effect === "force_mode") {
                     $label = "Force " . ucfirst($ov->allowed_mode ?? "mode");
                 }
@@ -601,10 +601,11 @@ class AdminCalendarOverrideController extends Controller
             }
         }
 
-        // After processing, if this is a Suspention (block_all), notify professors and affected students
+        // After processing, if this is a Suspension (block_all), notify professors and affected students
+        // IMPORTANT: Do NOT notify professors/students for End Year ranges
         try {
             if (($data["effect"] ?? null) === "block_all") {
-                $title = "Suspention of Class";
+                $title = "Suspension of Class";
 
                 $startHuman = Carbon::parse($startDate)->format("M d, Y");
                 $endHuman = Carbon::parse($endDate)->format("M d, Y");
@@ -635,16 +636,23 @@ class AdminCalendarOverrideController extends Controller
 
                 $message = "No classes {$rangeText} due to {$reasonTxt}. {$reschedText}";
 
-                // Notify ALL professors regardless of scope
-                $profRecipients = DB::table("professors")->pluck("Prof_ID")->toArray();
-                foreach ($profRecipients as $pid) {
-                    Notification::createSystem((int) $pid, $title, $message, "suspention_day");
-                }
+                // Skip sending notifications if this block_all represents End Year
+                $rkLower = strtolower((string) ($data["reason_key"] ?? ""));
+                $rtLower = strtolower((string) ($data["reason_text"] ?? ""));
+                $isEndYear = $rkLower === "end_year" || strpos($rtLower, "end year") !== false;
 
-                // Notify ALL students, even without bookings on the affected dates
-                $studentRecipients = DB::table("t_student")->pluck("Stud_ID")->toArray();
-                foreach ($studentRecipients as $sid) {
-                    Notification::createSystem((int) $sid, $title, $message, "suspention_day");
+                if (!$isEndYear) {
+                    // Notify ALL professors regardless of scope
+                    $profRecipients = DB::table("professors")->pluck("Prof_ID")->toArray();
+                    foreach ($profRecipients as $pid) {
+                        Notification::createSystem((int) $pid, $title, $message, "suspention_day");
+                    }
+
+                    // Notify ALL students, even without bookings on the affected dates
+                    $studentRecipients = DB::table("t_student")->pluck("Stud_ID")->toArray();
+                    foreach ($studentRecipients as $sid) {
+                        Notification::createSystem((int) $sid, $title, $message, "suspention_day");
+                    }
                 }
             }
         } catch (\Throwable $e) {

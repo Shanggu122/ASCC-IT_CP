@@ -196,13 +196,23 @@
 
     <div class="chat-overlay" id="chatOverlay">
       <div class="chat-header">
-        <span>AI Chat Assistant</span>
+        <span>ASCC-IT</span>
         <button class="close-btn" onclick="toggleChat()">×</button>
       </div>
       <div class="chat-body" id="chatBody">
         <div class="message bot">Hi! How can I help you today?</div>
         <div id="chatBox"></div>
       </div>
+      <div id="quickReplies" class="quick-replies">
+        <button type="button" class="quick-reply" data-message="How do I book a consultation?">How do I book?</button>
+        <button type="button" class="quick-reply" data-message="What are the consultation statuses?">Statuses?</button>
+        <button type="button" class="quick-reply" data-message="How can I reschedule my consultation?">Reschedule</button>
+        <button type="button" class="quick-reply" data-message="Can I cancel my booking?">Cancel booking</button>
+        <button type="button" class="quick-reply" data-message="How do I contact my professor after booking?">Contact professor</button>
+      </div>
+      <button type="button" id="quickRepliesToggle" class="quick-replies-toggle" style="display:none" title="Show FAQs">
+        <i class='bx bx-help-circle'></i>
+      </button>
 
       <form id="chatForm">
         <input type="text" id="message" placeholder="Type your message" required>
@@ -807,9 +817,17 @@ function hideNotification(){
   if(notif) notif.style.display = 'none';
 }
 
-// === Chatbot ===
+// === Chatbot (dashboard parity) ===
 function toggleChat() {
-    document.getElementById("chatOverlay").classList.toggle("open");
+  const overlay = document.getElementById('chatOverlay');
+  overlay.classList.toggle('open');
+  const isOpen = overlay.classList.contains('open');
+  document.body.classList.toggle('chat-open', isOpen);
+  const bell = document.getElementById('mobileNotificationBell');
+  if (bell) {
+    if (isOpen) { bell.style.zIndex='0'; bell.style.pointerEvents='none'; bell.style.opacity='0'; }
+    else { bell.style.zIndex=''; bell.style.pointerEvents=''; bell.style.opacity=''; }
+  }
 }
 
 const csrfToken = document
@@ -823,6 +841,12 @@ if(input){
   input.setAttribute('spellcheck','false');
 }
 const chatBody = document.getElementById("chatBody");
+const quickReplies = document.getElementById('quickReplies');
+const quickRepliesToggle = document.getElementById('quickRepliesToggle');
+
+function sendQuick(text){ if(!text) return; input.value = text; if(typeof chatForm.requestSubmit === 'function') chatForm.requestSubmit(); else chatForm.dispatchEvent(new Event('submit', {cancelable:true})); }
+quickReplies?.addEventListener('click', (e)=>{ const btn=e.target.closest('.quick-reply'); if(btn){ sendQuick(btn.dataset.message); } });
+quickRepliesToggle?.addEventListener('click', ()=>{ if(quickReplies){ quickReplies.style.display='flex'; quickRepliesToggle.style.display='none'; } });
 
 // Send on Enter (like ITIS/COMSCI). Prevent accidental double submits.
 input.addEventListener('keydown', function(e){
@@ -839,6 +863,12 @@ chatForm.addEventListener("submit", async function (e) {
     e.preventDefault();
   const text = sanitize(input.value);
     if (!text) return;
+
+    // hide quick replies on first interaction
+    if (quickReplies && quickReplies.style.display !== 'none') {
+      quickReplies.style.display = 'none';
+      if (quickRepliesToggle) quickRepliesToggle.style.display = 'flex';
+    }
 
     const um = document.createElement("div");
     um.classList.add("message", "user");

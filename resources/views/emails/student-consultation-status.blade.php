@@ -14,7 +14,7 @@
         @endif
       @endif
       <p>Please log in to the portal for details.</p>
-      <p style="margin-top:32px;">Regards,<br>ASCC Consultation Portal</p>
+  <p style="margin-top:32px;">Regards,<br>ASCC-IT</p>
     </td></tr>
   </table>
 </body></html>
