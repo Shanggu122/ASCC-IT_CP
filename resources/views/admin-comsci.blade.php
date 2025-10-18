@@ -1008,15 +1008,16 @@
     // --- Delete from Edit Modal ---
     document.querySelector('.delete-prof-btn-modal').onclick = function() {
       ModalManager.close('editFaculty');
-          if(daySel){ daySel.value = ''; daySel.dispatchEvent(new Event('input',{bubbles:true})); daySel.dispatchEvent(new Event('change',{bubbles:true})); }
-          if(startInp){ startInp.value = ''; startInp.dispatchEvent(new Event('input',{bubbles:true})); startInp.dispatchEvent(new Event('change',{bubbles:true})); }
-          if(endInp){ endInp.value = ''; endInp.dispatchEvent(new Event('input',{bubbles:true})); endInp.dispatchEvent(new Event('change',{bubbles:true})); }
+      showDeleteModal(currentProfId);
+    };
     // --- Delete Modal Logic ---
     function showDeleteModal(profId) {
-      var form = document.getElementById('deleteForm');
-      form.action = '/admin-comsci/delete-professor/' + profId;
+      const form = document.getElementById('deleteForm');
+      if(form){
+        form.action = '/admin-comsci/delete-professor/' + profId;
+      }
       ModalManager.open('deleteConfirm');
-          try{ if(typeof refreshEditDirty === 'function') refreshEditDirty(); }catch(_){ }
+      try{ if(typeof refreshEditDirty === 'function') refreshEditDirty(); }catch(_){ }
     }
 
   // Removed legacy addFacultyPanel submit listener (handled by enhanceAddProfessorForm)
@@ -1173,6 +1174,38 @@
       enhanceAddProfessorForm();
       setupAddChooserModal();
       enhanceAddStudentPanel();
+      // Defensive: ensure no overlay is accidentally left open blocking clicks
+      try {
+        const gl = document.getElementById('globalLoading');
+        if (gl) { gl.classList.remove('active'); gl.setAttribute('aria-hidden','true'); }
+        document.body.style.overflow = 'auto';
+        document.querySelectorAll('.panel-overlay.show, .edit-panel-overlay.show, #addChooserModal.show, #deleteOverlay.show').forEach(el=>{
+          el.classList.remove('show');
+          if(el.setAttribute) el.setAttribute('aria-hidden','true');
+        });
+        // Clear any lingering confirm overlays
+        document.querySelectorAll('.confirm-overlay.active').forEach(el=>{
+          el.classList.remove('active');
+          setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 120);
+        });
+        // Safety: if an overlay is shown without its panel, remove it
+        const addPanelShown = !!document.querySelector('.add-faculty-panel.show, .add-student-panel.show');
+        const editPanelShown = !!document.querySelector('.edit-faculty-panel.show');
+        const panelOverlay = document.querySelector('.panel-overlay');
+        const editOverlay = document.querySelector('.edit-panel-overlay');
+        if(panelOverlay && panelOverlay.classList.contains('show') && !addPanelShown){ panelOverlay.classList.remove('show'); panelOverlay.setAttribute('aria-hidden','true'); }
+        if(editOverlay && editOverlay.classList.contains('show') && !editPanelShown){ editOverlay.classList.remove('show'); editOverlay.setAttribute('aria-hidden','true'); }
+      } catch(_) { /* ignore */ }
+      // Global Esc failsafe: close any open overlays/modals if stuck
+      document.addEventListener('keydown', function(e){
+        if(e.key !== 'Escape') return;
+        try{
+          ['#addChooserModal','#deleteOverlay'].forEach(sel=>{ const el=document.querySelector(sel); if(el&&el.classList.contains('show')){ el.classList.remove('show'); el.setAttribute('aria-hidden','true'); }});
+          document.querySelectorAll('.panel-overlay.show, .edit-panel-overlay.show').forEach(el=>{ el.classList.remove('show'); el.setAttribute('aria-hidden','true'); });
+          document.querySelectorAll('.confirm-overlay.active').forEach(el=>{ el.classList.remove('active'); setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 120); });
+          document.body.style.overflow='auto';
+        }catch(_){ }
+      }, true);
       // Prevent browser history dropdown on Faculty ID and keep hidden field in sync (COMSCI)
       try{
         const addDisp = document.getElementById('addProfIdComsci');
