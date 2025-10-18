@@ -66,7 +66,7 @@
 
         <p style="margin:26px 0 10px;font-size:12px;color:#555;">Signed action links would be unique per booking in a real consolidated version.</p>
         <p style="margin:18px 0 0;font-size:12px;color:#777;">If actions were already taken in the system, no further response is required.</p>
-        <p style="margin:34px 0 4px;">Regards,<br>ASCC Consultation Portal</p>
+  <p style="margin:34px 0 4px;">Regards,<br>ASCC-IT</p>
       </td>
     </tr>
   </table>
