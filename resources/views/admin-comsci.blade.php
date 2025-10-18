@@ -459,6 +459,8 @@
   </div>
 
   <script>
+    // Keep the most recently saved schedule per professor to reflect changes instantly on reopen
+    const lastUpdatedSchedule = Object.create(null);
     // Generate a random, readable password (12 chars)
     function generatePassword(len=12){
       const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -821,6 +823,10 @@
     });
 
     function populateEditForm(profId, name, schedule) {
+      // Prefer the latest saved schedule if present
+      if(Object.prototype.hasOwnProperty.call(lastUpdatedSchedule, String(profId))){
+        schedule = lastUpdatedSchedule[String(profId)];
+      }
       // Set the form action URL
       document.getElementById('editFacultyForm').action = `/admin-comsci/update-professor/${profId}`;
       
@@ -1105,12 +1111,15 @@
         }
       }
       
-      // Always include Schedule hidden input so clearing all rows will wipe schedule
-      const scheduleInput = document.createElement('input');
-      scheduleInput.type = 'hidden';
-      scheduleInput.name = 'Schedule';
+      // Always include exactly one hidden Schedule input (reuse if exists)
+      let scheduleInput = this.querySelector('input[name="Schedule"]');
+      if(!scheduleInput){
+        scheduleInput = document.createElement('input');
+        scheduleInput.type = 'hidden';
+        scheduleInput.name = 'Schedule';
+        this.appendChild(scheduleInput);
+      }
       scheduleInput.value = scheduleData.length > 0 ? scheduleData.join('\n') : '';
-      this.appendChild(scheduleInput);
       // Debug log
       console.log('Schedule being sent:', scheduleInput.value);
       
@@ -1148,10 +1157,16 @@
             card.dataset.name = newName;
             if(card.querySelector('.profile-name')) card.querySelector('.profile-name').textContent = newName;
             // Schedule updated via event; keep local dataset for instant UX
-            const schedHidden = this.querySelector('input[name="Schedule"]');
-            const newSched = schedHidden ? schedHidden.value : '';
-            card.setAttribute('data-sched', newSched && newSched.trim() !== '' ? newSched : 'No schedule set');
+            const newSched = scheduleInput ? scheduleInput.value : '';
+            const schedString = newSched && newSched.trim() !== '' ? newSched : 'No schedule set';
+            // Remember latest for immediate reopen
+            lastUpdatedSchedule[String(profId)] = schedString === 'No schedule set' ? '' : schedString;
+            // Update both attribute and dataset for safety
+            card.setAttribute('data-sched', schedString);
+            card.dataset.sched = schedString;
           }
+          // Reset snapshot to the new clean state so button disables appropriately on reopen
+          try{ setEditInitialSnapshot(); }catch(_){ }
           ModalManager.close('editFaculty');
         } else {
           showNotification('Error updating professor: ' + (data.message || 'Unknown error'), true);
@@ -1432,7 +1447,7 @@
         const pusher = new Pusher('{{ config('broadcasting.connections.pusher.key') }}',{cluster:'{{ config('broadcasting.connections.pusher.options.cluster') }}'});
         const channel = pusher.subscribe('professors.dept.2');
         channel.bind('ProfessorAdded', data=> addOrUpdateCard(data));
-        channel.bind('ProfessorUpdated', data=> addOrUpdateCard(data));
+        channel.bind('ProfessorUpdated', data=> { addOrUpdateCard(data); try{ lastUpdatedSchedule[String(data.Prof_ID)] = data.Schedule || ''; }catch(_){ } });
         channel.bind('ProfessorDeleted', data=> {
           const card = document.querySelector(`[data-prof-id="${data.Prof_ID}"]`); if(card) card.remove();
           showNotification('Professor deleted successfully');
