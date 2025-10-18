@@ -775,14 +775,15 @@
         const daySel = document.querySelector(`select[name="${prefix}day_${idx}"]`);
         const startInp = document.querySelector(`input[name="${prefix}start_time_${idx}"]`);
         const endInp = document.querySelector(`input[name="${prefix}end_time_${idx}"]`);
-        if(daySel) daySel.value = '';
-        if(startInp) startInp.value = '';
-        if(endInp) endInp.value = '';
+        if(daySel){ daySel.value = ''; daySel.dispatchEvent(new Event('input',{bubbles:true})); daySel.dispatchEvent(new Event('change',{bubbles:true})); }
+        if(startInp){ startInp.value = ''; startInp.dispatchEvent(new Event('input',{bubbles:true})); startInp.dispatchEvent(new Event('change',{bubbles:true})); }
+        if(endInp){ endInp.value = ''; endInp.dispatchEvent(new Event('input',{bubbles:true})); endInp.dispatchEvent(new Event('change',{bubbles:true})); }
         // Visually soften the row
         const label = document.querySelector(`.schedule-label button.schedule-clear-btn[data-scope="${scope}"][data-index="${idx}"]`);
         const row = label ? label.closest('.schedule-label')?.nextElementSibling : null;
         if(row && row.classList){ row.classList.add('cleared'); setTimeout(()=>row.classList.remove('cleared'), 800); }
         try{ showNotification(`Schedule ${idx} cleared${scope==='edit'?' (Edit)':''}`); }catch(_){ }
+        try{ if(typeof refreshEditDirty === 'function') refreshEditDirty(); }catch(_){ }
       }catch(_){ }
     }
 
@@ -819,8 +820,10 @@
       // Set the form action URL
       document.getElementById('editFacultyForm').action = `/admin-itis/update-professor/${profId}`;
       
-      // Populate Faculty ID field
-      document.getElementById('editProfId').value = profId;
+  // Populate Faculty ID fields (display + hidden) to ensure validation passes even if ID field isn't edited
+  document.getElementById('editProfId').value = profId;
+  const hiddenIdEl = document.getElementById('hiddenEditProfId');
+  if(hiddenIdEl){ hiddenIdEl.value = profId; }
       
       // Populate name field
       console.log('Populating name field with:', name); // Debug log
@@ -1023,6 +1026,13 @@
         return;
       }
       
+      // Ensure hidden Prof_ID mirrors the visible field before validating
+      try{
+        const disp = this.querySelector('#editProfId');
+        const hid  = this.querySelector('#hiddenEditProfId');
+        if(disp && hid){ hid.value = (disp.value||'').replace(/\D/g,'').slice(0,9); }
+      }catch(_){ }
+
       const formData = new FormData(this);
       
       // Validate required fields
@@ -1030,10 +1040,13 @@
       let isValid = true;
       
       requiredFields.forEach(field => {
-        const input = this.querySelector(`[name="${field}"]`);
-        if (!input || !input.value.trim()) {
+        const inputs = Array.from(this.querySelectorAll(`[name="${field}"]`));
+        const anyFilled = inputs.some(i => (i && (i.value||'').trim() !== ''));
+        if(!anyFilled){
           isValid = false;
-          input?.focus();
+          // focus the first visible input for that field if exists
+          const vis = inputs.find(i => i.offsetParent !== null) || inputs[0];
+          vis?.focus();
           return;
         }
       });

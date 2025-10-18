@@ -766,13 +766,28 @@
         const daySel = document.querySelector(`select[name="${prefix}day_${idx}"]`);
         const startInp = document.querySelector(`input[name="${prefix}start_time_${idx}"]`);
         const endInp = document.querySelector(`input[name="${prefix}end_time_${idx}"]`);
-        if(daySel) daySel.value = '';
-        if(startInp) startInp.value = '';
-        if(endInp) endInp.value = '';
+        if(daySel){
+          daySel.value = '';
+          // Dispatch events so dirty tracking picks up the change
+          daySel.dispatchEvent(new Event('input', { bubbles: true }));
+          daySel.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if(startInp){
+          startInp.value = '';
+          startInp.dispatchEvent(new Event('input', { bubbles: true }));
+          startInp.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if(endInp){
+          endInp.value = '';
+          endInp.dispatchEvent(new Event('input', { bubbles: true }));
+          endInp.dispatchEvent(new Event('change', { bubbles: true }));
+        }
         const label = document.querySelector(`.schedule-label button.schedule-clear-btn[data-scope="${scope}"][data-index="${idx}"]`);
         const row = label ? label.closest('.schedule-label')?.nextElementSibling : null;
         if(row && row.classList){ row.classList.add('cleared'); setTimeout(()=>row.classList.remove('cleared'), 800); }
         try{ showNotification(`Schedule ${idx} cleared${scope==='edit'?' (Edit)':''}`); }catch(_){ }
+        // Ensure dirty state reflects the removal immediately
+        try{ if(typeof refreshEditDirty === 'function') refreshEditDirty(); }catch(_){ }
       }catch(_){ }
     }
 
@@ -993,14 +1008,15 @@
     // --- Delete from Edit Modal ---
     document.querySelector('.delete-prof-btn-modal').onclick = function() {
       ModalManager.close('editFaculty');
-      showDeleteModal(currentProfId);
-    };
-
+          if(daySel){ daySel.value = ''; daySel.dispatchEvent(new Event('input',{bubbles:true})); daySel.dispatchEvent(new Event('change',{bubbles:true})); }
+          if(startInp){ startInp.value = ''; startInp.dispatchEvent(new Event('input',{bubbles:true})); startInp.dispatchEvent(new Event('change',{bubbles:true})); }
+          if(endInp){ endInp.value = ''; endInp.dispatchEvent(new Event('input',{bubbles:true})); endInp.dispatchEvent(new Event('change',{bubbles:true})); }
     // --- Delete Modal Logic ---
     function showDeleteModal(profId) {
       var form = document.getElementById('deleteForm');
       form.action = '/admin-comsci/delete-professor/' + profId;
       ModalManager.open('deleteConfirm');
+          try{ if(typeof refreshEditDirty === 'function') refreshEditDirty(); }catch(_){ }
     }
 
   // Removed legacy addFacultyPanel submit listener (handled by enhanceAddProfessorForm)
@@ -1013,6 +1029,13 @@
         return;
       }
       
+      // Ensure hidden Prof_ID mirrors the visible field before validating
+      try{
+        const disp = this.querySelector('#editProfId');
+        const hid  = this.querySelector('input[name="Prof_ID"][type="hidden"]');
+        if(disp && hid){ hid.value = (disp.value||'').replace(/\D/g,'').slice(0,9); }
+      }catch(_){ }
+
       const formData = new FormData(this);
       
       // Validate required fields
@@ -1020,10 +1043,12 @@
       let isValid = true;
       
       requiredFields.forEach(field => {
-        const input = this.querySelector(`[name="${field}"]`);
-        if (!input || !input.value.trim()) {
+        const inputs = Array.from(this.querySelectorAll(`[name="${field}"]`));
+        const anyFilled = inputs.some(i => (i && (i.value||'').trim() !== ''));
+        if(!anyFilled){
           isValid = false;
-          input?.focus();
+          const vis = inputs.find(i => i.offsetParent !== null) || inputs[0];
+          vis?.focus();
           return;
         }
       });
