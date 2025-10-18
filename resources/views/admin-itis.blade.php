@@ -460,6 +460,8 @@
   </div>
 
   <script>
+    // Keep the most recently saved schedule per professor to reflect changes instantly on reopen
+    const lastUpdatedSchedule = Object.create(null);
     // Generate a random, readable password (12 chars: A-Z a-z 0-9 + symbols)
     function generatePassword(len=12){
       const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // exclude I/O
@@ -817,6 +819,10 @@
     });
 
     function populateEditForm(profId, name, schedule) {
+      // Prefer the latest saved schedule if present
+      if(Object.prototype.hasOwnProperty.call(lastUpdatedSchedule, String(profId))){
+        schedule = lastUpdatedSchedule[String(profId)];
+      }
       // Set the form action URL
       document.getElementById('editFacultyForm').action = `/admin-itis/update-professor/${profId}`;
       
@@ -1102,12 +1108,15 @@
         }
       }
       
-      // Always include Schedule hidden input so clearing all rows will wipe schedule
-      const scheduleInput = document.createElement('input');
-      scheduleInput.type = 'hidden';
-      scheduleInput.name = 'Schedule';
+      // Always include exactly one hidden Schedule input (reuse if exists)
+      let scheduleInput = this.querySelector('input[name="Schedule"]');
+      if(!scheduleInput){
+        scheduleInput = document.createElement('input');
+        scheduleInput.type = 'hidden';
+        scheduleInput.name = 'Schedule';
+        this.appendChild(scheduleInput);
+      }
       scheduleInput.value = scheduleData.length > 0 ? scheduleData.join('\n') : '';
-      this.appendChild(scheduleInput);
       // Debug log
       console.log('Schedule being sent:', scheduleInput.value);
       
@@ -1144,10 +1153,15 @@
               card.dataset.name = newName;
               if(card.querySelector('.profile-name')) card.querySelector('.profile-name').textContent = newName;
               // Update schedule on the card immediately (optimistic)
-              const schedHidden = this.querySelector('input[name="Schedule"]');
-              const newSched = schedHidden ? schedHidden.value : '';
-              card.setAttribute('data-sched', newSched && newSched.trim() !== '' ? newSched : 'No schedule set');
+              const newSched = scheduleInput ? scheduleInput.value : '';
+              const schedString = newSched && newSched.trim() !== '' ? newSched : 'No schedule set';
+              // Cache latest for instant reopen and update both attribute and dataset
+              lastUpdatedSchedule[String(profId)] = schedString === 'No schedule set' ? '' : schedString;
+              card.setAttribute('data-sched', schedString);
+              card.dataset.sched = schedString;
             }
+          // Reset snapshot so form is clean after success
+          try{ setEditInitialSnapshot(); }catch(_){ }
           ModalManager.close('editFaculty');
         } else {
           showNotification('Error updating professor: ' + (data.message || 'Unknown error'), true);
@@ -1170,6 +1184,38 @@
       enhanceAddProfessorFormItis();
       setupAddChooserModal();
       enhanceAddStudentPanelItis();
+      // Defensive: ensure no overlay is accidentally left open blocking clicks
+      try {
+        const gl = document.getElementById('globalLoading');
+        if (gl) { gl.classList.remove('active'); gl.setAttribute('aria-hidden','true'); }
+        document.body.style.overflow = 'auto';
+        document.querySelectorAll('.panel-overlay.show, .edit-panel-overlay.show, #addChooserModal.show, #deleteOverlay.show').forEach(el=>{
+          el.classList.remove('show');
+          if(el.setAttribute) el.setAttribute('aria-hidden','true');
+        });
+        // Clear any lingering confirm overlays
+        document.querySelectorAll('.confirm-overlay.active').forEach(el=>{
+          el.classList.remove('active');
+          setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 120);
+        });
+        // Safety: if an overlay is shown without its panel, remove it
+        const addPanelShown = !!document.querySelector('.add-faculty-panel.show, .add-student-panel.show');
+        const editPanelShown = !!document.querySelector('.edit-faculty-panel.show');
+        const panelOverlay = document.querySelector('.panel-overlay');
+        const editOverlay = document.querySelector('.edit-panel-overlay');
+        if(panelOverlay && panelOverlay.classList.contains('show') && !addPanelShown){ panelOverlay.classList.remove('show'); panelOverlay.setAttribute('aria-hidden','true'); }
+        if(editOverlay && editOverlay.classList.contains('show') && !editPanelShown){ editOverlay.classList.remove('show'); editOverlay.setAttribute('aria-hidden','true'); }
+      } catch(_) { /* ignore */ }
+      // Global Esc failsafe: close any open overlays/modals if stuck
+      document.addEventListener('keydown', function(e){
+        if(e.key !== 'Escape') return;
+        try{
+          ['#addChooserModal','#deleteOverlay'].forEach(sel=>{ const el=document.querySelector(sel); if(el&&el.classList.contains('show')){ el.classList.remove('show'); el.setAttribute('aria-hidden','true'); }});
+          document.querySelectorAll('.panel-overlay.show, .edit-panel-overlay.show').forEach(el=>{ el.classList.remove('show'); el.setAttribute('aria-hidden','true'); });
+          document.querySelectorAll('.confirm-overlay.active').forEach(el=>{ el.classList.remove('active'); setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 120); });
+          document.body.style.overflow='auto';
+        }catch(_){ }
+      }, true);
       // Prevent browser history dropdown on Faculty ID and keep hidden field in sync
       try{
         const addDisp = document.getElementById('addProfIdItis');
@@ -1398,7 +1444,7 @@
         const pusher = new Pusher('{{ config('broadcasting.connections.pusher.key') }}',{cluster:'{{ config('broadcasting.connections.pusher.options.cluster') }}'});
         const channel = pusher.subscribe('professors.dept.1');
         channel.bind('ProfessorAdded', data=> addOrUpdateCardItis(data));
-        channel.bind('ProfessorUpdated', data=> addOrUpdateCardItis(data));
+        channel.bind('ProfessorUpdated', data=> { addOrUpdateCardItis(data); try{ lastUpdatedSchedule[String(data.Prof_ID)] = data.Schedule || ''; }catch(_){ } });
   channel.bind('ProfessorDeleted', data=> { const card=document.querySelector(`[data-prof-id="${data.Prof_ID}"]`); if(card) card.remove(); showNotification('Professor deleted successfully'); });
       }
     }
