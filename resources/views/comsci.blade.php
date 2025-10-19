@@ -1343,7 +1343,7 @@ if(bookingForm){
     // Confirm details before final submission
     const ok = await studentConfirm(
       'Confirm Booking',
-      'Are you sure the details are correct? You have 1 hour to cancel the consultation. Once the professor accepts it, it can’t be canceled.'
+      'Are you sure the details are correct? You have 1 hour to cancel; if the professor has already approved it, it cannot be cancelled.'
     );
     if(!ok) return;
     const submitBtn = bookingForm.querySelector('.submit-btn');
