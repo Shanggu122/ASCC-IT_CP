@@ -81,21 +81,53 @@ class ChatBotController extends Controller
                 str_contains($m, " ma'am ") ||
                 str_contains($m, " maam "))
         ) {
-            return "After your booking is accepted, you can message your professor from the Messages tab on your dashboard. " .
-                "Open Messages, select the conversation with your professor, and send your message. " .
-                "If you don’t see a conversation yet, wait for your booking to be accepted or check the professor’s profile/contact policy.";
+            return "You can message your professor anytime from the Messages tab on your dashboard — no approved booking is required. " .
+                "Open Messages, click New Message, search/select your professor, and send your message. " .
+                "If you already have a booking, you can also reply in that existing conversation.";
+        }
+        // to steer them to check availability instead of misfiring into student-status.
+        // Early guard: cancellation policy (should run BEFORE generic booking checker)
+        if (
+            (preg_match("/\b(cancel|cancellation)\b/i", $m) ||
+                preg_match("/i-?cancel|icancel|kansel(?:ahin)?|kansel/i", $m) ||
+                preg_match("/tanggalin|alisin/i", $m)) &&
+            (str_contains($m, "booking") ||
+                str_contains($m, "consultation") ||
+                str_contains($m, "schedule"))
+        ) {
+            return "You can cancel a booking within 1 hour from the time you created it, as long as it’s still Pending. After 1 hour or once it’s Approved you can’t cancel in the system. If you need to change the time, message your professor to request a reschedule.";
         }
 
-        // Early guard: booking capability guidance
-        // Triggers when user asks to schedule/book OR mentions unavailability/no schedule (English/Tagalog),
-        // to steer them to check availability instead of misfiring into student-status.
+        // If it's a pure how-to booking question with no professor and no date, let Dialogflow handle it
+        $isHowToBookCore = (bool) preg_match("/\bhow\s+(do\s+i|to)\s+(book|schedule)\b/i", $m);
+        $isHowToBookTagalog = (bool) preg_match(
+            "/\bpaano\s+(ako\s+)?mag[\s-]?(book|schedule)\b/i",
+            $m,
+        );
+        if ($isHowToBookCore || $isHowToBookTagalog) {
+            $profProbe = $this->matchProfessorFromMessage($m);
+            $dateProbe = $this->extractDate($m);
+            if (!$profProbe && !$dateProbe) {
+                // Return null so chat() falls back to Dialogflow's richer how-to response
+                return null;
+            }
+        }
+
         $asksToBook =
             (preg_match("/\b(can|pwede|puwede)\b/i", $m) &&
-                (str_contains($m, "schedule") ||
-                    str_contains($m, "book") ||
-                    str_contains($m, "booking"))) ||
-            str_contains($m, "can i schedule") ||
-            str_contains($m, "can i book");
+                // Exclude resched* so we don't hijack reschedule questions
+                !preg_match("/resched/i", $m) &&
+                (str_contains($m, " schedule ") ||
+                    str_contains($m, " book ") ||
+                    str_contains($m, " booking "))) ||
+            (str_contains($m, "can i schedule") && !preg_match("/resched/i", $m)) ||
+            str_contains($m, "can i book") ||
+            // How-to phrasing (English)
+            ((bool) preg_match("/\bhow\s+(do\s+i|to)\s+(book|schedule)\b/i", $m) &&
+                !preg_match("/resched/i", $m)) ||
+            // Tagalog: paano mag-book/schedule (+ common variations)
+            ((bool) preg_match("/\bpaano\s+(ako\s+)?mag[\s-]?(book|schedule)\b/i", $m) &&
+                !preg_match("/resched/i", $m));
 
         $negAvailability =
             // English
@@ -131,7 +163,7 @@ class ChatBotController extends Controller
             str_contains($m, "reschedule") ||
             preg_match("/\bresched(?:ule|uling)?\b/i", $m)
         ) {
-            return "To reschedule your consultation: If it's Pending, open the Consultation Log, cancel it, and book a new date/time. If it's already Approved, message your professor from the Messages tab to request a new time — they can reschedule it or ask you to cancel and rebook. Tip: ask me 'Are there available slots for <Professor> on <date>?' to check first.";
+            return "You can’t directly reschedule a booking. If it’s still Pending and within 1 hour of creation, cancel it and book a new date/time. If it’s already Approved or past 1 hour, message your professor from the Messages tab to request a new time they may reschedule it or ask you to cancel and rebook.";
         }
 
         // Early guard: "Can I see/meet <prof> now?" or "Is <prof> in the office?" -> steer to Messages page and department office
@@ -375,10 +407,7 @@ class ChatBotController extends Controller
             }
             $total = (int) $rows->count();
             if ($limit !== null && $total > $limit) {
-                $out[] = sprintf(
-                    "...and %d more. Tip: say 'show all faculty schedule' to view everything.",
-                    $total - $limit,
-                );
+                $out[] = sprintf("...and %d more.", $total - $limit);
             }
             // Trim potential trailing blank line
             while (!empty($out) && trim(end($out)) === "") {
@@ -486,6 +515,40 @@ class ChatBotController extends Controller
             return implode("\n", $lines);
         }
 
+        // Generic statuses intent: "What are the consultation statuses?"
+        // When user asks about consultation statuses without specifying a professor,
+        // show their own Pending + Approved/Accepted/Rescheduled bookings.
+        if (
+            // mentions status or statuses
+            ((bool) preg_match("/\bstatus(?:es)?\b/i", $m)) &&
+            // and mentions consultation/schedule/booking generically
+            ((bool) preg_match(
+                "/\b(consultation|consultations|schedule|schedules|booking|bookings|appointment|appointments)\b/i",
+                $m,
+            ))
+        ) {
+            // If the message is clearly about a specific professor, let other branches handle it
+            $mentionsProfessorExplicit =
+                str_contains($m, " with ") ||
+                (bool) preg_match("/\bprof(essor)?\b/i", $m) ||
+                str_contains($m, " sir ") ||
+                str_contains($m, " maam ") ||
+                str_contains($m, " ma'am ");
+            if (!$mentionsProfessorExplicit) {
+                $user = Auth::user();
+                $studId = $user->Stud_ID ?? null;
+                if (!$studId) {
+                    return "Please sign in to check your bookings.";
+                }
+                $statuses = ["pending", "approved", "accepted", "rescheduled"];
+                return $this->summarizeStudentByStatuses(
+                    (int) $studId,
+                    $statuses,
+                    "Your pending and approved consultations:",
+                );
+            }
+        }
+
         // Student-status intents (require logged-in student)
         // Examples:
         //  - "Do I have a schedule this week/next week?"
@@ -517,7 +580,7 @@ class ChatBotController extends Controller
             str_contains($m, "next wk");
         $date = $this->extractDate($m);
         $statusQuestion = (bool) preg_match(
-            "/\b(do\s+i\s+have|what\s+(is|are).*my|show\s+me\s+my|status|summary)\b/i",
+            "/\b(do\s+i\s+have|what\s+(is|are).*my|when\s+is\s+my|show\s+me\s+my|status|summary)\b/i",
             $m,
         );
         // Treat 'booked'/'bookings' as asking for accepted/approved items
@@ -549,6 +612,156 @@ class ChatBotController extends Controller
                 str_contains($m, "approved") ||
                 str_contains($m, "confirmed");
             // Date already computed above
+
+            // Special: Latest/Next consultation (normalize WHAT/WHEN to the same answer)
+            $mentionsLatest =
+                (bool) preg_match(
+                    "/\b(latest|upcoming|soonest|pinaka\s*bago|pinakabago|huling)\b/i",
+                    $m,
+                ) ||
+                (bool) preg_match(
+                    "/\bnext\s+(consultation|booking|appointment|sched|schedule)\b/i",
+                    $m,
+                ) ||
+                (bool) preg_match("/\bsusunod\s+(na\s+)?(konsulta|schedule)\b/i", $m);
+            if (
+                $mentionsLatest &&
+                (str_contains($m, "consultation") || str_contains($m, "schedule"))
+            ) {
+                // Prefer approved/rescheduled over pending
+                $prefStatuses = ["approved", "accepted", "rescheduled"];
+                $best = $this->findEarliestByStatuses((int) $studId, $prefStatuses);
+
+                if ($best === null) {
+                    return "You don't have any approved/rescheduled consultations scheduled yet.";
+                }
+
+                // Build enriched response similar to the generic branch
+                $mode = null;
+                if (isset($best->Mode) && $best->Mode !== null && $best->Mode !== "") {
+                    $mode = ucfirst((string) $best->Mode);
+                } else {
+                    try {
+                        $dateKey = (string) ($best->Booking_Date ?? "");
+                        if ($dateKey !== "" && isset($best->Prof_ID)) {
+                            $ov = app(\App\Services\CalendarOverrideService::class)->evaluate(
+                                (int) $best->Prof_ID,
+                                $dateKey,
+                            );
+                            if (!empty($ov["forced_mode"])) {
+                                $mode = ucfirst((string) $ov["forced_mode"]);
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                    }
+                }
+
+                $timeStr = null;
+                try {
+                    $dateKey = (string) ($best->Booking_Date ?? "");
+                    if ($dateKey !== "" && !empty($best->Schedule ?? "")) {
+                        $dateObj = Carbon::parse($dateKey, "Asia/Manila");
+                        $dow = strtolower($dateObj->format("l"));
+                        $parsed = $this->parseProfessorSchedule((string) $best->Schedule);
+                        $times = $parsed[$dow] ?? [];
+                        if (!empty($times)) {
+                            $timeStr = $times[0];
+                        }
+                    }
+                } catch (\Throwable $e) {
+                }
+
+                $parts = [];
+                $parts[] = ucfirst((string) ($best->Status ?? "Unknown"));
+                if ($mode) {
+                    $parts[] = $mode;
+                }
+                $statusMode = "(" . implode(", ", $parts) . ")";
+                $dateDisp = (string) ($best->Booking_Date ?? "(date not set)");
+                if ($timeStr) {
+                    return sprintf(
+                        "Your latest consultation is with %s on %s at %s %s.",
+                        (string) ($best->Professor_Name ?? "Professor"),
+                        $dateDisp,
+                        $timeStr,
+                        $statusMode,
+                    );
+                }
+                return sprintf(
+                    "Your latest consultation is with %s on %s %s.",
+                    (string) ($best->Professor_Name ?? "Professor"),
+                    $dateDisp,
+                    $statusMode,
+                );
+            }
+
+            // Short: "when/what is my consultation" -> treat as latest approved/rescheduled only
+            $asksWhenWhatMyConsult = (bool) preg_match(
+                "/\b(when|what)\s+is\s+my\s+(consultation|schedule|appointment|booking|sched)\b/i",
+                $m,
+            );
+            if ($asksWhenWhatMyConsult) {
+                $prefStatuses = ["approved", "accepted", "rescheduled"];
+                $best = $this->findEarliestByStatuses((int) $studId, $prefStatuses);
+                if ($best === null) {
+                    return "You don't have any approved/rescheduled consultations scheduled yet.";
+                }
+
+                $mode = null;
+                if (isset($best->Mode) && $best->Mode !== null && $best->Mode !== "") {
+                    $mode = ucfirst((string) $best->Mode);
+                } else {
+                    try {
+                        $dateKey = (string) ($best->Booking_Date ?? "");
+                        if ($dateKey !== "" && isset($best->Prof_ID)) {
+                            $ov = app(\App\Services\CalendarOverrideService::class)->evaluate(
+                                (int) $best->Prof_ID,
+                                $dateKey,
+                            );
+                            if (!empty($ov["forced_mode"])) {
+                                $mode = ucfirst((string) $ov["forced_mode"]);
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                    }
+                }
+                $timeStr = null;
+                try {
+                    $dateKey = (string) ($best->Booking_Date ?? "");
+                    if ($dateKey !== "" && !empty($best->Schedule ?? "")) {
+                        $dateObj = Carbon::parse($dateKey, "Asia/Manila");
+                        $dow = strtolower($dateObj->format("l"));
+                        $parsed = $this->parseProfessorSchedule((string) $best->Schedule);
+                        $times = $parsed[$dow] ?? [];
+                        if (!empty($times)) {
+                            $timeStr = $times[0];
+                        }
+                    }
+                } catch (\Throwable $e) {
+                }
+                $parts = [];
+                $parts[] = ucfirst((string) ($best->Status ?? "Approved"));
+                if ($mode) {
+                    $parts[] = $mode;
+                }
+                $statusMode = "(" . implode(", ", $parts) . ")";
+                $dateDisp = (string) ($best->Booking_Date ?? "(date not set)");
+                if ($timeStr) {
+                    return sprintf(
+                        "Your latest consultation is with %s on %s at %s %s.",
+                        (string) ($best->Professor_Name ?? "Professor"),
+                        $dateDisp,
+                        $timeStr,
+                        $statusMode,
+                    );
+                }
+                return sprintf(
+                    "Your latest consultation is with %s on %s %s.",
+                    (string) ($best->Professor_Name ?? "Professor"),
+                    $dateDisp,
+                    $statusMode,
+                );
+            }
 
             // Initialize status-interest flags
             $wantsPending = false;
@@ -646,12 +859,6 @@ class ChatBotController extends Controller
             ) {
                 $prof = $this->matchProfessorFromMessage($m);
                 if (!$prof) {
-                    $suggest = $this->suggestProfessors($m);
-                    if (!empty($suggest)) {
-                        return "I could not find that professor. Did you mean: " .
-                            implode(", ", $suggest) .
-                            "?";
-                    }
                     return "I could not find that professor.";
                 }
 
@@ -749,7 +956,13 @@ class ChatBotController extends Controller
                         );
                     }
                 }
-                return $this->summarizeStudentWeek((int) $studId, $which, $acceptedOnly);
+                // Generic week question: show only approved/accepted (no pending), concise style
+                return $this->summarizeStudentWeekFiltered(
+                    (int) $studId,
+                    $which,
+                    ["approved", "accepted"],
+                    "approved",
+                );
             }
 
             // Specific day/date: today/tomorrow/weekday/explicit date
@@ -947,13 +1160,78 @@ class ChatBotController extends Controller
                 }
                 return "Subjects of " . $prof->Name . ": " . implode(", ", $subs) . ".";
             } else {
-                // No professor match -> offer suggestions
-                $suggest = $this->suggestProfessors($m);
-                if (!empty($suggest)) {
-                    return "I could not find that professor. Did you mean: " .
-                        implode(", ", $suggest) .
-                        "?";
+                return "I could not find that professor.";
+            }
+        }
+
+        // A0) "Free" phrasing as availability/schedule intent
+        // Handles grammar-poor queries like "when professor <name> free".
+        // If a date is provided, treat as availability; otherwise show the professor's schedule with a tip.
+        if ((bool) preg_match("/\bfree\b/i", $m)) {
+            $prof = $this->matchProfessorFromMessage($m);
+            if ($prof) {
+                $date = $this->extractDate($m);
+                if ($date) {
+                    // Mirror Availability intent logic for a specific date
+                    $dateKey = $date
+                        ->copy()
+                        ->timezone("Asia/Manila")
+                        ->startOfDay()
+                        ->format("D M d Y");
+
+                    // Ensure professor has schedule on that day
+                    $parsedSched = $this->parseProfessorSchedule((string) ($prof->Schedule ?? ""));
+                    $dow = strtolower($date->format("l"));
+                    $timesForDay = $parsedSched[$dow] ?? [];
+                    if (empty($timesForDay)) {
+                        return sprintf(
+                            "%s has no consultation schedule on %s.",
+                            (string) $prof->Name,
+                            $date->format("D, M d Y"),
+                        );
+                    }
+
+                    $capacityStatuses = ["approved", "rescheduled"]; // counts as booked
+                    $booked = DB::table("t_consultation_bookings")
+                        ->where("Prof_ID", $prof->Prof_ID)
+                        ->where("Booking_Date", $dateKey)
+                        ->whereIn("Status", $capacityStatuses)
+                        ->count();
+                    $capacity = 5;
+                    $remaining = max($capacity - $booked, 0);
+
+                    $modeNote = "";
+                    try {
+                        $ov = app(\App\Services\CalendarOverrideService::class)->evaluate(
+                            (int) $prof->Prof_ID,
+                            $dateKey,
+                        );
+                        if (($ov["blocked"] ?? false) === true) {
+                            $modeNote = " (Note: date is blocked)";
+                        } elseif (!empty($ov["forced_mode"])) {
+                            $modeNote =
+                                " (Mode lock: " . ucfirst((string) $ov["forced_mode"]) . ")";
+                        }
+                    } catch (\Throwable $e) {
+                    }
+
+                    return sprintf(
+                        "%s, %s: %d/%d slots available%s.",
+                        $prof->Name,
+                        $date->format("D, M d Y"),
+                        $remaining,
+                        $capacity,
+                        $modeNote,
+                    );
                 }
+
+                // No date -> provide schedule overview with a helpful tip
+                $sched = (string) ($prof->Schedule ?? "");
+                if (trim($sched) === "") {
+                    return "Professor " . $prof->Name . " has no schedule set.";
+                }
+                return "Schedule of " . $prof->Name . ": " . $sched;
+            } else {
                 return "I could not find that professor.";
             }
         }
@@ -965,6 +1243,8 @@ class ChatBotController extends Controller
         $isHoursSynonym =
             (bool) preg_match("/\b(consultation|consult|office)\s*hour(s)?\b/i", $m) ||
             (bool) preg_match("/\bconsultation\s*(time|times)\b/i", $m) ||
+            // Loose phrasing like "what professor X consultations are" -> treat as schedule when a professor is mentioned
+            (bool) preg_match("/\bconsultations?\b/i", $m) ||
             str_contains($m, "oras ng konsultasyon") ||
             str_contains($m, "oras ng consultation") ||
             str_contains($m, "office hours");
@@ -972,12 +1252,6 @@ class ChatBotController extends Controller
             $prof = $this->matchProfessorFromMessage($m);
             // If no strong match, suggest closest names
             if (!$prof) {
-                $suggest = $this->suggestProfessors($m);
-                if (!empty($suggest)) {
-                    return "I could not find that professor. Did you mean: " .
-                        implode(", ", $suggest) .
-                        "?";
-                }
                 return "I could not find that professor.";
             }
 
@@ -1004,12 +1278,6 @@ class ChatBotController extends Controller
         ) {
             $prof = $this->matchProfessorFromMessage($m);
             if (!$prof) {
-                $suggest = $this->suggestProfessors($m);
-                if (!empty($suggest)) {
-                    return "Please specify the professor. Did you mean: " .
-                        implode(", ", $suggest) .
-                        " ?";
-                }
                 return 'Please specify the professor. Example: "Are there available slots for Professor Benito tomorrow?"';
             }
 
@@ -1083,8 +1351,13 @@ class ChatBotController extends Controller
             ->get();
 
         if ($rows->isEmpty()) {
-            // Build friendly label
-            $label = implode(" or ", $statuses);
+            // Build friendly label; collapse synonyms to a single canonical word where helpful
+            $lower = array_map("strtolower", $statuses);
+            if (count(array_intersect($lower, ["completed", "done", "finished"])) > 0) {
+                $label = "completed";
+            } else {
+                $label = implode(" or ", array_unique($lower));
+            }
             return "You have no " . $label . " consultations.";
         }
 
@@ -1108,6 +1381,59 @@ class ChatBotController extends Controller
             );
         }
         return implode("\n", $lines);
+    }
+
+    /**
+     * Find the earliest upcoming booking for the given student filtered by statuses.
+     * Returns a stdClass row containing: Booking_Date, Status, Prof_ID, Professor_Name, Schedule, Mode (if exists).
+     * If no future bookings exist, returns null.
+     */
+    private function findEarliestByStatuses(int $studId, array $statuses)
+    {
+        $rows = DB::table("t_consultation_bookings as b")
+            ->leftJoin("professors as p", "p.Prof_ID", "=", "b.Prof_ID")
+            ->where("b.Stud_ID", $studId)
+            ->whereIn(DB::raw("LOWER(b.Status)"), array_map("strtolower", $statuses))
+            ->select(
+                "b.Booking_Date",
+                "b.Status",
+                "b.Prof_ID",
+                "p.Name as Professor_Name",
+                "p.Schedule",
+            );
+        if (Schema::hasColumn("t_consultation_bookings", "Mode")) {
+            $rows->addSelect("b.Mode");
+        }
+        $list = $rows->get();
+
+        if ($list->isEmpty()) {
+            return null;
+        }
+        $tz = "Asia/Manila";
+        $now = Carbon::now($tz)->startOfDay();
+        $best = null;
+        foreach ($list as $r) {
+            $dateStr = (string) ($r->Booking_Date ?? "");
+            if ($dateStr === "") {
+                continue;
+            }
+            try {
+                $d = Carbon::parse($dateStr, $tz)->startOfDay();
+            } catch (\Throwable $e) {
+                continue;
+            }
+            if ($d->lessThan($now)) {
+                continue; // only future/today
+            }
+            if ($best === null) {
+                $best = [$d, $r];
+            } else {
+                if ($d->lessThan($best[0])) {
+                    $best = [$d, $r];
+                }
+            }
+        }
+        return $best ? $best[1] : null;
     }
 
     private function shortPendingOneLiner(int $studId): string
@@ -1522,56 +1848,7 @@ class ChatBotController extends Controller
 
         if ($rows->isEmpty()) {
             $range = $which === "next" ? "next week" : "this week";
-            $baseMsg = "You have no " . $label . " consultations " . $range . ".";
-
-            // Mention the next upcoming matching the same status filter if any
-            try {
-                $now = Carbon::now($tz)->startOfDay();
-                $statusScope = array_values(array_unique(array_map("strtolower", $statuses)));
-                $candidates = DB::table("t_consultation_bookings as b")
-                    ->leftJoin("professors as p", "p.Prof_ID", "=", "b.Prof_ID")
-                    ->where("b.Stud_ID", $studId)
-                    ->whereIn(DB::raw("LOWER(b.Status)"), $statusScope)
-                    ->orderByDesc("b.created_at")
-                    ->limit(100)
-                    ->select("b.Booking_Date", "b.Status", "p.Name as Professor_Name")
-                    ->get();
-
-                $next = null; // [Carbon $date, $row]
-                foreach ($candidates as $r) {
-                    $dateStr = (string) ($r->Booking_Date ?? "");
-                    if ($dateStr === "") {
-                        continue;
-                    }
-                    try {
-                        $d = Carbon::parse($dateStr, $tz)->startOfDay();
-                    } catch (\Throwable $e) {
-                        continue;
-                    }
-                    if ($d->lessThan($now)) {
-                        continue;
-                    }
-                    if ($next === null || $d->lessThan($next[0])) {
-                        $next = [$d, $r];
-                    }
-                }
-
-                if ($next !== null) {
-                    [$d, $r] = $next;
-                    $addon = sprintf(
-                        " Next %sconsultation: %s — %s (%s).",
-                        $label !== "" ? $label . " " : "",
-                        $d->format("D, M d Y"),
-                        (string) ($r->Professor_Name ?? "Professor"),
-                        ucfirst((string) ($r->Status ?? "")),
-                    );
-                    return $baseMsg . $addon;
-                }
-            } catch (\Throwable $e) {
-                // ignore add-on errors
-            }
-
-            return $baseMsg;
+            return "You have no " . $label . " consultations " . $range . ".";
         }
 
         $byDate = [];
@@ -1587,23 +1864,26 @@ class ChatBotController extends Controller
             $k = $d->format("D M d Y");
             $items = $byDate[$k] ?? [];
             if (empty($items)) {
-                $lines[] = sprintf("- %s (%s): none", $d->format("D"), $d->format("M d"));
-            } else {
-                $parts = [];
-                foreach ($items as $it) {
-                    $parts[] = sprintf(
-                        "%s (%s)",
-                        (string) ($it->Professor_Name ?? "Professor"),
-                        ucfirst((string) $it->Status),
-                    );
-                }
-                $lines[] = sprintf(
-                    "- %s (%s): %s",
-                    $d->format("D"),
-                    $d->format("M d"),
-                    implode(", ", $parts),
+                continue; // skip days without items
+            }
+            $parts = [];
+            foreach ($items as $it) {
+                $parts[] = sprintf(
+                    "%s (%s)",
+                    (string) ($it->Professor_Name ?? "Professor"),
+                    ucfirst((string) $it->Status),
                 );
             }
+            $lines[] = sprintf(
+                "- %s (%s): %s",
+                $d->format("D"),
+                $d->format("M d"),
+                implode(", ", $parts),
+            );
+        }
+        if (count($lines) === 1) {
+            $range = $which === "next" ? "next week" : "this week";
+            return "You have no " . $label . " consultations " . $range . ".";
         }
         return implode("\n", $lines);
     }
