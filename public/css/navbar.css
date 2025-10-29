@@ -108,6 +108,9 @@
     background: transparent;
     z-index: 5000;
     pointer-events: none; /* Allow clicks through the header */
+    transition:
+        background-color 0.2s ease,
+        box-shadow 0.2s ease;
 }
 
 .mobile-header .hamburger,
@@ -309,6 +312,33 @@ div.mobile-header button#mobileNotificationBell.mobile-notification-bell {
 @media (max-width: 950px) {
     .mobile-header {
         display: block;
+        height: 64px; /* a bit taller for visual balance */
+    }
+    /* Only on student ITIS/COMSCI pages: add bg after scroll */
+    body.page-itis .mobile-header.scrolled,
+    body.page-comsci .mobile-header.scrolled {
+        background: #12372a; /* solid dark green */
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+        pointer-events: all; /* prevent clicks on content underneath the bar */
+    }
+    /* When header is scrolled, make hamburger icon white for contrast */
+    body.page-itis .mobile-header.scrolled .hamburger,
+    body.page-comsci .mobile-header.scrolled .hamburger {
+        color: #ffffff !important;
+    }
+    /* Keep the hamburger vertically centered within the mobile header */
+    .mobile-header .hamburger {
+        position: absolute !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        left: 16px !important;
+    }
+
+    /* Add top offset for content when scrolled so the bar doesn't overlap */
+    body.page-itis.navbar-offset .main-content,
+    body.page-comsci.navbar-offset .main-content {
+        padding-top: calc(64px + 1rem) !important; /* match mobile-header height */
+        scroll-padding-top: 64px; /* smoother anchor scrolls */
     }
 
     .mobile-role-indicator {

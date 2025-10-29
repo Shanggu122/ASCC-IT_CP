@@ -276,7 +276,7 @@
 
   </style>
 </head>
-<body>
+<body class="page-comsci">
   @include('components.navbar')
 
   <div class="main-content">
@@ -422,6 +422,21 @@
 
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
   <script>
+  // Mobile-only: add dark green background to navbar after scrolling
+  (function mobileHeaderScroll(){
+    const header = document.querySelector('.mobile-header');
+    if(!header) return;
+    function apply(){
+      const onMobile = window.innerWidth <= 950;
+      const scrolled = onMobile && window.scrollY > 4;
+      header.classList.toggle('scrolled', scrolled);
+      document.body.classList.toggle('navbar-offset', scrolled);
+    }
+    window.addEventListener('scroll', apply, { passive:true });
+    window.addEventListener('resize', apply);
+    apply();
+  })();
+
   document.addEventListener("DOMContentLoaded", function() {
       // Booking window rule: allow only current month; open next month when today is in the last week (Mon-start) of the month
       function todayStart(){ const t=new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); }
