@@ -3,7 +3,8 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth; // Add this
+use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 
 
 class ConsultationLogControllerProfessor extends Controller
@@ -14,27 +15,34 @@ class ConsultationLogControllerProfessor extends Controller
        $user = Auth::guard('professor')->user();
        $bookings = DB::table('t_consultation_bookings as b')
            ->join('t_student as stu', 'stu.Stud_ID', '=', 'b.Stud_ID')
-           ->join('t_subject as subj', 'subj.Subject_ID', '=', 'b.Subject_ID') // FIXED LINE
+           ->join('t_subject as subj', 'subj.Subject_ID', '=', 'b.Subject_ID')
            ->join('t_consultation_types as ct','ct.Consult_type_ID','=','b.Consult_type_ID')
            ->select([
                 'b.Booking_ID',
-               'stu.Name as student', // student name
+               'stu.Name as student',
                'subj.Subject_Name as subject',
-               DB::raw("COALESCE(b.Custom_Type, ct.Consult_Type) as type"), // Show custom type if present
+               DB::raw("COALESCE(b.Custom_Type, ct.Consult_Type) as type"),
                'b.Booking_Date',
                'b.Mode',
-               DB::raw("DATE_FORMAT(b.Created_At, '%m/%d/%Y %r') as Created_At"), // 12-hour format with AM/PM
+               'b.Created_At',
                'b.Status'
            ])
            ->where('b.Prof_ID', $user->Prof_ID)
-            ->orderByRaw("STR_TO_DATE(b.Booking_Date, '%a %b %d %Y') asc")
+           ->orderBy('b.Created_At', 'asc')
            ->get();
+
+       // Format dates after fetching
+       $bookings = $bookings->map(function($booking) {
+           $booking->Created_At = Carbon::parse($booking->Created_At)
+               ->format('m/d/Y g:i A');
+           return $booking;
+       });
 
        return view('conlog-professor', compact('bookings'));
    }
 
      // This method will be responsible for returning booking data in JSON format
-   public function getBookings()
+     public function getBookings()
    {
        $user = Auth::guard('professor')->user();
 
@@ -53,10 +61,15 @@ class ConsultationLogControllerProfessor extends Controller
                'b.Status'
            ])
            ->where('b.Prof_ID', $user->Prof_ID)
-           ->orderByRaw("STR_TO_DATE(b.Booking_Date, '%a %b %d %Y') desc")
+           ->orderBy('b.Created_At', 'desc')
            ->get();
 
-       return response()->json($bookings);
+       // Format dates after fetching
+       $bookings = $bookings->map(function($booking) {
+           $booking->Created_At = Carbon::parse($booking->Created_At)
+               ->format('m/d/Y g:i A');
+           return $booking;
+       });       return response()->json($bookings);
    }
 
 
@@ -75,7 +88,7 @@ class ConsultationLogControllerProfessor extends Controller
                 DB::raw("COALESCE(b.Custom_Type, ct.Consult_Type) as type"),
                 'b.Booking_Date',
                 'b.Mode',
-                DB::raw("DATE_FORMAT(b.Created_At, '%m/%d/%Y %r') as Created_At"), // 12-hour format with AM/PM
+                'b.Created_At',
                 'b.Status'
             ])
             ->where('b.Prof_ID', $user->Prof_ID)
