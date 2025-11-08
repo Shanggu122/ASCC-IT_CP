@@ -26,6 +26,11 @@ class ConsultationLogController extends Controller
                 "b.Mode",
                 "b.Created_At",
                 "b.Status",
+                "b.completion_reason",
+                "b.completion_requested_at",
+                "b.completion_reviewed_at",
+                "b.completion_student_response",
+                "b.completion_student_comment",
             ])
             ->orderByRaw("STR_TO_DATE(b.Booking_Date, '%a %b %d %Y') asc");
 
@@ -50,6 +55,11 @@ class ConsultationLogController extends Controller
                 DB::raw("COALESCE(b.Custom_Type, ct.Consult_Type) as Type"),
                 "b.Booking_Date",
                 "b.Status",
+                "b.completion_reason",
+                "b.completion_requested_at",
+                "b.completion_reviewed_at",
+                "b.completion_student_response",
+                "b.completion_student_comment",
             ]);
 
         if (isset($user->Stud_ID)) {
@@ -81,6 +91,11 @@ class ConsultationLogController extends Controller
                 "b.Mode",
                 "b.Created_At",
                 "b.Status",
+                "b.completion_reason",
+                "b.completion_requested_at",
+                "b.completion_reviewed_at",
+                "b.completion_student_response",
+                "b.completion_student_comment",
             ])
             ->orderByRaw("STR_TO_DATE(b.Booking_Date, '%a %b %d %Y') desc");
 
@@ -115,6 +130,11 @@ class ConsultationLogController extends Controller
                 "b.Mode",
                 "b.Created_At",
                 "b.Status",
+                "b.completion_reason",
+                "b.completion_requested_at",
+                "b.completion_reviewed_at",
+                "b.completion_student_response",
+                "b.completion_student_comment",
             ])
             ->orderByRaw("STR_TO_DATE(b.Booking_Date, '%a %b %d %Y') desc");
 
@@ -143,6 +163,11 @@ class ConsultationLogController extends Controller
                 "b.Mode as mode",
                 "b.Created_At as created_at",
                 "b.Status as status",
+                "b.completion_reason",
+                "b.completion_requested_at",
+                "b.completion_reviewed_at",
+                "b.completion_student_response",
+                "b.completion_student_comment",
             ])
             ->where("b.Booking_ID", $bookingId)
             ->first();

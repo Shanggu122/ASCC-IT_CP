@@ -243,7 +243,7 @@ Route::get("/api/professor/fully-booked-dates", function (\Illuminate\Http\Reque
         }
         $today = \Carbon\Carbon::now("Asia/Manila")->startOfDay();
         $end = $today->copy()->addDays(30);
-        $capacityStatuses = ["approved", "rescheduled"];
+        $capacityStatuses = ["approved", "rescheduled", "completion_pending"];
         $rows = DB::table("t_consultation_bookings")
             ->select("Booking_Date", DB::raw("COUNT(*) as cnt"))
             ->where("Prof_ID", $profId)
@@ -303,7 +303,7 @@ Route::get("/api/professor/availability", function (\Illuminate\Http\Request $re
             $end = $start->copy()->addDays(90)->endOfDay();
         }
 
-        $capacityStatuses = ["approved", "rescheduled"];
+        $capacityStatuses = ["approved", "rescheduled", "completion_pending"];
 
         // Build explicit list of date strings to avoid lexicographical issues with whereBetween on string dates
         $dateStrings = [];
@@ -400,10 +400,15 @@ Route::post("/email-action/consultations/{bookingId}/{profId}/reschedule", [
 Route::post("/api/consultations/update-status", function (Request $request) {
     try {
         $id = $request->input("id");
-        $status = $request->input("status");
+        $status = strtolower(trim((string) $request->input("status")));
         $newMode = $request->input("mode"); // optional; current or target mode (if UI sends it)
         $newDate = $request->input("new_date"); // For rescheduling
         $rescheduleReason = $request->input("reschedule_reason"); // For reschedule reason
+        $completionReason = $request->input("completion_reason");
+        $completionStudentComment = $request->input("completion_student_comment");
+
+        $studentUser = Auth::user();
+        $professorUser = Auth::guard("professor")->user();
 
         // Validate inputs
         if (!$id) {
@@ -419,11 +424,16 @@ Route::post("/api/consultations/update-status", function (Request $request) {
                 "message" => "Status is required.",
             ]);
         }
+        $status = strtolower((string) $status);
 
         // Get the booking details before updating
         $booking = DB::table("t_consultation_bookings")
             ->leftJoin("professors", "t_consultation_bookings.Prof_ID", "=", "professors.Prof_ID")
-            ->select("t_consultation_bookings.*", "professors.Name as Prof_Name")
+            ->select(
+                "t_consultation_bookings.*",
+                "professors.Name as Prof_Name",
+                "professors.Schedule as Prof_Schedule",
+            )
             ->where("Booking_ID", $id)
             ->first();
 
@@ -434,9 +444,117 @@ Route::post("/api/consultations/update-status", function (Request $request) {
             ]);
         }
 
+        $currentStatus = strtolower((string) ($booking->Status ?? ""));
+
+        // Helper: parse allowed weekdays (Mon..Fri => 1..5) from professor Schedule field
+        $parseAllowedDays = function (?string $scheduleText): array {
+            if (!$scheduleText) {
+                return [1, 2, 3, 4, 5]; // default Mon–Fri
+            }
+            $days = [];
+            $map = [
+                "monday" => 1,
+                "tuesday" => 2,
+                "wednesday" => 3,
+                "thursday" => 4,
+                "friday" => 5,
+            ];
+            foreach (preg_split('/\r?\n/', (string) $scheduleText) as $line) {
+                if (!is_string($line)) {
+                    continue;
+                }
+                if (preg_match("/\b(Monday|Tuesday|Wednesday|Thursday|Friday)\b/i", $line, $m)) {
+                    $key = strtolower($m[1]);
+                    if (isset($map[$key])) {
+                        $days[$map[$key]] = true;
+                    }
+                }
+            }
+            $allowed = array_keys($days);
+            return !empty($allowed) ? array_values($allowed) : [1, 2, 3, 4, 5];
+        };
+
+        // Helper: find next available consultation date for a professor after a given date
+        $findNextAvailableDate = function (
+            int $profId,
+            string $fromDate,
+            string $desiredMode,
+            array $allowedDays,
+        ) {
+            $tz = "Asia/Manila";
+            try {
+                $start = Carbon::parse($fromDate, $tz)->addDay()->startOfDay();
+            } catch (\Throwable $e) {
+                $start = Carbon::now($tz)->startOfDay();
+            }
+            $capacityStatuses = ["approved", "rescheduled", "completion_pending"]; // consume capacity
+            for ($i = 0; $i < 90; $i++) {
+                // look ahead up to ~3 months
+                $d = $start->copy()->addDays($i);
+                // Skip weekends always
+                if ($d->isWeekend()) {
+                    continue;
+                }
+                // Respect professor weekly schedule if present (1=Mon..5=Fri)
+                $dow = (int) $d->dayOfWeekIso; // 1..7
+                if (!in_array($dow, $allowedDays, true)) {
+                    continue;
+                }
+
+                // Overrides: blocked or forced mode mismatch
+                try {
+                    $key = $d->format("D M d Y");
+                    $ov = app(\App\Services\CalendarOverrideService::class)->evaluate(
+                        $profId,
+                        $key,
+                    );
+                    if (!empty($ov["blocked"])) {
+                        continue;
+                    }
+                    if (
+                        !empty($ov["forced_mode"]) &&
+                        strtolower($ov["forced_mode"]) !== strtolower($desiredMode)
+                    ) {
+                        continue;
+                    }
+                } catch (\Throwable $e) {
+                    // ignore override errors
+                }
+
+                // Capacity check
+                $key = $d->format("D M d Y");
+                $cnt = DB::table("t_consultation_bookings")
+                    ->where("Prof_ID", $profId)
+                    ->where("Booking_Date", $key)
+                    ->whereIn("Status", $capacityStatuses)
+                    ->count();
+                if ($cnt >= 5) {
+                    continue;
+                }
+
+                // Mode-lock check: if the day already has first active booking with a mode, it must match
+                $first = DB::table("t_consultation_bookings")
+                    ->where("Prof_ID", $profId)
+                    ->where("Booking_Date", $key)
+                    ->whereIn("Status", $capacityStatuses)
+                    ->orderBy("Booking_ID", "asc")
+                    ->first();
+                if (
+                    $first &&
+                    $first->Mode &&
+                    strtolower($first->Mode) !== strtolower($desiredMode)
+                ) {
+                    continue;
+                }
+
+                return $key; // found
+            }
+            return null; // none within search window
+        };
+
         // Update the status (with max 5 per day constraint for approve/reschedule).
         // Capacity counts only bookings already approved or rescheduled (pending does not consume a slot until approved/rescheduled).
-        $capacityStatuses = ["approved", "rescheduled"];
+        $capacityStatuses = ["approved", "rescheduled", "completion_pending"];
         $updateData = ["Status" => $status];
         if ($status === "rescheduled" && $newDate) {
             // Normalize new date (accept with or without commas, several formats)
@@ -530,6 +648,131 @@ Route::post("/api/consultations/update-status", function (Request $request) {
             $updateData["reschedule_reason"] = $rescheduleReason;
         }
 
+        if ($status === "completion_pending") {
+            if (!$professorUser || (int) $professorUser->Prof_ID !== (int) $booking->Prof_ID) {
+                return response()->json(
+                    [
+                        "success" => false,
+                        "message" => "Only the assigned professor can request completion review.",
+                    ],
+                    403,
+                );
+            }
+
+            if (
+                !in_array($currentStatus, ["approved", "rescheduled", "completion_declined"], true)
+            ) {
+                return response()->json(
+                    [
+                        "success" => false,
+                        "message" =>
+                            "Completion review can only be requested for approved consultations.",
+                    ],
+                    422,
+                );
+            }
+
+            $reason = trim((string) $completionReason);
+            $reason = strip_tags($reason ?? "");
+            $reason = preg_replace("/\s+/u", " ", $reason);
+            if (mb_strlen($reason) < 5) {
+                return response()->json(
+                    [
+                        "success" => false,
+                        "message" => "Please provide a short explanation (minimum 5 characters).",
+                    ],
+                    422,
+                );
+            }
+            if (mb_strlen($reason) > 1000) {
+                $reason = mb_substr($reason, 0, 1000);
+            }
+
+            $updateData["completion_reason"] = $reason;
+            $updateData["completion_requested_at"] = Carbon::now("Asia/Manila");
+            $updateData["completion_reviewed_at"] = null;
+            $updateData["completion_student_response"] = null;
+            $updateData["completion_student_comment"] = null;
+
+            $booking->completion_reason = $reason;
+            $booking->completion_requested_at = $updateData["completion_requested_at"];
+            $booking->completion_reviewed_at = null;
+            $booking->completion_student_response = null;
+            $booking->completion_student_comment = null;
+            $booking->Status = "completion_pending";
+        } elseif ($status === "completed") {
+            if (!$studentUser || (int) ($studentUser->Stud_ID ?? 0) !== (int) $booking->Stud_ID) {
+                return response()->json(
+                    [
+                        "success" => false,
+                        "message" => "Only the student who booked can confirm completion.",
+                    ],
+                    403,
+                );
+            }
+
+            if ($currentStatus !== "completion_pending") {
+                return response()->json(
+                    [
+                        "success" => false,
+                        "message" => "Completion can only be confirmed after a professor request.",
+                    ],
+                    422,
+                );
+            }
+
+            $comment = trim((string) $completionStudentComment);
+            $comment = strip_tags($comment ?? "");
+            if (mb_strlen($comment) > 1000) {
+                $comment = mb_substr($comment, 0, 1000);
+            }
+
+            $updateData["completion_reviewed_at"] = Carbon::now("Asia/Manila");
+            $updateData["completion_student_response"] = "agreed";
+            $updateData["completion_student_comment"] = $comment !== "" ? $comment : null;
+
+            $booking->completion_reviewed_at = $updateData["completion_reviewed_at"];
+            $booking->completion_student_response = "agreed";
+            $booking->completion_student_comment = $updateData["completion_student_comment"];
+            $booking->Status = "completed";
+        } elseif ($status === "completion_declined") {
+            if (!$studentUser || (int) ($studentUser->Stud_ID ?? 0) !== (int) $booking->Stud_ID) {
+                return response()->json(
+                    [
+                        "success" => false,
+                        "message" =>
+                            "Only the student who booked can decline the completion request.",
+                    ],
+                    403,
+                );
+            }
+
+            if ($currentStatus !== "completion_pending") {
+                return response()->json(
+                    [
+                        "success" => false,
+                        "message" => "Completion can only be declined when a review is pending.",
+                    ],
+                    422,
+                );
+            }
+
+            $comment = trim((string) $completionStudentComment);
+            $comment = strip_tags($comment ?? "");
+            if (mb_strlen($comment) > 1000) {
+                $comment = mb_substr($comment, 0, 1000);
+            }
+
+            $updateData["completion_reviewed_at"] = Carbon::now("Asia/Manila");
+            $updateData["completion_student_response"] = "declined";
+            $updateData["completion_student_comment"] = $comment !== "" ? $comment : null;
+
+            $booking->completion_reviewed_at = $updateData["completion_reviewed_at"];
+            $booking->completion_student_response = "declined";
+            $booking->completion_student_comment = $updateData["completion_student_comment"];
+            $booking->Status = "completion_declined";
+        }
+
         // Enforce capacity when approving a pending booking (if switching to approved)
         if ($status === "approved") {
             $currentDate = $booking->Booking_Date; // existing date retained
@@ -562,6 +805,8 @@ Route::post("/api/consultations/update-status", function (Request $request) {
                         " mode.",
                 ]);
             }
+            // Flag: this approval will become the first active booking on this date (sets the mode lock)
+            $willBeFirstActive = $existingApproved === 0;
         }
 
         $updated = DB::table("t_consultation_bookings")
@@ -579,6 +824,21 @@ Route::post("/api/consultations/update-status", function (Request $request) {
                 $notificationType = "accepted";
             }
 
+            $notificationContext = null;
+            if ($status === "rescheduled") {
+                $notificationContext = $rescheduleReason;
+            } elseif ($status === "completion_pending") {
+                $notificationContext =
+                    $updateData["completion_reason"] ?? ($booking->completion_reason ?? null);
+            } elseif ($status === "completed") {
+                $notificationContext =
+                    $updateData["completion_reason"] ?? ($booking->completion_reason ?? null);
+            } elseif ($status === "completion_declined") {
+                $notificationContext =
+                    $updateData["completion_student_comment"] ??
+                    ($completionStudentComment ?? null);
+            }
+
             try {
                 // Update existing notifications for this booking (both student and professor)
                 Notification::updateNotificationStatus(
@@ -586,7 +846,7 @@ Route::post("/api/consultations/update-status", function (Request $request) {
                     $notificationType,
                     $professorName,
                     $date,
-                    $status === "rescheduled" ? $rescheduleReason : null,
+                    $notificationContext,
                 );
             } catch (\Exception $e) {
                 // Don't fail the whole operation if notification fails
@@ -595,12 +855,37 @@ Route::post("/api/consultations/update-status", function (Request $request) {
             // Broadcast to professor's booking channel for live update on conlog-professor
             try {
                 $profId = (int) $booking->Prof_ID;
+                $completionRequestedAt =
+                    $updateData["completion_requested_at"] ??
+                    ($booking->completion_requested_at ?? null);
+                $completionReviewedAt =
+                    $updateData["completion_reviewed_at"] ??
+                    ($booking->completion_reviewed_at ?? null);
+                if ($completionRequestedAt instanceof Carbon) {
+                    $completionRequestedAt = $completionRequestedAt->toDateTimeString();
+                }
+                if ($completionReviewedAt instanceof Carbon) {
+                    $completionReviewedAt = $completionReviewedAt->toDateTimeString();
+                }
+                $completionReason =
+                    $updateData["completion_reason"] ?? ($booking->completion_reason ?? null);
+                $completionStudentResponse =
+                    $updateData["completion_student_response"] ??
+                    ($booking->completion_student_response ?? null);
+                $completionStudentComment =
+                    $updateData["completion_student_comment"] ??
+                    ($booking->completion_student_comment ?? null);
                 $payload = [
                     "event" => "BookingUpdated",
                     "Booking_ID" => (int) $booking->Booking_ID,
                     "Status" => $status,
                     "Booking_Date" => $updateData["Booking_Date"] ?? $booking->Booking_Date,
                     "reschedule_reason" => $updateData["reschedule_reason"] ?? null,
+                    "completion_reason" => $completionReason,
+                    "completion_requested_at" => $completionRequestedAt,
+                    "completion_reviewed_at" => $completionReviewedAt,
+                    "completion_student_response" => $completionStudentResponse,
+                    "completion_student_comment" => $completionStudentComment,
                 ];
                 event(new \App\Events\BookingUpdated($profId, $payload));
             } catch (\Throwable $e) {
@@ -611,22 +896,135 @@ Route::post("/api/consultations/update-status", function (Request $request) {
             try {
                 $studId = (int) ($booking->Stud_ID ?? 0);
                 if ($studId > 0) {
+                    $completionRequestedAt =
+                        $updateData["completion_requested_at"] ??
+                        ($booking->completion_requested_at ?? null);
+                    $completionReviewedAt =
+                        $updateData["completion_reviewed_at"] ??
+                        ($booking->completion_reviewed_at ?? null);
+                    if ($completionRequestedAt instanceof Carbon) {
+                        $completionRequestedAt = $completionRequestedAt->toDateTimeString();
+                    }
+                    if ($completionReviewedAt instanceof Carbon) {
+                        $completionReviewedAt = $completionReviewedAt->toDateTimeString();
+                    }
+                    $completionReason =
+                        $updateData["completion_reason"] ?? ($booking->completion_reason ?? null);
+                    $completionStudentResponse =
+                        $updateData["completion_student_response"] ??
+                        ($booking->completion_student_response ?? null);
+                    $completionStudentComment =
+                        $updateData["completion_student_comment"] ??
+                        ($booking->completion_student_comment ?? null);
                     $studPayload = [
                         "event" => "BookingUpdated",
                         "Booking_ID" => (int) $booking->Booking_ID,
                         "Status" => $status,
                         "Booking_Date" => $updateData["Booking_Date"] ?? $booking->Booking_Date,
+                        "completion_reason" => $completionReason,
+                        "completion_requested_at" => $completionRequestedAt,
+                        "completion_reviewed_at" => $completionReviewedAt,
+                        "completion_student_response" => $completionStudentResponse,
+                        "completion_student_comment" => $completionStudentComment,
                     ];
                     event(new \App\Events\BookingUpdatedStudent($studId, $studPayload));
                 }
             } catch (\Throwable $e) {
                 // swallow broadcast errors
             }
+
+            // Auto-reschedule opposite-mode pending bookings if this approval is the first for the day
+            if ($status === "approved" && !empty($willBeFirstActive) && $willBeFirstActive) {
+                try {
+                    $allowedDays = $parseAllowedDays($booking->Prof_Schedule ?? null);
+                    $currentDateKey = $booking->Booking_Date;
+                    $profId = (int) $booking->Prof_ID;
+                    $lockMode = strtolower((string) $booking->Mode);
+                    // Find pending bookings on the same date with the opposite mode
+                    $others = DB::table("t_consultation_bookings")
+                        ->where("Prof_ID", $profId)
+                        ->where("Booking_Date", $currentDateKey)
+                        ->where("Status", "pending")
+                        ->where("Booking_ID", "!=", $booking->Booking_ID)
+                        ->where("Mode", "!=", $booking->Mode)
+                        ->get();
+
+                    foreach ($others as $ob) {
+                        $target = $findNextAvailableDate(
+                            $profId,
+                            $currentDateKey,
+                            (string) $ob->Mode,
+                            $allowedDays,
+                        );
+                        if (!$target) {
+                            continue; // no safe target found within 90 days
+                        }
+                        $reason =
+                            "Auto-rescheduled: date locked to " .
+                            ucfirst($lockMode) .
+                            " mode by first approved booking.";
+                        $ok = DB::table("t_consultation_bookings")
+                            ->where("Booking_ID", $ob->Booking_ID)
+                            ->update([
+                                "Status" => "rescheduled",
+                                "Booking_Date" => $target,
+                                "reschedule_reason" => $reason,
+                            ]);
+                        if ($ok) {
+                            // Update notifications for the affected booking
+                            try {
+                                Notification::updateNotificationStatus(
+                                    (int) $ob->Booking_ID,
+                                    "rescheduled",
+                                    $professorName,
+                                    $target,
+                                    $reason,
+                                );
+                            } catch (\Throwable $e) {
+                            }
+                            // Broadcast to professor channel
+                            try {
+                                event(
+                                    new \App\Events\BookingUpdated($profId, [
+                                        "event" => "BookingUpdated",
+                                        "Booking_ID" => (int) $ob->Booking_ID,
+                                        "Status" => "rescheduled",
+                                        "Booking_Date" => $target,
+                                        "reschedule_reason" => $reason,
+                                    ]),
+                                );
+                            } catch (\Throwable $e) {
+                            }
+                            // Broadcast to the student's channel
+                            try {
+                                $sId = (int) ($ob->Stud_ID ?? 0);
+                                if ($sId > 0) {
+                                    event(
+                                        new \App\Events\BookingUpdatedStudent($sId, [
+                                            "event" => "BookingUpdated",
+                                            "Booking_ID" => (int) $ob->Booking_ID,
+                                            "Status" => "rescheduled",
+                                            "Booking_Date" => $target,
+                                        ]),
+                                    );
+                                }
+                            } catch (\Throwable $e) {
+                            }
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    // Fail silently; main approval already succeeded
+                }
+            }
         }
+
+        $readableStatus = ucwords(str_replace("_", " ", strtolower((string) $status)));
 
         return response()->json([
             "success" => $updated > 0,
-            "message" => $updated ? "Status updated to $status." : "Failed to update status.",
+            "message" => $updated
+                ? "Status updated to {$readableStatus}."
+                : "Failed to update status.",
         ]);
     } catch (\Exception $e) {
         return response()->json([
@@ -724,6 +1122,211 @@ Route::post("/api/student/consultations/cancel", function (Request $request) {
         }
 
         return response()->json(["success" => true, "message" => "Booking cancelled."]);
+    } catch (\Throwable $e) {
+        return response()->json(
+            ["success" => false, "message" => "Server error: " . $e->getMessage()],
+            500,
+        );
+    }
+})->middleware(["auth"]);
+
+// Student: accept a rescheduled consultation (confirms the new date)
+Route::post("/api/student/consultations/accept-reschedule", function (Request $request) {
+    try {
+        $user = Auth::user();
+        if (!$user || !isset($user->Stud_ID)) {
+            return response()->json(["success" => false, "message" => "Unauthorized"], 401);
+        }
+        $id = (int) $request->input("id");
+        if (!$id) {
+            return response()->json(
+                ["success" => false, "message" => "Booking ID is required."],
+                422,
+            );
+        }
+        $booking = DB::table("t_consultation_bookings")->where("Booking_ID", $id)->first();
+        if (!$booking) {
+            return response()->json(["success" => false, "message" => "Booking not found."], 404);
+        }
+        if ((int) $booking->Stud_ID !== (int) $user->Stud_ID) {
+            return response()->json(
+                ["success" => false, "message" => "You can only act on your own booking."],
+                403,
+            );
+        }
+        $status = strtolower((string) $booking->Status);
+        if ($status !== "rescheduled") {
+            return response()->json(
+                ["success" => false, "message" => "Only rescheduled bookings can be accepted."],
+                422,
+            );
+        }
+        // Accepting confirms the date; mark as approved
+        $updated = DB::table("t_consultation_bookings")
+            ->where("Booking_ID", $id)
+            ->update(["Status" => "approved"]);
+        if ($updated <= 0) {
+            return response()->json([
+                "success" => false,
+                "message" => "Failed to accept reschedule.",
+            ]);
+        }
+        // Notifications: specialized message for professor & student
+        try {
+            \App\Models\Notification::updateOnStudentAcceptReschedule(
+                $id,
+                (string) $booking->Booking_Date,
+            );
+        } catch (\Throwable $e) {
+        }
+        // Broadcast to professor and student
+        try {
+            event(
+                new \App\Events\BookingUpdated((int) $booking->Prof_ID, [
+                    "event" => "BookingUpdated",
+                    "Booking_ID" => (int) $booking->Booking_ID,
+                    "Status" => "approved",
+                    "Booking_Date" => (string) $booking->Booking_Date,
+                ]),
+            );
+        } catch (\Throwable $e) {
+        }
+        try {
+            event(
+                new \App\Events\BookingUpdatedStudent((int) $booking->Stud_ID, [
+                    "event" => "BookingUpdated",
+                    "Booking_ID" => (int) $booking->Booking_ID,
+                    "Status" => "approved",
+                    "Booking_Date" => (string) $booking->Booking_Date,
+                ]),
+            );
+        } catch (\Throwable $e) {
+        }
+
+        return response()->json(["success" => true, "message" => "Reschedule accepted."]);
+    } catch (\Throwable $e) {
+        return response()->json(
+            ["success" => false, "message" => "Server error: " . $e->getMessage()],
+            500,
+        );
+    }
+})->middleware(["auth"]);
+
+// Student: cancel a rescheduled consultation (no 1-hour restriction)
+Route::post("/api/student/consultations/cancel-rescheduled", function (Request $request) {
+    try {
+        $user = Auth::user();
+        if (!$user || !isset($user->Stud_ID)) {
+            return response()->json(["success" => false, "message" => "Unauthorized"], 401);
+        }
+        $id = (int) $request->input("id");
+        if (!$id) {
+            return response()->json(
+                ["success" => false, "message" => "Booking ID is required."],
+                422,
+            );
+        }
+        $booking = DB::table("t_consultation_bookings")->where("Booking_ID", $id)->first();
+        if (!$booking) {
+            return response()->json(["success" => false, "message" => "Booking not found."], 404);
+        }
+        if ((int) $booking->Stud_ID !== (int) $user->Stud_ID) {
+            return response()->json(
+                ["success" => false, "message" => "You can only cancel your own booking."],
+                403,
+            );
+        }
+        $status = strtolower((string) $booking->Status);
+        if ($status !== "rescheduled") {
+            return response()->json(
+                [
+                    "success" => false,
+                    "message" => "Only rescheduled bookings can be cancelled here.",
+                ],
+                422,
+            );
+        }
+        $updated = DB::table("t_consultation_bookings")
+            ->where("Booking_ID", $id)
+            ->update(["Status" => "cancelled"]);
+        if ($updated <= 0) {
+            return response()->json(["success" => false, "message" => "Failed to cancel booking."]);
+        }
+        // Update notifications to cancelled for both sides
+        try {
+            \App\Models\Notification::updateNotificationStatus(
+                $id,
+                "cancelled",
+                null,
+                (string) $booking->Booking_Date,
+            );
+        } catch (\Throwable $e) {
+        }
+        // Broadcast to professor and student
+        try {
+            event(
+                new \App\Events\BookingUpdated((int) $booking->Prof_ID, [
+                    "event" => "BookingUpdated",
+                    "Booking_ID" => (int) $booking->Booking_ID,
+                    "Status" => "cancelled",
+                ]),
+            );
+        } catch (\Throwable $e) {
+        }
+        try {
+            event(
+                new \App\Events\BookingUpdatedStudent((int) $booking->Stud_ID, [
+                    "event" => "BookingUpdated",
+                    "Booking_ID" => (int) $booking->Booking_ID,
+                    "Status" => "cancelled",
+                ]),
+            );
+        } catch (\Throwable $e) {
+        }
+
+        return response()->json(["success" => true, "message" => "Booking cancelled."]);
+    } catch (\Throwable $e) {
+        return response()->json(
+            ["success" => false, "message" => "Server error: " . $e->getMessage()],
+            500,
+        );
+    }
+})->middleware(["auth"]);
+
+// Student: single consultation details for modal (ownership checked)
+Route::get("/api/student/consultation-details/{bookingId}", function ($bookingId) {
+    try {
+        $user = Auth::user();
+        if (!$user || !isset($user->Stud_ID)) {
+            return response()->json(["success" => false, "message" => "Unauthorized"], 401);
+        }
+        $row = DB::table("t_consultation_bookings as b")
+            ->join("professors as p", "p.Prof_ID", "=", "b.Prof_ID")
+            ->join("t_student as s", "s.Stud_ID", "=", "b.Stud_ID")
+            ->join("t_subject as subj", "subj.Subject_ID", "=", "b.Subject_ID")
+            ->join("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
+            ->select([
+                "b.Booking_ID as booking_id",
+                "p.Name as professor_name",
+                "subj.Subject_Name as subject",
+                DB::raw("COALESCE(b.Custom_Type, ct.Consult_Type) as type"),
+                "b.Booking_Date as booking_date",
+                "b.Mode as mode",
+                "b.reschedule_reason as reschedule_reason",
+                "b.Status as status",
+                "b.completion_reason",
+                "b.completion_requested_at",
+                "b.completion_reviewed_at",
+                "b.completion_student_response",
+                "b.completion_student_comment",
+            ])
+            ->where("b.Booking_ID", (int) $bookingId)
+            ->where("b.Stud_ID", (int) $user->Stud_ID)
+            ->first();
+        if (!$row) {
+            return response()->json(["success" => false, "message" => "Not found"], 404);
+        }
+        return response()->json(["success" => true, "consultation" => $row]);
     } catch (\Throwable $e) {
         return response()->json(
             ["success" => false, "message" => "Server error: " . $e->getMessage()],
@@ -845,6 +1448,21 @@ Route::post("/admin-itis/add-student", [ConsultationBookingController::class, "a
 Route::post("/admin-comsci/add-student", [ConsultationBookingController::class, "addStudent"])
     ->name("admin.comsci.student.add")
     ->middleware(["auth:admin", "throttle:5,1"]);
+
+Route::middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class])->group(function () {
+    Route::get("/admin/subjects", [
+        \App\Http\Controllers\AdminSubjectController::class,
+        "index",
+    ])->name("admin.subjects.index");
+    Route::post("/admin/subjects", [
+        \App\Http\Controllers\AdminSubjectController::class,
+        "store",
+    ])->name("admin.subjects.store");
+    Route::delete("/admin/subjects/{subject}", [
+        \App\Http\Controllers\AdminSubjectController::class,
+        "destroy",
+    ])->name("admin.subjects.destroy");
+});
 
 Route::post("/admin-itis/assign-subjects", [
     ConsultationBookingController::class,

@@ -89,6 +89,150 @@
       padding: 5px;
       height: 60px !important;
     }
+    
+      .completion-review-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000000;
+        padding: 20px;
+      }
+
+      .completion-review-modal {
+        background: #ffffff;
+        border-radius: 20px;
+        width: 100%;
+        max-width: 420px;
+        box-shadow: 0 24px 60px rgba(12, 34, 26, 0.28);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .completion-review-modal .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 24px 16px;
+        background: #0e2f27;
+        color: #f6fffb;
+      }
+
+      .completion-review-modal .modal-header .title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        font-size: 16px;
+        letter-spacing: 0.01em;
+      }
+
+      .completion-review-close {
+        background: none;
+        border: none;
+        color: inherit;
+        font-size: 20px;
+        cursor: pointer;
+        opacity: 0.75;
+        transition: opacity 0.2s ease;
+      }
+
+      .completion-review-close:hover {
+        opacity: 1;
+      }
+
+      .completion-review-modal .modal-body {
+        padding: 22px 24px 0;
+        color: #1f2a37;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .completion-review-remarks {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-bottom: 18px;
+        color: #12372a;
+      }
+
+      .completion-review-remarks strong {
+        display: block;
+        font-size: 13px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #0d3b2e;
+        margin-bottom: 6px;
+      }
+
+      .completion-review-remarks p {
+        margin: 0;
+        white-space: pre-wrap;
+      }
+
+      .completion-review-meta {
+        font-size: 12px;
+        color: #64748b;
+        margin-bottom: 18px;
+      }
+
+      .completion-review-error {
+        display: none;
+        margin: 0 0 22px;
+        background: #fef2f2;
+        color: #b91c1c;
+        border: 1px solid #fecaca;
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 13px;
+      }
+
+      .completion-review-actions {
+        display: flex;
+        gap: 12px;
+        padding: 18px 24px 24px;
+        background: #f8fafc;
+      }
+
+      .completion-review-actions button {
+        flex: 1;
+        border-radius: 999px;
+        border: 2px solid transparent;
+        padding: 12px 0;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .completion-review-actions .btn-outline {
+        background: #ffffff;
+        color: #b91c1c;
+        border-color: #f8d0d0;
+      }
+
+      .completion-review-actions .btn-outline:hover {
+        border-color: #b91c1c;
+        background: #fff5f5;
+      }
+
+      .completion-review-actions .btn-solid {
+        background: #1f7a67;
+        color: #ffffff;
+      }
+
+      .completion-review-actions .btn-solid:hover {
+        background: #155d4c;
+        transform: translateY(-1px);
+      }
+
+      @media (max-width: 480px) {
+        .completion-review-modal { border-radius: 16px; }
+        .completion-review-actions { flex-direction: column; }
+      }
     .pika-table th:has([title="Monday"]),
     .pika-table th:has([title="Sunday"]) {
       background-color: #01703c;
@@ -324,8 +468,70 @@
     <div id="consultationTooltip" style="display:none; position:absolute; z-index:9999; background:#fff; border:1px solid #e1e5e9; border-radius:8px; padding:12px; max-width:320px; max-height:400px; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,0.15); font-family:'Poppins',sans-serif; line-height:1.4;"></div>
   </div>
 
+  <!-- Reschedule decision modal (student) -->
+  <div id="rescheduleModal" style="display:none; position:fixed; inset:0; z-index:1500000; background:rgba(0,0,0,0.4);">
+    <div style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); background:#fff; border-radius:10px; width:min(520px, 92vw); box-shadow:0 10px 30px rgba(0,0,0,0.2); font-family:'Poppins',sans-serif;">
+      <div style="padding:14px 16px; border-bottom:1px solid #eee; display:flex; align-items:center; justify-content:space-between;">
+        <h3 style="margin:0; font-size:18px; color:#12372a;">Consultation Rescheduled</h3>
+        <button id="resModalClose" style="border:none; background:#f3f4f6; color:#374151; padding:6px 10px; border-radius:6px; cursor:pointer;">✖</button>
+      </div>
+      <div style="padding:16px;">
+        <div style="font-size:14px; color:#374151; margin-bottom:8px;">Please review the updated consultation details:</div>
+        <div id="resModalBody" style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:12px; font-size:14px; color:#111827;"></div>
+        <div id="resModalError" style="display:none; color:#b91c1c; font-size:13px; margin-top:8px;"></div>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; padding:12px 16px; border-top:1px solid #eee;">
+        <button id="resModalCancelBtn" style="background:#b91c1c; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer;">Cancel consultation</button>
+        <button id="resModalAcceptBtn" style="background:#047857; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer;">Accept reschedule</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Student confirmation dialog -->
+  <div id="studentConfirmDialog" aria-hidden="true" style="display:none; position:fixed; inset:0; z-index:1600000; background:rgba(0,0,0,0.55); align-items:center; justify-content:center;">
+    <div class="confirm-card">
+      <div class="confirm-header">
+        <i class='bx bx-help-circle' aria-hidden="true"></i>
+        <span>Confirm Action</span>
+      </div>
+      <div class="confirm-body">
+        <p id="confirmMessage">Are you sure you want to continue?</p>
+      </div>
+      <div class="confirm-actions">
+        <button type="button" class="confirm-secondary" id="confirmCancelBtn">Keep consultation</button>
+        <button type="button" class="confirm-primary" id="confirmProceedBtn">Cancel consultation</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Completion review modal (shared with conlog styling) -->
+  <div class="completion-review-overlay" id="completionReviewOverlay" aria-hidden="true">
+    <div class="completion-review-modal" role="dialog" aria-modal="true" aria-labelledby="completionReviewTitle">
+      <div class="modal-header">
+        <div class="title">
+          <i class='bx bx-clipboard-check'></i>
+          <span id="completionReviewTitle">Review completion request</span>
+        </div>
+        <button type="button" class="completion-review-close" id="completionReviewClose" aria-label="Close review modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="completion-review-remarks" id="completionReviewRemarks" style="display:none;">
+          <strong>Professor remarks</strong>
+          <p id="completionReviewRemarksText"></p>
+        </div>
+        <div id="completionReviewInfo" class="completion-review-meta"></div>
+        <div class="completion-review-error" id="completionReviewError"></div>
+      </div>
+      <div class="completion-review-actions">
+        <button type="button" class="btn-outline" id="completionReviewDecline">Needs revision</button>
+        <button type="button" class="btn-solid" id="completionReviewApprove">Confirm completion</button>
+      </div>
+    </div>
+  </div>
+
   <script src="{{ asset('js/dashboard.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
+  <link rel="stylesheet" href="{{ asset('css/student-modal.css') }}">
   <script>
   // Mid-width (tablet/small desktop) notification panel toggle
   (function(){
@@ -372,6 +578,138 @@
   })();
     
   const bookingMap = new Map();
+
+  const completionReviewState = {
+    bookingId: null,
+    notificationId: null,
+    pending: false,
+  };
+
+  function formatCompletionDate(iso){
+    if(!iso) return '';
+    const d = new Date(iso);
+    if(Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+  }
+
+  function populateCompletionModal(details){
+    const overlay = document.getElementById('completionReviewOverlay');
+    const remarksEl = document.getElementById('completionReviewRemarks');
+    const remarksTextEl = document.getElementById('completionReviewRemarksText');
+    const infoEl = document.getElementById('completionReviewInfo');
+    const errorEl = document.getElementById('completionReviewError');
+    const approveBtn = document.getElementById('completionReviewApprove');
+    if(!overlay || !remarksEl || !infoEl || !errorEl){ return; }
+    if(details.reason){
+      remarksEl.style.display = 'block';
+      if(remarksTextEl){ remarksTextEl.textContent = details.reason; }
+    } else {
+      remarksEl.style.display = 'none';
+      if(remarksTextEl){ remarksTextEl.textContent = ''; }
+    }
+    const requested = formatCompletionDate(details.requestedAt);
+    infoEl.textContent = requested ? `Requested on ${requested}${details.professor ? ` by ${details.professor}` : ''}.` : (details.professor ? `Professor ${details.professor} sent this request.` : '');
+    errorEl.textContent = '';
+    errorEl.style.display = 'none';
+    overlay.style.display = 'flex';
+    overlay.setAttribute('aria-hidden','false');
+    setTimeout(()=>{ try{ approveBtn?.focus(); }catch(_){} }, 15);
+  }
+
+  function closeCompletionReview(){
+    const overlay = document.getElementById('completionReviewOverlay');
+    const errorEl = document.getElementById('completionReviewError');
+    const approveBtn = document.getElementById('completionReviewApprove');
+    const declineBtn = document.getElementById('completionReviewDecline');
+    const closeBtn = document.getElementById('completionReviewClose');
+    if(overlay){ overlay.style.display='none'; overlay.setAttribute('aria-hidden','true'); }
+    if(errorEl){ errorEl.style.display='none'; errorEl.textContent=''; }
+    approveBtn && (approveBtn.disabled = false);
+    declineBtn && (declineBtn.disabled = false);
+    closeBtn && (closeBtn.disabled = false);
+    completionReviewState.bookingId = null;
+    completionReviewState.notificationId = null;
+    completionReviewState.pending = false;
+  }
+
+  function openCompletionReviewWithFetch(bookingId, notificationId){
+    completionReviewState.bookingId = bookingId;
+    completionReviewState.notificationId = notificationId || null;
+    const overlay = document.getElementById('completionReviewOverlay');
+    const infoEl = document.getElementById('completionReviewInfo');
+    const remarksEl = document.getElementById('completionReviewRemarks');
+    const remarksTextEl = document.getElementById('completionReviewRemarksText');
+    const errorEl = document.getElementById('completionReviewError');
+    if(overlay){ overlay.style.display='flex'; overlay.setAttribute('aria-hidden','false'); }
+    if(infoEl){ infoEl.textContent = 'Loading details…'; }
+    if(remarksEl){ remarksEl.style.display='none'; }
+    if(remarksTextEl){ remarksTextEl.textContent=''; }
+    if(errorEl){ errorEl.style.display='none'; errorEl.textContent=''; }
+    fetch(`/api/student/consultation-details/${bookingId}`)
+      .then(r=>r.json())
+      .then(data=>{
+        if(!data || !data.success){ throw new Error(data?.message || 'Unable to load details'); }
+        const c = data.consultation || {};
+        populateCompletionModal({
+          professor: c.professor_name || '',
+          reason: c.completion_reason || '',
+          requestedAt: c.completion_requested_at || '',
+        });
+        if(notificationId){
+          try { markNotificationAsRead(notificationId); } catch(_){ }
+        }
+      })
+      .catch(err=>{
+        if(errorEl){ errorEl.textContent = err?.message || 'Unable to load completion details.'; errorEl.style.display='block'; }
+      });
+  }
+
+  function submitCompletionDecision(decision){
+    if(completionReviewState.pending || !completionReviewState.bookingId){ return; }
+    const errorEl = document.getElementById('completionReviewError');
+    const approveBtn = document.getElementById('completionReviewApprove');
+    const declineBtn = document.getElementById('completionReviewDecline');
+    const closeBtn = document.getElementById('completionReviewClose');
+    completionReviewState.pending = true;
+    approveBtn && (approveBtn.disabled = true);
+    declineBtn && (declineBtn.disabled = true);
+    closeBtn && (closeBtn.disabled = true);
+    if(errorEl){ errorEl.style.display='none'; errorEl.textContent=''; }
+    fetch('/api/consultations/update-status', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      },
+      body: JSON.stringify({
+        id: Number(completionReviewState.bookingId),
+        status: decision
+      })
+    }).then(r=>r.json()).then(data=>{
+      if(!data || !data.success){ throw new Error(data?.message || 'Request failed'); }
+      closeCompletionReview();
+      if(completionReviewState.notificationId){
+        try { markNotificationAsRead(completionReviewState.notificationId); } catch(_){ }
+      }
+      loadNotifications();
+      loadBookingData();
+      if(typeof loadStudentDetails === 'function'){ loadStudentDetails(); }
+    }).catch(err=>{
+      if(errorEl){ errorEl.textContent = err?.message || 'Unable to submit your response.'; errorEl.style.display='block'; }
+    }).finally(()=>{
+      completionReviewState.pending = false;
+      approveBtn && (approveBtn.disabled = false);
+      declineBtn && (declineBtn.disabled = false);
+      closeBtn && (closeBtn.disabled = false);
+    });
+  }
+
+  document.getElementById('completionReviewApprove')?.addEventListener('click', ()=>submitCompletionDecision('completed'));
+  document.getElementById('completionReviewDecline')?.addEventListener('click', ()=>submitCompletionDecision('completion_declined'));
+  document.getElementById('completionReviewClose')?.addEventListener('click', closeCompletionReview);
+  document.getElementById('completionReviewOverlay')?.addEventListener('click', (e)=>{
+    if(e.target && e.target.id === 'completionReviewOverlay' && !completionReviewState.pending){ closeCompletionReview(); }
+  });
   
   function loadBookingData() {
     fetch('/api/consul')
@@ -875,23 +1213,51 @@
         return;
       }
       
+      const computeTimeago = (ts) => {
+        if (!ts) return '';
+        const d = new Date(ts);
+        if (Number.isNaN(d.getTime())) return '';
+        const diff = Date.now() - d.getTime();
+        if (diff < 0) return 'Just now';
+        const seconds = Math.floor(diff / 1000);
+        if (seconds < 10) return 'Just now';
+        if (seconds < 60) return `${seconds}s ago`;
+        const minutes = Math.floor(diff / 60000);
+        if (minutes < 60) return `${minutes} ${minutes === 1 ? 'min' : 'mins'} ago`;
+        const hours = Math.floor(diff / 3600000);
+        if (hours < 24) return hours === 1 ? '1 hr ago' : `${hours} hrs ago`;
+        const days = Math.floor(diff / 86400000);
+        return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+      };
+
       const notificationsHtml = notifications.map(notification => {
-  const isSuspention = notification.type === 'suspention_day';
-        const typeLabel = isSuspention
+        const typeKey = notification.type || '';
+        const isSuspention = typeKey === 'suspention_day';
+        const isReschedAccepted = typeKey === 'reschedule_accepted';
+
+        // Choose badge label and style class
+        const badgeLabel = isSuspention
           ? 'SUSPENSION'
-          : ((notification.type || '').replace('_',' ').toUpperCase());
-  // For suspension system notice, show a clear title; otherwise keep existing rule
+          : isReschedAccepted
+            ? 'ACCEPTED'
+            : typeKey.replace(/_/g, ' ').toUpperCase();
+        const badgeClass = isReschedAccepted ? 'accepted' : typeKey;
+
+        // For suspension system notice, show a clear title; otherwise keep existing rule (guard against null title)
+        const rawTitle = notification.title || '';
         const cleanTitle = isSuspention
           ? 'Suspension of Class'
-          : (notification.title.includes('Consultation') ? 'Consultation' : notification.title);
-        
+          : (rawTitle.includes('Consultation') ? 'Consultation' : rawTitle);
+
         return `
           <div class="notification-item ${notification.is_read ? '' : 'unread'}" 
-               onclick="markNotificationAsRead(${notification.id})">
-            <div class="notification-type ${notification.type}">${typeLabel}</div>
+               data-id="${notification.id || ''}"
+               data-type="${typeKey}"
+               data-booking-id="${notification.booking_id || ''}">
+            <div class="notification-type ${badgeClass}">${badgeLabel}</div>
             <div class="notification-title">${cleanTitle}</div>
             <div class="notification-message">${notification.message}</div>
-            <div class="notification-time" data-timeago data-ts="${notification.created_at}"></div>
+            <div class="notification-time" data-timeago data-ts="${notification.created_at}">${computeTimeago(notification.created_at)}</div>
           </div>
         `;
       }).join('');
@@ -937,7 +1303,7 @@
       .then(data => {
         if (data.success) {
           // Reset hash to force notification update
-          notificationsHash = '';
+          lastNotificationHash = '';
           loadNotifications();
         }
       })
@@ -968,6 +1334,161 @@
     }
     
     // Live timeago handled by public/js/timeago.js
+
+    function handleNotificationTrigger(e) {
+      const item = e.target.closest('.notification-item');
+      if (!item) return;
+      const id = item.getAttribute('data-id');
+      const type = item.getAttribute('data-type');
+      const bookingId = item.getAttribute('data-booking-id');
+      if (type === 'rescheduled' && bookingId) {
+        openRescheduleModal(bookingId, id);
+      } else if (type === 'completion_pending' && bookingId) {
+        openCompletionReviewWithFetch(bookingId, id);
+      } else if (id) {
+        markNotificationAsRead(id);
+      }
+    }
+
+    const inboxContentEl = document.getElementById('inbox-content');
+    inboxContentEl?.addEventListener('click', handleNotificationTrigger);
+
+    // Mobile drawer uses its own container; mirror the same behavior.
+    const mobileNotificationsEl = document.getElementById('mobileNotificationsContainer');
+    mobileNotificationsEl?.addEventListener('click', handleNotificationTrigger);
+
+    // Keyboard activation for accessibility (desktop + mobile overlays with keyboard support)
+    function handleNotificationKeydown(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const item = e.target.closest('.notification-item');
+      if (!item) return;
+      e.preventDefault();
+      handleNotificationTrigger({ target: item });
+    }
+    inboxContentEl?.addEventListener('keydown', handleNotificationKeydown);
+    mobileNotificationsEl?.addEventListener('keydown', handleNotificationKeydown);
+
+    // Reschedule modal logic
+    let __resModal = {
+      bookingId: null,
+      notificationId: null,
+    };
+    const resModalEl = document.getElementById('rescheduleModal');
+    const resClose = document.getElementById('resModalClose');
+    const resBody = document.getElementById('resModalBody');
+    const resErr = document.getElementById('resModalError');
+    const btnAccept = document.getElementById('resModalAcceptBtn');
+    const btnCancel = document.getElementById('resModalCancelBtn');
+
+    function showResModal(){ if(resModalEl) resModalEl.style.display='block'; }
+    function hideResModal(){ if(resModalEl) resModalEl.style.display='none'; __resModal.bookingId=null; __resModal.notificationId=null; }
+    resClose?.addEventListener('click', hideResModal);
+    resModalEl?.addEventListener('click', (e)=>{ if (e.target === resModalEl) hideResModal(); });
+
+    function openRescheduleModal(bookingId, notificationId){
+      __resModal.bookingId = bookingId;
+      __resModal.notificationId = notificationId;
+      resBody.innerHTML = '<div style="display:flex; align-items:center; gap:8px; color:#374151;"><i class="bx bx-loader bx-spin" style="font-size:18px;"></i> Loading…</div>';
+      resErr.style.display='none';
+      showResModal();
+      // Mark as read upon opening
+      try { if (notificationId) markNotificationAsRead(notificationId); } catch(_){}
+      fetch(`/api/student/consultation-details/${bookingId}`)
+        .then(r => r.json())
+        .then(data => {
+          if (!data || !data.success) { throw new Error(data?.message || 'Failed'); }
+          const c = data.consultation;
+          const rows = [
+            ['Professor', c.professor_name],
+            ['Subject', c.subject],
+            ['Type', c.type],
+            ['Mode', c.mode],
+            ['New date', c.booking_date],
+          ];
+          if (c.reschedule_reason) rows.push(['Reason', c.reschedule_reason]);
+          let html = '<div style="display:grid; grid-template-columns:120px 1fr; gap:8px 12px;">';
+          rows.forEach(([k,v]) => { html += `<div style="color:#6b7280;">${k}</div><div style="color:#111827; font-weight:600;">${(v||'')}</div>`; });
+          html += '</div>';
+          resBody.innerHTML = html;
+        })
+        .catch(()=>{
+          resBody.innerHTML = '';
+          resErr.textContent = 'Could not load details. Please try again later.';
+          resErr.style.display='block';
+        });
+    }
+
+    btnAccept?.addEventListener('click', function(){
+      if (!__resModal.bookingId) return;
+      btnAccept.disabled = true; btnCancel.disabled = true;
+      fetch('/api/student/consultations/accept-reschedule', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
+        body: JSON.stringify({ id: __resModal.bookingId })
+      }).then(r=>r.json()).then(data=>{
+        if (!data || !data.success) throw new Error(data?.message || 'Failed');
+        hideResModal();
+        // Refresh lists
+        loadNotifications();
+        loadBookingData();
+        loadStudentDetails();
+      }).catch(err=>{
+        resErr.textContent = err?.message || 'Failed to accept reschedule.';
+        resErr.style.display='block';
+      }).finally(()=>{ btnAccept.disabled = false; btnCancel.disabled = false; });
+    });
+
+    btnCancel?.addEventListener('click', function(){
+      if (!__resModal.bookingId) return;
+      const confirmOverlay = document.getElementById('studentConfirmDialog');
+      if (!confirmOverlay) return;
+      confirmOverlay.dataset.action = 'cancel';
+      confirmOverlay.querySelector('#confirmMessage').textContent = 'Cancel this consultation?';
+      confirmOverlay.setAttribute('aria-hidden', 'false');
+      confirmOverlay.style.display = 'flex';
+    });
+
+    const confirmOverlayEl = document.getElementById('studentConfirmDialog');
+    const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+    const confirmProceedBtn = document.getElementById('confirmProceedBtn');
+
+    function closeConfirmOverlay(){
+      if (!confirmOverlayEl) return;
+      confirmOverlayEl.style.display = 'none';
+      confirmOverlayEl.setAttribute('aria-hidden', 'true');
+      delete confirmOverlayEl.dataset.action;
+    }
+
+    confirmCancelBtn?.addEventListener('click', () => {
+      closeConfirmOverlay();
+    });
+
+    confirmOverlayEl?.addEventListener('click', (e) => {
+      if (e.target === confirmOverlayEl) {
+        closeConfirmOverlay();
+      }
+    });
+
+    confirmProceedBtn?.addEventListener('click', function(){
+      if (!confirmOverlayEl || confirmOverlayEl.dataset.action !== 'cancel') return;
+      if (!__resModal.bookingId) return;
+      closeConfirmOverlay();
+      btnAccept.disabled = true; btnCancel.disabled = true;
+      fetch('/api/student/consultations/cancel-rescheduled', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') },
+        body: JSON.stringify({ id: __resModal.bookingId })
+      }).then(r=>r.json()).then(data=>{
+        if (!data || !data.success) throw new Error(data?.message || 'Failed');
+        hideResModal();
+        loadNotifications();
+        loadBookingData();
+        loadStudentDetails();
+      }).catch(err=>{
+        resErr.textContent = err?.message || 'Failed to cancel consultation.';
+        resErr.style.display='block';
+      }).finally(()=>{ btnAccept.disabled = false; btnCancel.disabled = false; });
+    });
         
     
   </script>

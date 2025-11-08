@@ -1488,7 +1488,7 @@
           </div>
           <div id="autoReschedRow" style="display:none;margin:4px 0 12px 0">
             <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ov_auto_reschedule"> Auto‑reschedule affected bookings</label>
-            <div style="font-size:12px;color:#64748b;margin-top:6px">Exam/Quiz bookings will be placed first into onsite slots. Others will follow mode rules.</div>
+            <div style="font-size:12px;color:#64748b;margin-top:6px">All affected bookings will be rescheduled. Exam/Quiz bookings will be placed first into onsite slots. Others will follow mode rules.</div>
           </div>
           <div id="ov_preview" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-top:6px;display:none"></div>
         </div>

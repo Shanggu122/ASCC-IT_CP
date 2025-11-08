@@ -118,6 +118,12 @@
     pointer-events: all; /* But allow clicks on the buttons */
 }
 
+.preview-open .mobile-header .hamburger,
+.preview-open .mobile-header .mobile-notification-bell {
+    opacity: 0;
+    pointer-events: none;
+}
+
 /* Mobile Role Indicator */
 .mobile-role-indicator {
     display: none; /* Hidden by default */

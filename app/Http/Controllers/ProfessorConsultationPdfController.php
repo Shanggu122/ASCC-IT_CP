@@ -16,6 +16,13 @@ class ProfessorConsultationPdfController extends Controller
         if (!is_array($logs) || empty($logs)) {
             return response()->json(["error" => "No consultation logs supplied"], 422);
         }
+        $logs = array_map(function ($log) {
+            if (!is_array($log)) {
+                $log = (array) $log;
+            }
+            $log["remarks"] = isset($log["remarks"]) ? trim((string) $log["remarks"]) : "";
+            return $log;
+        }, $logs);
         // Sort by date then student (assuming date is a printable string)
         usort($logs, function ($a, $b) {
             $da = strtotime($a["date"] ?? "") ?: 0;
