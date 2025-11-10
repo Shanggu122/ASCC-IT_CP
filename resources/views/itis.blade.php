@@ -464,6 +464,9 @@
         <button type="button" class="quick-reply" data-message="How can I reschedule my consultation?">Reschedule</button>
         <button type="button" class="quick-reply" data-message="Can I cancel my booking?">Cancel booking</button>
         <button type="button" class="quick-reply" data-message="How do I contact my professor after booking?">Contact professor</button>
+  <button type="button" class="quick-reply" data-message="Are there available slots?">Check availability</button>
+  <button type="button" class="quick-reply" data-message="Do I have a schedule this week?">This week’s schedule</button>
+  <button type="button" class="quick-reply" data-message="my pending schedules this week">My pending this week</button>
       </div>
       <button type="button" id="quickRepliesToggle" class="quick-replies-toggle" style="display:none" title="Show FAQs">
         <i class='bx bx-help-circle'></i>

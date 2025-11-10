@@ -637,6 +637,26 @@ class ConsultationBookingController extends Controller
                 );
             }
 
+            // Department guard: ensure ITIS route only updates ITIS (Dept_ID=1) and
+            // ComSci route only updates ComSci (Dept_ID=2). This prevents cross-dept edits.
+            // We detect by the current request path.
+            $path = $request->path(); // e.g., "admin-itis/update-professor/123"
+            $requiredDept = null;
+            if (str_starts_with($path, "admin-itis/")) {
+                $requiredDept = 1;
+            } elseif (str_starts_with($path, "admin-comsci/")) {
+                $requiredDept = 2;
+            }
+            if ($requiredDept !== null && (int) ($professor->Dept_ID ?? 0) !== $requiredDept) {
+                return response()->json(
+                    [
+                        "success" => false,
+                        "message" => "Forbidden: department mismatch",
+                    ],
+                    403,
+                );
+            }
+
             // Validate basic fields. Prof_ID field in form is ignored for update of PK.
             $validated = $request->validate([
                 "Name" => "required|string|max:50",
