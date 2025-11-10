@@ -364,6 +364,9 @@
           <div class="table-cell" data-label="Status" @if($completionReason) title="{{ 'Remarks: '.$completionReason }}" @endif>{{ $statusLabel }}</div>
           <div class="table-cell" data-label="Action" style="width: 180px;">
             <div class="action-btn-group" style="display: flex; gap: 8px;">
+              @php
+                $canRequestCompletion = in_array($statusLower, ['approved', 'completion_declined']);
+              @endphp
               @if(!in_array($statusLower, ['completed', 'cancelled', 'completion_pending']))
                 @if($statusLower !== 'rescheduled')
                 <button 
@@ -375,7 +378,7 @@
                 </button>
                 @endif
 
-                @if($statusLower !== 'approved')
+                @if(!in_array($statusLower, ['approved', 'completion_declined']))
                 <button 
                   onclick="approveWithWarning(this, {{ $b->Booking_ID }}, '{{ $b->Booking_Date }}')" 
                   class="action-btn btn-approve"
@@ -384,7 +387,7 @@
                   <i class='bx bx-check-circle'></i>
                 </button>
                 @endif
-                @if($statusLower === 'approved')
+                @if($canRequestCompletion)
                 <button 
                   onclick="openCompletionRemarks(this, {{ $b->Booking_ID }})" 
                   class="action-btn btn-completed"
@@ -1068,7 +1071,8 @@
 
         const row = findRowByBookingId(bookingId);
         const statusNow = row ? String(row.dataset.status||'').toLowerCase() : '';
-        if(statusNow && statusNow !== 'approved'){
+        const canRequest = ['approved','completion_declined'];
+        if(statusNow && !canRequest.includes(statusNow)){
           showProfessorModal('Please approve this consultation before requesting completion confirmation.');
           return;
         }
@@ -1351,13 +1355,14 @@ function closeProfessorModal() {
             const approveParamDate = escapeInlineArg(isoDate || dateLabel);
             const rescheduleParamMode = escapeInlineArg(modeLabel);
             const buttons = [];
+            const isApprovedLike = normalized === 'approved' || normalized === 'completion_declined';
             if(normalized !== 'rescheduled'){
               buttons.push(`<button onclick="showRescheduleModal(${bookingId}, '${rescheduleParamDate}', '${rescheduleParamMode}')" class="action-btn btn-reschedule" title="Reschedule"><i class='bx bx-calendar-x'></i></button>`);
             }
-            if(normalized !== 'approved'){
+            if(!isApprovedLike){
               buttons.push(`<button onclick="approveWithWarning(this, ${bookingId}, '${approveParamDate}')" class="action-btn btn-approve" title="Approve"><i class='bx bx-check-circle'></i></button>`);
             }
-            if(normalized === 'approved'){
+            if(isApprovedLike){
               buttons.push(`<button onclick="openCompletionRemarks(this, ${bookingId})" class="action-btn btn-completed" title="Request completion confirmation"><i class='bx bx-task'></i></button>`);
             } else {
               buttons.push(`<button type="button" class="action-btn btn-muted" title="Approve this consultation before requesting completion confirmation" data-need-approval="1"><i class='bx bx-task'></i></button>`);
@@ -2202,11 +2207,12 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           } else if (normalizedStatus === 'completion_pending') {
             actionsHtml = `<div class="action-btn-group" style="display:flex;gap:8px;"><button type="button" class="action-btn btn-muted" title="Awaiting student confirmation" disabled><i class='bx bx-time'></i></button></div>`;
           } else {
+            const approvedLike = normalizedStatus === 'approved' || normalizedStatus === 'completion_declined';
             actionsHtml = `
             <div class="action-btn-group" style="display:flex;gap:8px;">
               ${normalizedStatus!=='rescheduled' ? `<button onclick="showRescheduleModal(${data.Booking_ID}, '${rescheduleDisplayArg}', '${modeArg}')" class="action-btn btn-reschedule" title="Reschedule"><i class='bx bx-calendar-x'></i></button>`:''}
-              ${normalizedStatus!=='approved' ? `<button onclick="approveWithWarning(this, ${data.Booking_ID}, '${approveDateArg}')" class="action-btn btn-approve" title="Approve"><i class='bx bx-check-circle'></i></button>`:''}
-              ${normalizedStatus==='approved'
+              ${!approvedLike ? `<button onclick="approveWithWarning(this, ${data.Booking_ID}, '${approveDateArg}')" class="action-btn btn-approve" title="Approve"><i class='bx bx-check-circle'></i></button>`:''}
+              ${approvedLike
                 ? `<button onclick="openCompletionRemarks(this, ${data.Booking_ID})" class="action-btn btn-completed" title="Request completion confirmation"><i class='bx bx-task'></i></button>`
                 : `<button type="button" class="action-btn btn-muted" title="Approve this consultation before requesting completion confirmation" data-need-approval="1"><i class='bx bx-task'></i></button>`}
             </div>`;
