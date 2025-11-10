@@ -35,6 +35,8 @@ use App\Http\Controllers\ProfessorConsultationPdfController;
 use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon; // added for availability endpoint
 use Carbon\CarbonPeriod;
+use Database\Seeders\DemoMeetingSeeder;
+use Database\Seeders\DemoStudentSeeder;
 
 Route::get("/", [LandingController::class, "index"])->name("landing");
 
@@ -138,6 +140,57 @@ Route::middleware([
 Route::get("/video-call/{user}", [VideoCallController::class, "show"])
     ->name("video.call")
     ->middleware("auth");
+
+Route::get("/video-call/participants/{uid}", [VideoCallController::class, "participant"])->name(
+    "video.call.participant",
+);
+
+if (config("app.debug")) {
+    Route::get("/dev/demo-setup", function () {
+        app(DemoMeetingSeeder::class)->run();
+
+        return response()->json([
+            "students" => [
+                ["Stud_ID" => "910000001", "password" => "demo1234"],
+                ["Stud_ID" => "910000002", "password" => "demo1234"],
+                ["Stud_ID" => "910000003", "password" => "demo1234"],
+            ],
+            "professor" => ["Prof_ID" => 3001, "password" => "demo1234"],
+            "meeting_channel" => "stud-910000001-prof-3001",
+        ]);
+    })->name("demo.setup");
+
+    Route::get("/dev/video-call-demo", function (Request $request) {
+        $defaults = [
+            "mock" => max(0, (int) $request->query("mock", 0)),
+            "mockNames" => $request->query("mockNames", "Anna|Ben|Carla"),
+            "role" => $request->query("role", "student"),
+            "seed" => $request->query("seed", "1"),
+            "channel" => $request->query("channel", "stud-910000001-prof-3001"),
+        ];
+
+        if (!$request->has("mock")) {
+            return redirect($request->fullUrlWithQuery($defaults));
+        }
+
+        if ($request->query("seed", "1") !== "0") {
+            app(DemoMeetingSeeder::class)->run();
+        } else {
+            app(DemoStudentSeeder::class)->run();
+        }
+
+        $role = strtolower($defaults["role"]);
+        $isProfessor = $role === "professor";
+
+        $channel = $defaults["channel"];
+        $counterpart = $isProfessor ? "Demo Student" : "Demo Professor";
+
+        return view("video-call", [
+            "channel" => $channel,
+            "counterpartName" => $counterpart,
+        ]);
+    })->name("video.call.demo");
+}
 
 // Agora token issuance (student only)
 Route::middleware(["web", "auth"])->group(function () {
