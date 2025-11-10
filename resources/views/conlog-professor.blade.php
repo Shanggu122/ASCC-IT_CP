@@ -170,6 +170,41 @@
       cursor: not-allowed;
       transform: none;
     }
+
+    .action-btn.btn-muted {
+      background: #3a5247;
+      cursor: default;
+      opacity: 0.65;
+    }
+
+    .action-btn.btn-muted:disabled {
+      opacity: 0.65;
+    }
+
+    .completion-remarks-modal textarea {
+      min-height: 110px;
+    }
+
+    .completion-feedback-box {
+      background: #eef5f1;
+      border-left: 4px solid #2c5f4f;
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      color: #1f3931;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .completion-feedback-box strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .completion-feedback-box p {
+      margin: 0;
+      white-space: pre-wrap;
+    }
   </style>
 </head>
 <body>
@@ -182,6 +217,28 @@
     </div>
   </div>
 
+  <div class="confirm-overlay" id="completionRemarksOverlay" aria-hidden="true" style="display:none;">
+    <div class="confirm-modal completion-remarks-modal" role="dialog" aria-modal="true" aria-labelledby="completionRemarksTitle">
+      <div class="confirm-header">
+        <i class='bx bx-comment-detail'></i>
+        <div id="completionRemarksTitle">Add completion remarks</div>
+      </div>
+      <div class="confirm-body">
+        <p style="margin-bottom:12px;">Share a short summary of what was accomplished. Students will review this before finalizing.</p>
+        <div id="completionStudentFeedback" class="completion-feedback-box" style="display:none;">
+          <strong>Student feedback</strong>
+          <p id="completionStudentFeedbackText" style="margin:0;"></p>
+        </div>
+        <textarea id="completionRemarksInput" class="date-input" rows="4" maxlength="500" placeholder="Example: Discussed project outline and agreed on next milestones."></textarea>
+        <div id="completionRemarksError" style="display:none;color:#c0392b;font-size:13px;margin-top:6px;">Please enter at least 5 characters.</div>
+      </div>
+      <div class="confirm-actions">
+        <button type="button" class="btn-cancel" id="completionRemarksCancel">Cancel</button>
+        <button type="button" class="btn-confirm" id="completionRemarksSave">Send to student</button>
+      </div>
+    </div>
+  </div>
+
   <div class="main-content">
     <div class="header">
       <h1 style="display:flex;align-items:center;gap:14px;">Consultation Log
@@ -190,7 +247,6 @@
         </button>
       </h1>
     </div>
-
     <div class="search-container">
       <input type="text" id="searchInput" placeholder="Search..." style="flex:1;"
         autocomplete="off" spellcheck="false" maxlength="100"
@@ -218,10 +274,9 @@
       </div>
       <div class="filter-group-horizontal">
         @php
-          $bookingsFiltered = collect($bookings ?? [])->filter(function($b){
-            return strtolower($b->Status ?? '') !== 'cancelled';
-          })->values();
-          $subjects = collect($bookingsFiltered ?? [])->pluck('subject')->filter(fn($s)=>filled($s))
+          $bookingsFiltered = collect($bookings ?? [])->values();
+          // Align subject filter with the consultation type labels shown in the table
+          $subjects = collect($bookingsFiltered ?? [])->pluck('type')->filter(fn($s)=>filled($s))
                        ->map(fn($s)=>trim($s))->unique()->sort()->values();
         @endphp
         <select id="subjectFilter" class="filter-select" aria-label="Subject filter">
@@ -259,14 +314,45 @@
     
         <!-- Dynamic Data Rows -->
   @forelse($bookingsFiltered as $b)
-  <div class="table-row"
+  @php
+    $statusLower = strtolower($b->Status ?? '');
+    $statusLabels = [
+      'completion_pending' => 'Awaiting Student Review',
+      'completion_declined' => 'Student Declined Completion',
+    ];
+    $statusLabel = $statusLabels[$statusLower] ?? ($statusLower === 'cancelled' ? 'Cancelled' : ucfirst($b->Status));
+    $completionReason = trim((string) ($b->completion_reason ?? ''));
+    try {
+      $completionRequestedAt = $b->completion_requested_at
+        ? \Carbon\Carbon::parse($b->completion_requested_at, 'Asia/Manila')->format('Y-m-d H:i:s')
+        : '';
+    } catch (\Throwable $_) {
+      $completionRequestedAt = '';
+    }
+    try {
+      $completionReviewedAt = $b->completion_reviewed_at
+        ? \Carbon\Carbon::parse($b->completion_reviewed_at, 'Asia/Manila')->format('Y-m-d H:i:s')
+        : '';
+    } catch (\Throwable $_) {
+      $completionReviewedAt = '';
+    }
+  @endphp
+  <div class="table-row {{ $statusLower === 'cancelled' ? 'cancelled-booking' : '' }}"
     data-student="{{ strtolower($b->student) }}"
     data-subject="{{ strtolower($b->subject) }}"
     data-date="{{ \Carbon\Carbon::parse($b->Booking_Date)->format('Y-m-d') }}"
     data-date-ts="{{ \Carbon\Carbon::parse($b->Booking_Date)->timestamp }}"
+    data-booked="{{ \Carbon\Carbon::parse($b->Created_At)->timezone('Asia/Manila')->format('Y-m-d H:i:s') }}"
+    data-booked-ts="{{ \Carbon\Carbon::parse($b->Created_At)->timezone('Asia/Manila')->timestamp }}"
     data-type="{{ strtolower($b->type) }}"
     data-mode="{{ strtolower($b->Mode) }}"
-    data-status="{{ strtolower($b->Status) }}"
+    data-status="{{ $statusLower }}"
+    data-completion-reason="{{ e($completionReason) }}"
+    data-completion-requested="{{ $completionRequestedAt }}"
+    data-completion-reviewed="{{ $completionReviewedAt }}"
+    data-completion-response="{{ e($b->completion_student_response ?? '') }}"
+  data-completion-comment="{{ e($b->completion_student_comment ?? '') }}"
+  data-is-completion-pending="{{ $statusLower === 'completion_pending' ? '1' : '0' }}"
     data-matched="1"
   >
     <div class="table-cell" data-label="No." data-booking-id="{{ $b->Booking_ID }}">{{ $loop->iteration }}</div>
@@ -275,11 +361,11 @@
           <div class="table-cell" data-label="Date">{{ \Carbon\Carbon::parse($b->Booking_Date)->format('D, M d Y') }}</div>
           <div class="table-cell" data-label="Type">{{ $b->type }}</div>
           <div class="table-cell" data-label="Mode">{{ ucfirst($b->Mode) }}</div>
-          <div class="table-cell" data-label="Status">{{ ucfirst($b->Status) }}</div>
+          <div class="table-cell" data-label="Status" @if($completionReason) title="{{ 'Remarks: '.$completionReason }}" @endif>{{ $statusLabel }}</div>
           <div class="table-cell" data-label="Action" style="width: 180px;">
             <div class="action-btn-group" style="display: flex; gap: 8px;">
-              @if(strtolower($b->Status) !== 'completed')
-                @if($b->Status !== 'rescheduled')
+              @if(!in_array($statusLower, ['completed', 'cancelled', 'completion_pending']))
+                @if($statusLower !== 'rescheduled')
                 <button 
                   onclick="showRescheduleModal({{ $b->Booking_ID }}, '{{ $b->Booking_Date }}', '{{ $b->Mode }}')" 
                   class="action-btn btn-reschedule"
@@ -289,7 +375,7 @@
                 </button>
                 @endif
 
-                @if($b->Status !== 'approved')
+                @if($statusLower !== 'approved')
                 <button 
                   onclick="approveWithWarning(this, {{ $b->Booking_ID }}, '{{ $b->Booking_Date }}')" 
                   class="action-btn btn-approve"
@@ -298,16 +384,29 @@
                   <i class='bx bx-check-circle'></i>
                 </button>
                 @endif
-
-                @if($b->Status !== 'completed')
+                @if($statusLower === 'approved')
                 <button 
-                  onclick="confirmComplete(this, {{ $b->Booking_ID }})" 
+                  onclick="openCompletionRemarks(this, {{ $b->Booking_ID }})" 
                   class="action-btn btn-completed"
-                  title="Completed"
+                  title="Request completion confirmation"
+                >
+                  <i class='bx bx-task'></i>
+                </button>
+                @else
+                <button 
+                  type="button"
+                  class="action-btn btn-muted"
+                  title="Approve this consultation before requesting completion confirmation"
+                  data-need-approval="1"
                 >
                   <i class='bx bx-task'></i>
                 </button>
                 @endif
+              @endif
+              @if($statusLower === 'completion_pending')
+                <button type="button" class="action-btn btn-muted" title="Awaiting student confirmation" disabled>
+                  <i class='bx bx-time'></i>
+                </button>
               @endif
             </div>
           </div>
@@ -330,6 +429,12 @@
 
     <!-- Bottom scroll spacer for mobile chat overlay clearance -->
     <div class="bottom-safe-space" aria-hidden="true"></div>
+
+    <!-- Top-right notification banner -->
+    <div id="notification" class="notification" style="display:none;">
+      <span id="notification-message"></span>
+      <button type="button" class="close-btn" onclick="hideNotification()" aria-label="Close">&times;</button>
+    </div>
 
     <!-- Mobile Filters Overlay -->
     <div class="filters-overlay" id="filtersOverlay" aria-hidden="true">
@@ -362,6 +467,26 @@
         <div class="filters-drawer-footer">
           <button type="button" class="btn-reset" id="resetFiltersBtn">Reset</button>
           <button type="button" class="btn-apply" id="applyFiltersBtn">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Print Preview Overlay -->
+    <div class="preview-overlay" id="pdfPreviewOverlay" aria-hidden="true">
+      <div class="preview-modal" role="dialog" aria-modal="true" aria-labelledby="pdfPreviewTitle">
+        <div class="preview-header">
+          <h2 id="pdfPreviewTitle">Print Preview</h2>
+          <button type="button" class="preview-close" id="closePreviewBtn" aria-label="Close preview">×</button>
+        </div>
+        <div class="preview-body">
+          <iframe id="pdfPreviewFrame" title="Consultation log preview" loading="lazy"></iframe>
+        </div>
+        <div class="preview-footer">
+          <label for="pdfFileName" class="preview-label">File name</label>
+          <div class="preview-actions">
+            <input type="text" id="pdfFileName" class="preview-input" value="" autocomplete="off" spellcheck="false" aria-label="PDF file name">
+            <button type="button" id="downloadPdfBtn" class="preview-download">Download</button>
+          </div>
         </div>
       </div>
     </div>
@@ -492,6 +617,7 @@
             <th>Type</th>
             <th>Mode</th>
             <th>Status</th>
+            <th>Remarks</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -508,6 +634,8 @@
     let __resAllowedWeekdays = new Set(); // 1-5 = Mon-Fri
     let __resBlockedIso = new Set(); // 'YYYY-MM-DD' dates blocked by overrides
     let __resForcedByIso = new Map(); // iso -> forced_mode string ('online'|'onsite')
+    let __resOriginalIso = null; // original booking date ISO (disabled)
+  let __resFullIso = new Set(); // fully-booked dates (disabled)
 
     function parseAllowedWeekdaysFromSchedule(scheduleText){
       const set = new Set();
@@ -535,8 +663,12 @@
         const day = date.getDay(); // 0 Sun..6 Sat
         // Always block weekends
         if(day===0 || day===6) return true;
+        // Block the original date itself
+        try{ const iso = isoFromDateObj(date); if (__resOriginalIso && iso === __resOriginalIso) return true; }catch(_){ }
         // Overrides: if blocked and not specifically force-open by mode, disable
         const iso = isoFromDateObj(date);
+        // Fully booked dates disabled
+        if(__resFullIso.has(iso)) return true;
         if(__resBlockedIso.has(iso)) return true;
         // If no schedule at all, block weekdays unless there's a forced mode override
         if(__resAllowedWeekdays.size===0){
@@ -550,7 +682,9 @@
       };
     }
 
-    function showRescheduleModal(bookingId, currentDate, bookingMode) {
+  function showRescheduleModal(bookingId, currentDate, bookingMode) {
+      // Guard: block actions if not allowed per first-book rule
+      try{ if(isActionBlockedFor(bookingId)){ showProfessorModal('Please take action on the first student who booked for this date before acting on others.'); return; } }catch(_){ }
       currentBookingId = bookingId;
       // Resolve button context only if invoked via a click event
       try{
@@ -558,8 +692,10 @@
         currentRescheduleButton = ev && ev.target && ev.target.closest ? ev.target.closest('button') : currentRescheduleButton;
       }catch(_){ /* ignore */ }
       
-      // Set current date in the modal
-      document.getElementById('currentDate').textContent = currentDate;
+  // Set current date in the modal
+  document.getElementById('currentDate').textContent = currentDate;
+  // Capture original ISO for disallowing same-day pick
+  try { const d = new Date(currentDate); __resOriginalIso = isoFromDateObj(d); } catch(_) { __resOriginalIso = null; }
       
       // Prepare schedule context for disableDayFn
       const profIdEl = document.getElementById('printProfessor');
@@ -619,7 +755,19 @@
       ]).then(([fullResp, availResp])=>{
         // Store fully-booked list for capacity validation
         dateInput.removeAttribute('data-full');
-        if(fullResp && fullResp.success){ dateInput.setAttribute('data-full', JSON.stringify(fullResp.dates)); }
+        __resFullIso.clear();
+        if(fullResp && fullResp.success){
+          dateInput.setAttribute('data-full', JSON.stringify(fullResp.dates));
+          try{
+            (fullResp.dates||[]).forEach(str=>{
+              const d = new Date(str);
+              if(!isNaN(d.getTime())){
+                const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                __resFullIso.add(iso);
+              }
+            });
+          }catch(_){ }
+        }
 
         // Store availability map to check per-day mode lock
         if(availResp && availResp.success){
@@ -751,6 +899,16 @@
         showProfessorModal('Please provide a reason for rescheduling.');
         return;
       }
+      // Prevent choosing the same date as the original booking
+      try {
+        if (__resOriginalIso && newDate) {
+          const iso = newDate;
+          if (iso === __resOriginalIso) {
+            showProfessorModal('Please choose a different date from the original booking.');
+            return;
+          }
+        }
+      } catch(_) {}
       
       if (!currentBookingId) {
         showProfessorModal('Error: Booking ID is missing. Please try again.');
@@ -788,9 +946,10 @@
         return;
       }
       
+      const explicitStatus = (status && typeof status === 'object' && typeof status.status === 'string') ? status.status : status;
       const requestBody = {
         id: bookingId,
-        status: status.toLowerCase()
+        status: typeof explicitStatus === 'string' ? explicitStatus.toLowerCase() : String(explicitStatus || '').toLowerCase()
       };
       
       if (newDate) {
@@ -799,6 +958,13 @@
       
       if (reason) {
         requestBody.reschedule_reason = reason;
+      }
+
+      if (typeof status === 'object' && status !== null) {
+        Object.assign(requestBody, status);
+        if (typeof requestBody.status === 'string') {
+          requestBody.status = requestBody.status.toLowerCase();
+        }
       }
       
       fetch('/api/consultations/update-status', {
@@ -832,30 +998,45 @@
     }
 
     function updateStatus(bookingId, status) {
+      if(status && typeof status === 'object' && !Array.isArray(status)){
+        const payload = Object.assign({ id: bookingId }, status);
+      updateStatusWithDate(bookingId, payload);
+        return;
+      }
       updateStatusWithDate(bookingId, status);
     }
 
-    function removeThisButton(btn, bookingId, status) {
-      const isCompleted = String(status||'').toLowerCase() === 'completed';
+    function removeThisButton(btn, bookingId, status, completionReason = null) {
+      const normalizedStatus = String(status||'').toLowerCase();
       const row = btn && btn.closest ? btn.closest('.table-row') : null;
-      if (isCompleted && row) {
-        // Clear all action buttons in this row
-        const actionGroup = row.querySelector('.action-btn-group');
-        if (actionGroup) actionGroup.innerHTML = '';
-        else {
-          const actionCell = row.querySelector('.table-cell[data-label="Action"]');
-          if (actionCell) actionCell.innerHTML = '';
-        }
-        // Update the status cell immediately for better UX
-        const statusCell = row.querySelector('.table-cell[data-label="Status"]');
-        if (statusCell) statusCell.textContent = 'Completed';
-        // Lock this row to prevent realtime re-render from re-adding buttons
-        row.setAttribute('data-completed-lock', '1');
-      } else {
-        // Default: only remove the clicked button
-        if (btn && btn.remove) btn.remove();
+      const shouldHandle = ['completed','cancelled','completionpending','completion_pending'].includes(normalizedStatus);
+
+      if(shouldHandle && row){
+        setRowStatusUI(bookingId, normalizedStatus, {
+          row,
+          completionReason,
+          updateActions: true
+        });
+      } else if(btn && btn.remove){
+        btn.remove();
       }
-      updateStatus(bookingId, status);
+
+      try{
+        const targetRow = row || findRowByBookingId(bookingId);
+        if(targetRow){
+          setRowStatusUI(bookingId, normalizedStatus, {
+            row: targetRow,
+            completionReason,
+            updateActions: true
+          });
+        }
+      }catch(_){ }
+
+      const payload = { status };
+      if(completionReason && (normalizedStatus === 'completionpending' || normalizedStatus === 'completion_pending')){
+        payload.completion_reason = completionReason;
+      }
+      updateStatus(bookingId, payload);
     }
 
     // Confirmation modal logic
@@ -880,10 +1061,85 @@
     }
 
     // Completed flow: ask confirmation first
-    function confirmComplete(btn, bookingId){
-      showConfirm('Mark this consultation as Completed? This will finalize the record.', (ok)=>{
-        if(!ok) return; removeThisButton(btn, bookingId, 'Completed');
-      });
+    let completionModalContext = { button: null, bookingId: null };
+
+  function openCompletionRemarks(btn, bookingId){
+    try{ if(isActionBlockedFor(bookingId)){ showProfessorModal('Please take action on the first student who booked for this date before acting on others.'); return; } }catch(_){ }
+
+        const row = findRowByBookingId(bookingId);
+        const statusNow = row ? String(row.dataset.status||'').toLowerCase() : '';
+        if(statusNow && statusNow !== 'approved'){
+          showProfessorModal('Please approve this consultation before requesting completion confirmation.');
+          return;
+        }
+        if(row && String(row.dataset.isCompletionPending||'') === '1'){
+          showProfessorModal('This consultation is already awaiting student confirmation.');
+          return;
+        }
+
+        completionModalContext = { button: btn, bookingId };
+        const overlay = document.getElementById('completionRemarksOverlay');
+        const textarea = document.getElementById('completionRemarksInput');
+        const error = document.getElementById('completionRemarksError');
+        const feedbackBox = document.getElementById('completionStudentFeedback');
+        const feedbackText = document.getElementById('completionStudentFeedbackText');
+        if(!overlay || !textarea || !error){
+          showProfessorModal('Unable to open remarks modal. Please reload and try again.');
+          return;
+        }
+        const priorReason = row ? decodeHtml(row.dataset.completionReason||'') : '';
+        textarea.value = priorReason;
+        error.style.display = 'none';
+        if(feedbackBox && feedbackText){
+          feedbackBox.style.display = 'none';
+          feedbackText.textContent = '';
+          if(row){
+            const response = String(row.dataset.completionResponse||'').toLowerCase();
+            const comment = decodeHtml(row.dataset.completionComment||'');
+            const lines = [];
+            if(response === 'agreed'){ lines.push('Student approved this request.'); }
+            else if(response === 'declined'){ lines.push('Student declined this request.'); }
+            if(comment){ lines.push(`Comment: ${comment}`); }
+            if(lines.length){
+              feedbackText.textContent = lines.join('\n');
+              feedbackBox.style.display = 'block';
+            }
+          }
+        }
+        overlay.style.display = 'flex';
+        setTimeout(()=>{ try{ textarea.focus(); }catch(_){ } }, 0);
+    }
+
+    function closeCompletionRemarks(){
+      const overlay = document.getElementById('completionRemarksOverlay');
+      if(overlay) overlay.style.display = 'none';
+      const textarea = document.getElementById('completionRemarksInput');
+      if(textarea) textarea.value = '';
+      const error = document.getElementById('completionRemarksError');
+      if(error) error.style.display = 'none';
+      const feedbackBox = document.getElementById('completionStudentFeedback');
+      if(feedbackBox) feedbackBox.style.display = 'none';
+      const feedbackText = document.getElementById('completionStudentFeedbackText');
+      if(feedbackText) feedbackText.textContent = '';
+    }
+
+    function submitCompletionRequest(){
+      if(submitCompletionRequest.pending){ return; }
+      const textarea = document.getElementById('completionRemarksInput');
+      const error = document.getElementById('completionRemarksError');
+      const overlay = document.getElementById('completionRemarksOverlay');
+      if(!textarea || !error){ return; }
+      const raw = sanitize(textarea.value||'');
+      if(raw.length < 5){
+        error.style.display = 'block';
+        return;
+      }
+      error.style.display = 'none';
+      closeCompletionRemarks();
+      closeCompletionRemarks();
+      submitCompletionRequest.pending = true;
+      removeThisButton(completionModalContext.button, completionModalContext.bookingId, 'completion_pending', raw);
+      setTimeout(()=>{ submitCompletionRequest.pending = false; }, 400);
     }
 
     // Variables to store approval context
@@ -893,6 +1149,8 @@
     // New function to handle approval with warning
   function approveWithWarning(btn, bookingId, bookingDate) {
       console.log('approveWithWarning called:', { bookingId, bookingDate });
+    // Guard: block actions if not allowed per first-book rule
+    try{ if(isActionBlockedFor(bookingId)){ showProfessorModal('Please take action on the first student who booked for this date before acting on others.'); return; } }catch(_){}
       
       // Store the context for later use
       pendingApprovalButton = btn;
@@ -937,7 +1195,7 @@ function closeProfessorModal() {
 }
     }
 
-    function showApprovalWarningModal(bookingDate, currentCount) {
+  function showApprovalWarningModal(bookingDate, currentCount) {
       const modal = document.getElementById('approvalWarningOverlay');
       const dateElement = document.getElementById('warningDate');
       const countElement = document.getElementById('existingConsultationsCount');
@@ -958,7 +1216,7 @@ function closeProfessorModal() {
       modal.style.display = 'flex';
     }
 
-    function closeApprovalWarningModal() {
+  function closeApprovalWarningModal() {
       const modal = document.getElementById('approvalWarningOverlay');
       modal.style.display = 'none';
       
@@ -1017,36 +1275,133 @@ function closeProfessorModal() {
       return cleaned.slice(0,250); // enforce hard limit
     }
 
+    function decodeHtml(value){
+      if(!value) return '';
+      const textarea = document.createElement('textarea');
+      textarea.innerHTML = value;
+      return textarea.value;
+    }
+
+    const STATUS_LABEL_MAP = {
+      pending: 'Pending',
+      approved: 'Approved',
+      completed: 'Completed',
+      cancelled: 'Cancelled',
+      rescheduled: 'Rescheduled',
+      completion_pending: 'Awaiting Student Review',
+      completion_declined: 'Student Declined Completion'
+    };
+
+    function normalizeStatusKey(status){
+      const key = String(status || '').toLowerCase().replace(/-/g,'_');
+      if(key === 'completionpending') return 'completion_pending';
+      if(key === 'completiondeclined') return 'completion_declined';
+      return key;
+    }
+
+    function formatStatusLabel(status){
+      const key = normalizeStatusKey(status);
+      if(!key) return '';
+      if(Object.prototype.hasOwnProperty.call(STATUS_LABEL_MAP, key)){
+        return STATUS_LABEL_MAP[key];
+      }
+      return key.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function setRowStatusUI(bookingId, status, opts = {}){
+      const normalized = normalizeStatusKey(status);
+      const row = opts.row || findRowByBookingId(bookingId);
+      if(!row) return;
+      row.dataset.status = normalized;
+      if(normalized === 'completion_pending'){ row.dataset.isCompletionPending = '1'; }
+      else { row.removeAttribute('data-is-completion-pending'); }
+  if(normalized === 'completed'){ row.setAttribute('data-completed-lock','1'); }
+  else { row.removeAttribute('data-completed-lock'); }
+      if(opts.completionReason !== undefined){ row.dataset.completionReason = opts.completionReason || ''; }
+      if(opts.completionRequested !== undefined){ row.dataset.completionRequested = opts.completionRequested || ''; }
+      if(opts.completionReviewed !== undefined){ row.dataset.completionReviewed = opts.completionReviewed || ''; }
+      if(opts.completionResponse !== undefined){ row.dataset.completionResponse = opts.completionResponse || ''; }
+      if(opts.completionComment !== undefined){ row.dataset.completionComment = opts.completionComment || ''; }
+
+      const statusCell = row.querySelector('.table-cell[data-label="Status"]');
+      if(statusCell){
+        statusCell.textContent = formatStatusLabel(normalized);
+        statusCell.title = opts.completionReason ? `Remarks: ${opts.completionReason}` : '';
+      }
+
+      row.classList.toggle('cancelled-booking', normalized === 'cancelled');
+
+      if(opts.updateActions !== false){
+        const actionCell = row.querySelector('.table-cell[data-label="Action"]');
+        if(actionCell){
+          if(normalized === 'completion_pending'){
+            actionCell.innerHTML = `<div class="action-btn-group" style="display:flex;gap:8px;"><button type="button" class="action-btn btn-muted" title="Awaiting student confirmation" disabled><i class='bx bx-time'></i></button></div>`;
+          } else if(normalized === 'cancelled' || normalized === 'completed'){
+            actionCell.innerHTML = `<div class="action-btn-group" style="display:flex;gap:8px;"></div>`;
+          } else {
+            const escapeInlineArg = (value)=>String(value||'')
+              .replace(/\\/g,'\\\\')
+              .replace(/'/g, "\\'")
+              .replace(/\r?\n/g,' ')
+              .trim();
+            const dateLabel = row.querySelector('.table-cell[data-label="Date"]')?.textContent?.trim() || row.dataset.date || '';
+            const modeLabel = row.querySelector('.table-cell[data-label="Mode"]')?.textContent?.trim() || '';
+            const isoDate = row.dataset.date || '';
+            const rescheduleParamDate = escapeInlineArg(dateLabel || isoDate);
+            const approveParamDate = escapeInlineArg(isoDate || dateLabel);
+            const rescheduleParamMode = escapeInlineArg(modeLabel);
+            const buttons = [];
+            if(normalized !== 'rescheduled'){
+              buttons.push(`<button onclick="showRescheduleModal(${bookingId}, '${rescheduleParamDate}', '${rescheduleParamMode}')" class="action-btn btn-reschedule" title="Reschedule"><i class='bx bx-calendar-x'></i></button>`);
+            }
+            if(normalized !== 'approved'){
+              buttons.push(`<button onclick="approveWithWarning(this, ${bookingId}, '${approveParamDate}')" class="action-btn btn-approve" title="Approve"><i class='bx bx-check-circle'></i></button>`);
+            }
+            if(normalized === 'approved'){
+              buttons.push(`<button onclick="openCompletionRemarks(this, ${bookingId})" class="action-btn btn-completed" title="Request completion confirmation"><i class='bx bx-task'></i></button>`);
+            } else {
+              buttons.push(`<button type="button" class="action-btn btn-muted" title="Approve this consultation before requesting completion confirmation" data-need-approval="1"><i class='bx bx-task'></i></button>`);
+            }
+            actionCell.innerHTML = `<div class="action-btn-group" style="display:flex;gap:8px;">${buttons.join('')}</div>`;
+          }
+        }
+      }
+
+      if(typeof markFirstBookingsProf === 'function'){ markFirstBookingsProf(); }
+      if(typeof enforceFirstBookRule === 'function'){ enforceFirstBookRule(); }
+    }
+
   function filterRows() {
     const si = document.getElementById('searchInput');
-    const raw = si.value;
-    const cleaned = sanitize(raw).slice(0,50); // search shorter cap
-    if(cleaned !== raw) si.value = cleaned; // reflect cleaned input
-    let search = cleaned.toLowerCase();
-        let type = document.getElementById('typeFilter').value.toLowerCase();
-        let rows = document.querySelectorAll('.table-row:not(.table-header)');
-        rows.forEach(row => {
-            let rowType = row.querySelector('[data-label="Type"]')?.textContent.toLowerCase() || '';
-            let student = row.querySelector('[data-label="Student"]')?.textContent.toLowerCase() || '';
-            let rowSubject = row.querySelector('[data-label="Subject"]')?.textContent.toLowerCase() || '';
+  const raw = si.value;
+  const cleaned = sanitize(raw).slice(0,50); // search shorter cap
+  const search = cleaned.toLowerCase();
+    const type = (document.getElementById('typeFilter')?.value||'').toLowerCase();
+    const subject = (document.getElementById('subjectFilter')?.value||'').toLowerCase();
+    const rows = document.querySelectorAll('.table-row:not(.table-header)');
+    rows.forEach(row => {
+      if (row.classList.contains('no-results-row')) return;
 
-            // Is this row a custom type (not in fixedTypes)?
-            let isOthers = fixedTypes.indexOf(rowType) === -1 && rowType !== '';
+      const rowType = (row.dataset.type||'').toLowerCase();
+  const rowSubject = (row.dataset.type||'').toLowerCase();
 
-            let matchesType =
-                !type ||
-                (type !== "others" && rowType === type) ||
-                (type === "others" && isOthers);
+      // Build searchable haystack from visible cells (all columns except No./Action)
+      const hay = Array.from(row.querySelectorAll('.table-cell'))
+        .filter(c => { const lbl=c.getAttribute('data-label')||''; return lbl !== 'No.' && lbl !== 'Action'; })
+        .map(c => (c.textContent||'').toLowerCase().trim())
+        .join(' ');
 
-            let matchesSearch = student.includes(search) || rowSubject.includes(search) || rowType.includes(search);
+      const isOthers = fixedTypes.indexOf(rowType) === -1 && rowType !== '';
+      const matchesType = !type || (type !== 'others' && rowType === type) || (type === 'others' && isOthers);
+      const matchesSubject = !subject || rowSubject === subject;
+      const matchesSearch = !search || hay.includes(search);
 
-            if (matchesSearch && matchesType) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        });
-    }
+      row.dataset.matched = (matchesType && matchesSubject && matchesSearch) ? '1' : '0';
+    });
+    // Reset to first page and re-apply sorting/pagination + renumber
+    currentPage = 1;
+    profApply();
+  }
 
   document.getElementById('searchInput').addEventListener('input', filterRows);
   document.getElementById('typeFilter').addEventListener('change', filterRows);
@@ -1118,11 +1473,80 @@ let sortDir = 'desc';
 let currentPage = 1;
 let pageSize = parseInt(localStorage.getItem('proflog.pageSize')||'10',10);
 if(![5,10,25,50,100].includes(pageSize)) pageSize = 10;
-document.addEventListener('DOMContentLoaded',()=>{ const ps=document.getElementById('pageSize'); if(ps) ps.value=String(pageSize); });
+document.addEventListener('DOMContentLoaded',()=>{
+  const ps=document.getElementById('pageSize');
+  if(ps) ps.value=String(pageSize);
+  const completionSave=document.getElementById('completionRemarksSave');
+  const completionCancel=document.getElementById('completionRemarksCancel');
+  completionSave?.addEventListener('click', submitCompletionRequest);
+  completionCancel?.addEventListener('click', closeCompletionRemarks);
+});
 
 function profGetRows(){
   return Array.from(document.querySelectorAll('.table .table-row'))
     .filter(r=>!r.classList.contains('table-header') && !r.classList.contains('no-results-row'));
+}
+
+function profCollectActivityTypes(rows){
+  const uniques = new Map();
+  (rows || profGetRows()).forEach(row=>{
+    const cell = row.querySelector('.table-cell[data-label="Type"]');
+    const raw = cell ? cell.textContent : (row.dataset.type || '');
+    const label = String(raw || '').trim();
+    if(!label) return;
+    const key = label.toLowerCase();
+    if(!uniques.has(key)) uniques.set(key, label);
+  });
+  return Array.from(uniques.values()).sort((a,b)=>a.localeCompare(b));
+}
+
+function profRebuildSubjectOptions(rows){
+  const main = document.getElementById('subjectFilter');
+  const mobile = document.getElementById('subjectFilterMobile');
+  if(!main && !mobile) return;
+  const labels = profCollectActivityTypes(rows);
+
+  const norm = (value)=>String(value||'').toLowerCase();
+  const originalMain = main ? String(main.value||'') : '';
+  const originalMobile = mobile ? String(mobile.value||'') : '';
+
+  const applyOptions = (select, previous, fallback)=>{
+    if(!select) return '';
+    const prev = typeof previous === 'string' ? previous : '';
+    const fallbackValue = typeof fallback === 'string' ? fallback : '';
+    select.innerHTML = '';
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'All Subjects';
+    select.appendChild(defaultOpt);
+    labels.forEach(label=>{
+      const opt = document.createElement('option');
+      opt.value = label;
+      opt.textContent = label;
+      select.appendChild(opt);
+    });
+    const findMatch = (value)=>{
+      if(!value) return '';
+      const match = labels.find(item=>item.toLowerCase() === value.toLowerCase());
+      return match || '';
+    };
+    const target = findMatch(prev) || findMatch(fallbackValue) || '';
+    select.value = target;
+    return target;
+  };
+
+  const resolvedMain = applyOptions(main, originalMain, '');
+  applyOptions(mobile, originalMobile, resolvedMain);
+
+  if(main && norm(originalMain) !== norm(resolvedMain)){
+    if(!profRebuildSubjectOptions._pending){
+      profRebuildSubjectOptions._pending = true;
+      setTimeout(()=>{
+        profRebuildSubjectOptions._pending = false;
+        if(typeof filterRows === 'function') filterRows();
+      }, 0);
+    }
+  }
 }
 
 function profSetSortIndicators(){
@@ -1149,6 +1573,7 @@ function profApply(){
   const table=document.querySelector('.table'); if(!table) return;
   const header=document.getElementById('profConlogHeader');
   const rows=profGetRows();
+  profRebuildSubjectOptions(rows);
   const matched=rows.filter(r=>r.dataset.matched==='1');
   const existingNo = document.querySelector('.no-results-row'); if(existingNo) existingNo.remove();
   if(matched.length===0){
@@ -1168,8 +1593,18 @@ function profApply(){
   rows.forEach(r=>{
     if(!set.has(r)) { r.style.display='none'; return; }
     const idx=matched.indexOf(r);
-    r.style.display = (idx>=start && idx<=end) ? '' : 'none';
+    const isVisible = (idx>=start && idx<=end);
+    r.style.display = isVisible ? '' : 'none';
   });
+
+  // Renumber the visible rows so the "No." column remains 1..N for the current page
+  let displayCounter = 1;
+  for(let i=start; i<=end; i++){
+    const row = matched[i];
+    if(!row) continue;
+    const noCell = row.querySelector('.table-cell[data-label="No."]');
+    if(noCell){ noCell.textContent = String(displayCounter++); }
+  }
   const pag=document.getElementById('paginationControls');
   if(pag){
     const makeBtn=(label,target,disabled=false)=>{ const b=document.createElement('button'); b.className='page-btn'; b.textContent=label; b.disabled=disabled; b.addEventListener('click',()=>{ currentPage=target; profApply();}); return b; };
@@ -1181,24 +1616,233 @@ function profApply(){
     const of=document.createElement('span'); of.className='page-of'; of.textContent=`of ${totalPagesCalc}`; pag.appendChild(of);
     const next = makeBtn('›', Math.min(totalPagesCalc,currentPage+1), currentPage===totalPagesCalc); next.classList.add('chev','next'); pag.appendChild(next);
   }
+  // Mark first-book-of-day after pagination/sort
+  markFirstBookingsProf();
+  // Enforce first-book-first-serve rule on action buttons
+  enforceFirstBookRule();
   profSetSortIndicators();
+}
+
+// Compute per-date earliest booking and badge the student cell
+// Sticky first-badge map: date => {id, ts}, persisted per professor in localStorage
+window.__firstByDate = window.__firstByDate || new Map();
+
+function __firstLsKey(){
+  try{
+    const profEl = document.getElementById('printProfessor');
+    const pid = profEl ? (profEl.getAttribute('data-prof-id')||'') : '';
+    return `firstByDate:prof:${pid||'unknown'}`;
+  }catch(_){ return 'firstByDate:prof:unknown'; }
+}
+
+function __saveFirstMapToLs(){
+  try{
+    const obj = {};
+    window.__firstByDate.forEach((v,k)=>{ obj[k] = { id: v.id, ts: v.ts }; });
+    localStorage.setItem(__firstLsKey(), JSON.stringify(obj));
+  }catch(_){ }
+}
+
+function __loadFirstMapFromLs(){
+  try{
+    const raw = localStorage.getItem(__firstLsKey());
+    if(!raw) return false;
+    const obj = JSON.parse(raw);
+    if(!obj || typeof obj !== 'object') return false;
+    window.__firstByDate = new Map(Object.entries(obj).map(([k,v])=>[k,{ id:Number(v.id), ts:Number(v.ts) }]));
+    return true;
+  }catch(_){ return false; }
+}
+
+function __updateFirstMapForRow(row){
+  try{
+    const status = (row.dataset.status||'').toLowerCase();
+    if(status === 'cancelled') return;
+    const date = row.dataset.date||'';
+    const ts = Number(row.dataset.bookedTs);
+    const idCell = row.querySelector('.table-cell[data-booking-id]');
+    const id = idCell ? Number(idCell.getAttribute('data-booking-id')) : NaN;
+    if(!date || !Number.isFinite(ts) || !Number.isFinite(id)) return;
+    const cur = window.__firstByDate.get(date);
+    if(!cur || ts < cur.ts){ window.__firstByDate.set(date, { id, ts }); __saveFirstMapToLs(); }
+  }catch(_){ }
+}
+
+function __ensureFirstMapInitialized(){
+  // Try loading a persisted map first
+  if(window.__firstByDate && window.__firstByDate.size) return;
+  if(__loadFirstMapFromLs() && window.__firstByDate.size) return;
+  const rows = profGetRows();
+  rows.forEach(r=>{ if(!r.classList.contains('no-results-row')) __updateFirstMapForRow(r); });
+}
+
+function markFirstBookingsProf(){
+  __ensureFirstMapInitialized();
+  const rows = profGetRows();
+  const activeRows = rows.filter(r => (r.dataset.status||'').toLowerCase() !== 'cancelled');
+  // If a new row arrives for a date we haven't seen, or with earlier ts, update map
+  activeRows.forEach(r=>__updateFirstMapForRow(r));
+
+  // Reconcile persisted map against DOM rows to avoid stale/mismatched entries
+  try{
+    const byDate = new Map();
+    activeRows.forEach(r=>{ const d=r.dataset.date||''; if(!d) return; if(!byDate.has(d)) byDate.set(d, []); byDate.get(d).push(r); });
+    byDate.forEach((list, date)=>{
+      // compute earliest actually present in DOM
+      let best = null; // {id, ts}
+      list.forEach(r=>{
+        const ts = Number(r.dataset.bookedTs);
+        const idCell = r.querySelector('.table-cell[data-booking-id]');
+        const id = idCell ? Number(idCell.getAttribute('data-booking-id')) : NaN;
+        if(!Number.isFinite(ts) || !Number.isFinite(id)) return;
+        if(!best || ts < best.ts) best = { id, ts };
+      });
+      if(!best){
+        window.__firstByDate.delete(date);
+        return;
+      }
+      const cur = window.__firstByDate.get(date);
+      const ids = new Set(list.map(r=>{ const c=r.querySelector('.table-cell[data-booking-id]'); return c? Number(c.getAttribute('data-booking-id')):NaN; }));
+      const curIsMissing = !cur || !ids.has(cur.id);
+      if(best && (curIsMissing || cur.ts > best.ts)){
+        window.__firstByDate.set(date, best);
+      }
+    });
+    // Remove dates that no longer exist or have no active rows
+    if(window.__firstByDate instanceof Map){
+      const activeDates = new Set(activeRows.map(r=>r.dataset.date||'').filter(Boolean));
+      Array.from(window.__firstByDate.keys()).forEach(dateKey=>{
+        if(!activeDates.has(dateKey)) window.__firstByDate.delete(dateKey);
+      });
+    }
+    __saveFirstMapToLs();
+  }catch(_){ }
+  rows.forEach(r=>{
+    const studentCell = r.querySelector('.table-cell[data-label="Student"]');
+    if(!studentCell) return;
+    const existing = studentCell.querySelector('.first-book-badge');
+    const status = (r.dataset.status||'').toLowerCase();
+    if(status === 'cancelled'){
+      if(existing) existing.remove();
+      return;
+    }
+    const date = r.dataset.date||'';
+    const idCell = r.querySelector('.table-cell[data-booking-id]');
+    const myId = idCell ? Number(idCell.getAttribute('data-booking-id')) : NaN;
+    const rec = date ? window.__firstByDate.get(date) : null;
+    const isFirst = !!(rec && Number.isFinite(myId) && rec.id === myId);
+    if(isFirst){
+      if(!existing){
+        const badge = document.createElement('span');
+        badge.className = 'first-book-badge';
+        badge.title = 'First to book for this date';
+        badge.style.cssText = 'margin-left:6px;padding:2px 6px;border-radius:10px;background:#f59e0b;color:#fff;font-size:10px;font-weight:600;vertical-align:middle;';
+        badge.textContent = 'First';
+        studentCell.appendChild(badge);
+      }
+    } else if(existing){
+      existing.remove();
+    }
+  });
+}
+
+// Disable or grey out actions for non-first bookings of the same date
+function enforceFirstBookRule(){
+  __ensureFirstMapInitialized();
+  const rows = profGetRows().filter(r=>!r.classList.contains('no-results-row'));
+  const activeRows = rows.filter(r => (r.dataset.status||'').toLowerCase() !== 'cancelled');
+  const byDate = new Map();
+  activeRows.forEach(r=>{ const d=r.dataset.date||''; if(!d) return; if(!byDate.has(d)) byDate.set(d, []); byDate.get(d).push(r); });
+
+  byDate.forEach(list => {
+    // Use sticky first map to identify the earliest booker
+    const date = list[0]?.dataset.date || '';
+    const rec = date ? window.__firstByDate.get(date) : null;
+    if(!rec) return;
+    // earliest rows: match booking id
+    const earliest = list.filter(r=>{
+      const idCell = r.querySelector('.table-cell[data-booking-id]');
+      const id = idCell ? Number(idCell.getAttribute('data-booking-id')) : NaN;
+      return Number.isFinite(id) && id === rec.id;
+    });
+    const earliestPending = earliest.some(r=> (r.dataset.status||'').toLowerCase() === 'pending');
+    list.forEach(r=>{
+      const isEarliest = earliest.includes(r);
+      const lock = (!isEarliest && earliestPending);
+      // mark dataset for guards
+      if(lock){ r.dataset.actionsLocked = '1'; }
+      else { delete r.dataset.actionsLocked; }
+      // visually indicate lock by greying buttons (but keep clickable for error modal)
+      const btns = r.querySelectorAll('.action-btn-group .action-btn');
+      btns.forEach(b=>{
+        if(lock){
+          b.style.opacity = '0.45';
+          b.style.cursor = 'not-allowed';
+          const baseTitle = b.getAttribute('title') || '';
+          b.setAttribute('data-base-title', baseTitle);
+          b.title = 'Locked: act on the first booker for this date';
+          b.setAttribute('aria-disabled','true');
+        } else {
+          b.style.opacity = '';
+          b.style.cursor = '';
+          if(b.hasAttribute('data-base-title')){ b.title = b.getAttribute('data-base-title'); b.removeAttribute('data-base-title'); }
+          b.removeAttribute('aria-disabled');
+        }
+      });
+    });
+  });
+
+  // Ensure cancelled rows never show lock affordances
+  rows.forEach(r=>{
+    if((r.dataset.status||'').toLowerCase() === 'cancelled'){
+      delete r.dataset.actionsLocked;
+      const btns = r.querySelectorAll('.action-btn-group .action-btn');
+      btns.forEach(b=>{
+        b.style.opacity = '';
+        b.style.cursor = '';
+        if(b.hasAttribute('data-base-title')){
+          b.title = b.getAttribute('data-base-title');
+          b.removeAttribute('data-base-title');
+        }
+        b.removeAttribute('aria-disabled');
+      });
+    }
+  });
+}
+
+// Helper: find row by booking ID
+function findRowByBookingId(bookingId){
+  try{
+    const cell = document.querySelector(`.table-row .table-cell[data-booking-id="${bookingId}"]`);
+    return cell ? cell.closest('.table-row') : null;
+  }catch(_){ return null; }
+}
+
+// Helper: check if actions are blocked for this booking (non-first while first is pending)
+function isActionBlockedFor(bookingId){
+  const row = findRowByBookingId(bookingId);
+  return !!(row && row.dataset && row.dataset.actionsLocked === '1');
 }
 
 // Override filterRows to cooperate with pagination
 function filterRows(){
   const si=document.getElementById('searchInput');
-  const search=(si.value||'').toLowerCase();
+  const cleaned = sanitize(si.value||'').slice(0,50);
+  const search=cleaned.toLowerCase();
   const type=(document.getElementById('typeFilter')?.value||'').toLowerCase();
   const subject=(document.getElementById('subjectFilter')?.value||'').toLowerCase();
   document.querySelectorAll('.table-row:not(.table-header)').forEach(row=>{
     if(row.classList.contains('no-results-row')) return;
     const rowType=(row.dataset.type||'').toLowerCase();
-    const student=(row.dataset.student||'').toLowerCase();
-    const rowSubject=(row.dataset.subject||'').toLowerCase();
+  const rowSubject=(row.dataset.type||'').toLowerCase();
+    const hay = Array.from(row.querySelectorAll('.table-cell'))
+      .filter(c => { const lbl=c.getAttribute('data-label')||''; return lbl!=='No.' && lbl!=='Action'; })
+      .map(c => (c.textContent||'').toLowerCase().trim())
+      .join(' ');
     const isOthers = !['tutoring','grade consultation','missed activities','special quiz or exam','capstone consultation'].includes(rowType) && rowType!=='';
     const matchesType = !type || (type!=='others' && rowType===type) || (type==='others' && isOthers);
     const matchesSubject = !subject || rowSubject===subject;
-    const matchesSearch = student.includes(search) || rowSubject.includes(search) || rowType.includes(search);
+    const matchesSearch = !search || hay.includes(search);
     row.dataset.matched = (matchesType && matchesSubject && matchesSearch) ? '1' : '0';
   });
   currentPage = 1;
@@ -1218,21 +1862,34 @@ document.querySelectorAll('#profConlogHeader .sort-header').forEach(h=>{
   h.addEventListener('keypress', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); set(); }});
 });
 document.addEventListener('DOMContentLoaded', ()=>{ filterRows(); });
+// Guarantee first-badge is visible immediately on first paint (before any live updates)
+document.addEventListener('DOMContentLoaded', ()=>{
+  try {
+    // Build first-map from current DOM and apply badges/locks instantly
+    markFirstBookingsProf();
+    enforceFirstBookRule();
+  } catch(_) {}
+});
+
+// Inform professors why completion button is locked until approval
+document.addEventListener('click', (event)=>{
+  const blockedBtn = event.target && event.target.closest ? event.target.closest('button[data-need-approval]') : null;
+  if(blockedBtn){
+    event.preventDefault();
+    event.stopPropagation();
+    showNotification('Approve this consultation before requesting completion confirmation.', true);
+  }
+});
 
 // Mobile filters overlay
 function profSyncOverlay(){
+  profRebuildSubjectOptions();
   const tMain=document.getElementById('typeFilter');
   const sMain=document.getElementById('subjectFilter');
   const tMob=document.getElementById('typeFilterMobile');
   const sMob=document.getElementById('subjectFilterMobile');
   if(tMain && tMob) tMob.value=tMain.value;
-  if(sMain && sMob) {
-    const seen=new Set();
-    profGetRows().forEach(r=>{ const v=(r.dataset.subject||'').trim(); if(v) seen.add(v); });
-    const arr=Array.from(seen).sort((a,b)=>a.localeCompare(b));
-    sMob.innerHTML = '<option value="">All Subjects</option>' + arr.map(v=>`<option value="${v}">${v}</option>`).join('');
-    sMob.value = sMain.value;
-  }
+  if(sMain && sMob) sMob.value=sMain.value;
 }
 function openFilters(){ const ov=document.getElementById('filtersOverlay'); if(!ov) return; profSyncOverlay(); ov.classList.add('open'); ov.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }
 function closeFilters(){ const ov=document.getElementById('filtersOverlay'); if(!ov) return; ov.classList.remove('open'); ov.setAttribute('aria-hidden','true'); document.body.style.overflow=''; }
@@ -1464,8 +2121,27 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
         const pusher = new Pusher('{{ config('broadcasting.connections.pusher.key') }}', {cluster: '{{ config('broadcasting.connections.pusher.options.cluster') }}'});
   const channel = pusher.subscribe('bookings.prof.'+profId);
 
+        const STATUS_LABELS = {
+          'completion_pending': 'Awaiting Student Review',
+          'completion_declined': 'Student Declined Completion',
+          'cancelled': 'Cancelled'
+        };
+
+        function escapeAttr(value){
+          return String(value ?? '')
+            .replace(/&/g,'&amp;')
+            .replace(/"/g,'&quot;')
+            .replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;');
+        }
+
         function normalizeDate(str){ try{ return new Date(str).toLocaleDateString('en-US',{weekday:'short', month:'short', day:'numeric', year:'numeric'}); }catch(e){ return str; } }
-        function titleCase(s){ return (s||'').toLowerCase().replace(/^.|\s. /g, c => c.toUpperCase()); }
+        function formatStatusLabel(raw){
+          const normalized = String(raw||'').toLowerCase();
+          if(!normalized) return '';
+          if(STATUS_LABELS[normalized]) return STATUS_LABELS[normalized];
+          return normalized.replace(/_/g,' ').replace(/\b\w/g, letter => letter.toUpperCase());
+        }
         function renderRow(data){
           const table = document.querySelector('.table');
           if(!table) return;
@@ -1473,13 +2149,6 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           const rows = Array.from(table.querySelectorAll('.table-row')).filter(r=>!r.classList.contains('table-header'));
           let existing = null; let index = 0;
           rows.forEach((r,i)=>{ const idCell = r.querySelector('[data-booking-id]'); if(idCell && parseInt(idCell.getAttribute('data-booking-id'))===parseInt(data.Booking_ID)){ existing = r; index=i; } });
-
-          // If cancelled, remove the row and refresh UI
-          if(String((data.Status||'')).toLowerCase()==='cancelled'){
-            if(existing){ try{ existing.remove(); }catch(e){} }
-            if(typeof filterRows==='function') filterRows();
-            return;
-          }
 
           // If updating and some fields are missing, read them from the existing row
           if(existing){
@@ -1492,24 +2161,59 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
             data.Status = data.Status ?? (cells[6]?.textContent.trim().toLowerCase()||'');
           }
 
+          if(!existing){
+            const hasEssentialFields = Boolean(data.student || data.subject || data.Booking_Date || data.type || data.Mode);
+            if(!hasEssentialFields){ return; }
+          }
+
           const mode = (data.Mode||'').charAt(0).toUpperCase() + (data.Mode||'').slice(1);
           // If the row was locally locked as completed, force completed state to avoid re-adding buttons
           const lockedCompleted = existing && existing.getAttribute('data-completed-lock') === '1';
           if (lockedCompleted) { data.Status = 'completed'; }
-          const status = (data.Status||'').charAt(0).toUpperCase() + (data.Status||'').slice(1);
+          const statusRaw = data.Status ?? '';
+          const normalizedStatus = String(statusRaw).toLowerCase();
+          const status = formatStatusLabel(normalizedStatus);
           const date = normalizeDate(data.Booking_Date||'');
           const iter = existing ? (existing.querySelector('.table-cell')?.textContent||'') : (rows.length+1);
 
-          const isCompletedStatus = (data.Status||'').toLowerCase() === 'completed';
-          const actionsHtml = isCompletedStatus
-            ? `<div class="action-btn-group" style="display:flex;gap:8px;"></div>`
-            : `
-            <div class="action-btn-group" style="display:flex;gap:8px;">
-              ${data.Status?.toLowerCase()!=='rescheduled' ? `<button onclick="showRescheduleModal(${data.Booking_ID}, '${data.Booking_Date}', '${data.Mode||''}')" class="action-btn btn-reschedule" title="Reschedule"><i class='bx bx-calendar-x'></i></button>`:''}
-              ${data.Status?.toLowerCase()!=='approved' ? `<button onclick="approveWithWarning(this, ${data.Booking_ID}, '${data.Booking_Date}')" class="action-btn btn-approve" title="Approve"><i class='bx bx-check-circle'></i></button>`:''}
-              ${data.Status?.toLowerCase()!=='completed' ? `<button onclick="confirmComplete(this, ${data.Booking_ID})" class="action-btn btn-completed" title="Completed"><i class='bx bx-task'></i></button>`:''}
-            </div>`;
+          const escapeInlineArg = (value)=>String(value||'')
+            .replace(/\\/g,'\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/\r?\n/g,' ')
+            .trim();
+          const rescheduleDisplayArg = escapeInlineArg(date || data.Booking_Date || '');
+          const approveDateRaw = (()=>{
+            const parsed = new Date(data.Booking_Date);
+            if(!isNaN(parsed.getTime())){
+              return `${parsed.getFullYear()}-${String(parsed.getMonth()+1).padStart(2,'0')}-${String(parsed.getDate()).padStart(2,'0')}`;
+            }
+            if(existing){
+              const prev = existing.getAttribute('data-date');
+              if(prev) return prev;
+            }
+            return data.Booking_Date || '';
+          })();
+          const approveDateArg = escapeInlineArg(approveDateRaw);
+          const modeArg = escapeInlineArg(mode);
 
+          let actionsHtml = '';
+          if (normalizedStatus === 'completed' || normalizedStatus === 'cancelled') {
+            actionsHtml = `<div class="action-btn-group" style="display:flex;gap:8px;"></div>`;
+          } else if (normalizedStatus === 'completion_pending') {
+            actionsHtml = `<div class="action-btn-group" style="display:flex;gap:8px;"><button type="button" class="action-btn btn-muted" title="Awaiting student confirmation" disabled><i class='bx bx-time'></i></button></div>`;
+          } else {
+            actionsHtml = `
+            <div class="action-btn-group" style="display:flex;gap:8px;">
+              ${normalizedStatus!=='rescheduled' ? `<button onclick="showRescheduleModal(${data.Booking_ID}, '${rescheduleDisplayArg}', '${modeArg}')" class="action-btn btn-reschedule" title="Reschedule"><i class='bx bx-calendar-x'></i></button>`:''}
+              ${normalizedStatus!=='approved' ? `<button onclick="approveWithWarning(this, ${data.Booking_ID}, '${approveDateArg}')" class="action-btn btn-approve" title="Approve"><i class='bx bx-check-circle'></i></button>`:''}
+              ${normalizedStatus==='approved'
+                ? `<button onclick="openCompletionRemarks(this, ${data.Booking_ID})" class="action-btn btn-completed" title="Request completion confirmation"><i class='bx bx-task'></i></button>`
+                : `<button type="button" class="action-btn btn-muted" title="Approve this consultation before requesting completion confirmation" data-need-approval="1"><i class='bx bx-task'></i></button>`}
+            </div>`;
+          }
+
+
+          const statusTitle = data.completion_reason ? ` title="${escapeAttr('Remarks: '+data.completion_reason)}"` : '';
           const html = `
             <div class="table-cell" data-label="No.">${iter}</div>
             <div class="table-cell" data-label="Student">${data.student||'N/A'}</div>
@@ -1517,16 +2221,111 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
             <div class="table-cell" data-label="Date">${date}</div>
             <div class="table-cell" data-label="Type">${data.type||''}</div>
             <div class="table-cell" data-label="Mode">${mode}</div>
-            <div class="table-cell" data-label="Status">${status}</div>
+            <div class="table-cell" data-label="Status"${statusTitle}>${status}</div>
             <div class="table-cell" data-label="Action" style="width:180px;">${actionsHtml}</div>`;
 
-          if(existing){ existing.innerHTML = html; existing.querySelector('.table-cell').setAttribute('data-booking-id', data.Booking_ID); }
-          else {
+          if(existing){
+            existing.innerHTML = html;
+            existing.querySelector('.table-cell').setAttribute('data-booking-id', data.Booking_ID);
+            // refresh dataset attributes for filtering/sorting/first badge
+            try{
+              const prevDateIso = existing.getAttribute('data-date');
+              const prevDateTs = existing.getAttribute('data-date-ts');
+              const dateObj = new Date(data.Booking_Date);
+              // Created_At is sometimes omitted in updates; preserve previous booked-ts if missing
+              let createdTs = null;
+              if (data.Created_At) {
+                const createdObj = new Date(data.Created_At);
+                if (!isNaN(createdObj.getTime())) createdTs = Math.floor(createdObj.getTime()/1000);
+              }
+              if (createdTs === null) {
+                const prevTs = Number(existing.getAttribute('data-booked-ts'));
+                if (Number.isFinite(prevTs)) createdTs = prevTs;
+              }
+              existing.setAttribute('data-student', String(data.student||'').toLowerCase());
+              existing.setAttribute('data-subject', String(data.subject||'').toLowerCase());
+              if (!isNaN(dateObj.getTime())) {
+                existing.setAttribute('data-date', `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`);
+                existing.setAttribute('data-date-ts', String(Math.floor(dateObj.getTime()/1000)));
+              } else {
+                if(prevDateIso !== null) existing.setAttribute('data-date', prevDateIso);
+                if(prevDateTs !== null) existing.setAttribute('data-date-ts', prevDateTs);
+              }
+              if (createdTs !== null) {
+                const d = new Date(createdTs*1000);
+                const fmt = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+                existing.setAttribute('data-booked', fmt);
+                existing.setAttribute('data-booked-ts', String(createdTs));
+              }
+              existing.setAttribute('data-type', String(data.type||'').toLowerCase());
+              existing.setAttribute('data-mode', String(data.Mode||'').toLowerCase());
+              existing.setAttribute('data-status', normalizedStatus);
+              existing.setAttribute('data-matched','1');
+              if(normalizedStatus === 'completion_pending'){
+                existing.setAttribute('data-is-completion-pending','1');
+              } else {
+                existing.removeAttribute('data-is-completion-pending');
+              }
+              if(data.hasOwnProperty('completion_reason')){
+                if(data.completion_reason){ existing.setAttribute('data-completion-reason', data.completion_reason); }
+                else { existing.removeAttribute('data-completion-reason'); }
+              }
+              if(data.hasOwnProperty('completion_requested_at')){
+                if(data.completion_requested_at){ existing.setAttribute('data-completion-requested', data.completion_requested_at); }
+                else { existing.removeAttribute('data-completion-requested'); }
+              }
+              if(data.hasOwnProperty('completion_reviewed_at')){
+                if(data.completion_reviewed_at){ existing.setAttribute('data-completion-reviewed', data.completion_reviewed_at); }
+                else { existing.removeAttribute('data-completion-reviewed'); }
+              }
+              if(data.hasOwnProperty('completion_student_response')){
+                if(data.completion_student_response){ existing.setAttribute('data-completion-response', data.completion_student_response); }
+                else { existing.removeAttribute('data-completion-response'); }
+              }
+              if(data.hasOwnProperty('completion_student_comment')){
+                if(data.completion_student_comment){ existing.setAttribute('data-completion-comment', data.completion_student_comment); }
+                else { existing.removeAttribute('data-completion-comment'); }
+              }
+              // Update sticky first map
+              __updateFirstMapForRow(existing);
+            }catch(_){ }
+            existing.classList.toggle('cancelled-booking', normalizedStatus === 'cancelled');
+            if(normalizedStatus !== 'completed'){
+              existing.removeAttribute('data-completed-lock');
+            }
+          } else {
             const row = document.createElement('div');
-            row.className = 'table-row';
+            row.className = 'table-row' + (normalizedStatus === 'cancelled' ? ' cancelled-booking' : '');
             row.innerHTML = html;
             // attach booking id to first cell for lookup next time
             const first = row.querySelector('.table-cell'); if(first){ first.setAttribute('data-booking-id', data.Booking_ID); }
+            // initialize dataset attributes for filtering/sorting/first badge
+            try{
+              const dateObj = new Date(data.Booking_Date);
+              const createdObj = new Date(data.Created_At);
+              row.setAttribute('data-student', String(data.student||'').toLowerCase());
+              row.setAttribute('data-subject', String(data.subject||'').toLowerCase());
+              row.setAttribute('data-date', isNaN(dateObj.getTime())?'':`${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`);
+              row.setAttribute('data-date-ts', isNaN(dateObj.getTime())?'': String(Math.floor(dateObj.getTime()/1000)));
+              if (!isNaN(createdObj.getTime())){
+                row.setAttribute('data-booked', `${createdObj.getFullYear()}-${String(createdObj.getMonth()+1).padStart(2,'0')}-${String(createdObj.getDate()).padStart(2,'0')} ${String(createdObj.getHours()).padStart(2,'0')}:${String(createdObj.getMinutes()).padStart(2,'0')}:${String(createdObj.getSeconds()).padStart(2,'0')}`);
+                row.setAttribute('data-booked-ts', String(Math.floor(createdObj.getTime()/1000)));
+              }
+              row.setAttribute('data-type', String(data.type||'').toLowerCase());
+              row.setAttribute('data-mode', String(data.Mode||'').toLowerCase());
+              row.setAttribute('data-status', normalizedStatus);
+              row.setAttribute('data-matched','1');
+              if(normalizedStatus === 'completion_pending'){
+                row.setAttribute('data-is-completion-pending','1');
+              }
+              if(data.completion_reason){ row.setAttribute('data-completion-reason', data.completion_reason); }
+              if(data.completion_requested_at){ row.setAttribute('data-completion-requested', data.completion_requested_at); }
+              if(data.completion_reviewed_at){ row.setAttribute('data-completion-reviewed', data.completion_reviewed_at); }
+              if(data.completion_student_response){ row.setAttribute('data-completion-response', data.completion_student_response); }
+              if(data.completion_student_comment){ row.setAttribute('data-completion-comment', data.completion_student_comment); }
+              // Update sticky first map
+              __updateFirstMapForRow(row);
+            }catch(_){ }
             table.appendChild(row);
           }
 
@@ -1556,7 +2355,30 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
       document.getElementById('professorModal').style.display = 'none';
     }
 
+    function showNotification(message, isError = false) {
+      const banner = document.getElementById('notification');
+      const label = document.getElementById('notification-message');
+      if (!banner || !label) {
+        showProfessorModal(String(message || ''));
+        return;
+      }
+      banner.classList.toggle('error', !!isError);
+      label.textContent = String(message || '');
+      banner.style.display = 'flex';
+      clearTimeout(showNotification._timer);
+      showNotification._timer = setTimeout(hideNotification, 4000);
+    }
+
+    function hideNotification() {
+      const banner = document.getElementById('notification');
+      if (banner) {
+        banner.style.display = 'none';
+      }
+    }
+
     // PDF DOWNLOAD FEATURE
+    let __pdfPreviewState = { blob: null, url: null, defaultName: '' };
+
     async function generateAndDownloadPdf(){
       try {
         const rows = Array.from(document.querySelectorAll('.table-row')).filter(r => !r.classList.contains('table-header'));
@@ -1565,17 +2387,39 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           if (r.style.display === 'none') return; // respect active filters
           const cells = r.querySelectorAll('.table-cell');
           if(cells.length < 7) return;
+          const studentCell = r.querySelector('.table-cell[data-label="Student"]');
+          let studentText = '';
+          if(studentCell){
+            const clone = studentCell.cloneNode(true);
+            const badge = clone.querySelectorAll('.first-book-badge');
+            badge.forEach(b=>b.remove());
+            studentText = clone.textContent.trim();
+          }
+          if(!studentText){
+            studentText = cells[1]?.innerText.trim() || '';
+          }
+
+          const remarksAttr = r.dataset ? (r.dataset.completionReason || '') : '';
+          let remarks = remarksAttr ? decodeHtml(remarksAttr).trim() : '';
+          if (!remarks) {
+            const statusCell = cells[6];
+            const title = statusCell ? statusCell.getAttribute('title') || '' : '';
+            if (title && title.toLowerCase().startsWith('remarks:')) {
+              remarks = title.slice(8).trim();
+            }
+          }
           data.push({
             no: cells[0]?.innerText.trim() || '',
-            student: cells[1]?.innerText.trim() || '',
+            student: studentText,
             subject: cells[2]?.innerText.trim() || '',
             date: cells[3]?.innerText.trim() || '',
             type: cells[4]?.innerText.trim() || '',
             mode: cells[5]?.innerText.trim() || '',
-            status: cells[6]?.innerText.trim() || ''
+            status: cells[6]?.innerText.trim() || '',
+            remarks
           });
         });
-  if (data.length === 0){ showProfessorModal('No consultation to print.'); return; }
+    if (data.length === 0){ showProfessorModal('No consultation to print.'); return; }
         // sort by date then student
         data.sort((a,b)=> parseDate(a.date) - parseDate(b.date) || a.student.localeCompare(b.student));
         // Prepare payload for server
@@ -1585,11 +2429,12 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           date: d.date,
           type: d.type,
           mode: d.mode,
-          status: d.status
+          status: d.status,
+          remarks: d.remarks
         }));
         
         // Generate the PDF on the server
-        const res = await fetch("{{ route('conlog-professor.pdf') }}", {
+    const res = await fetch("{{ route('conlog-professor.pdf') }}", {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1599,34 +2444,11 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
         });
         if(!res.ok) throw new Error('Failed to generate PDF');
         const blob = await res.blob();
-
-        // Preferred: Native Save As dialog so you can rename in File Manager
         const defaultName = `consultation_logs_${new Date().toISOString().slice(0,10)}.pdf`;
-        if (window.showSaveFilePicker) {
-          try {
-            const handle = await window.showSaveFilePicker({
-              suggestedName: defaultName,
-              types: [{ description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } }]
-            });
-            const writable = await handle.createWritable();
-            await writable.write(blob);
-            await writable.close();
-            return; // done after user clicks Save
-          } catch (pickerErr) {
-            // If user cancels, do nothing; if unsupported error, fall through to fallback
-            if (pickerErr && pickerErr.name === 'AbortError') return;
-          }
+        if (openPdfPreview(blob, defaultName)) {
+          return;
         }
-
-        // Fallback: standard download with suggested filename
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = defaultName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(()=>window.URL.revokeObjectURL(url), 1500);
+        await savePdfBlob(blob, defaultName, true);
       } catch(err){
         console.error('Export error', err); showProfessorModal('Failed to prepare data.');
       }
@@ -1634,7 +2456,122 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
     function parseDate(str){ const d = new Date(str); return isNaN(d)? Infinity : d; }
     function extractCreatedAt(){ return ''; }
     function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-  function getPrintStyles(){ return `body{font-family:Poppins,Arial,sans-serif;margin:24px;}h2{margin:0 0 4px;color:#12372a;font-size:26px;} .print-professor{font-size:12px;color:#234b3b;margin-bottom:2px;font-weight:500;} .print-meta{font-size:12px;color:#555;margin-bottom:12px;}table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #222;padding:6px 8px;text-align:left;}th{background:#12372a;color:#fff;font-weight:600;} .status-badge{padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px;color:#fff;display:inline-block;} .status-badge.status-pending{background:#ffa600;} .status-badge.status-approved{background:#27ae60;} .status-badge.status-completed{background:#093b2f;} .status-badge.status-rescheduled{background:#c50000;} .print-footer-note{margin-top:22px;font-size:11px;color:#444;text-align:right;}@media print{body{margin:0;padding:0;} }`; }
+    function getPrintStyles(){ return `body{font-family:Poppins,Arial,sans-serif;margin:24px;}h2{margin:0 0 4px;color:#12372a;font-size:26px;} .print-professor{font-size:12px;color:#234b3b;margin-bottom:2px;font-weight:500;} .print-meta{font-size:12px;color:#555;margin-bottom:12px;}table{width:100%;border-collapse:collapse;font-size:12px;}th,td{border:1px solid #222;padding:6px 8px;text-align:left;}th{background:#12372a;color:#fff;font-weight:600;} .status-badge{padding:2px 6px;border-radius:4px;font-weight:600;font-size:11px;color:#fff;display:inline-block;} .status-badge.status-pending{background:#ffa600;} .status-badge.status-approved{background:#27ae60;} .status-badge.status-completed{background:#093b2f;} .status-badge.status-rescheduled{background:#c50000;} .print-footer-note{margin-top:22px;font-size:11px;color:#444;text-align:right;}@media print{body{margin:0;padding:0;} }`; }
+
+    function openPdfPreview(blob, defaultName){
+      const overlay = document.getElementById('pdfPreviewOverlay');
+      const frame = document.getElementById('pdfPreviewFrame');
+      const nameInput = document.getElementById('pdfFileName');
+      if(!overlay || !frame || !nameInput){
+        return false;
+      }
+      closePdfPreview();
+      if(__pdfPreviewState.url){
+        try{ window.URL.revokeObjectURL(__pdfPreviewState.url); }catch(_){ }
+      }
+    __pdfPreviewState.blob = blob;
+    __pdfPreviewState.defaultName = defaultName;
+  __pdfPreviewState.url = window.URL.createObjectURL(blob);
+  const viewerParams = window.matchMedia('(max-width: 768px)').matches ? 'view=FitH' : 'zoom=page-fit';
+  frame.src = `${__pdfPreviewState.url}#toolbar=0&navpanes=0&${viewerParams}`;
+      const baseName = (defaultName || '').replace(/\.pdf$/i, '');
+      nameInput.value = baseName;
+      overlay.classList.add('open');
+      overlay.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      document.body.classList.add('preview-open');
+      return true;
+    }
+
+    function closePdfPreview(){
+      const overlay = document.getElementById('pdfPreviewOverlay');
+      if(!overlay) return;
+      if(!overlay.classList.contains('open')) return;
+      overlay.classList.remove('open');
+      overlay.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+  document.body.classList.remove('preview-open');
+      const frame = document.getElementById('pdfPreviewFrame');
+      if(frame) frame.src = 'about:blank';
+      if(__pdfPreviewState.url){
+        try{ window.URL.revokeObjectURL(__pdfPreviewState.url); }catch(_){ }
+      }
+      __pdfPreviewState = { blob: null, url: null, defaultName: '' };
+    }
+
+    function buildPdfFileName(raw, fallback){
+      const fallbackBase = (fallback || '').replace(/\.pdf$/i, '') || 'consultation_logs';
+      const cleaned = String(raw || '')
+        .replace(/[\\/:*?"<>|]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const base = cleaned || fallbackBase;
+      if(!base) return '';
+      return /\.pdf$/i.test(base) ? base : `${base}.pdf`;
+    }
+
+    async function savePdfBlob(blob, filename, allowFallback){
+      const safeName = buildPdfFileName(filename, 'consultation_logs');
+      if(!safeName){
+        return false;
+      }
+      if(!allowFallback){
+        return false;
+      }
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>window.URL.revokeObjectURL(url), 1500);
+      return true;
+    }
+
+    async function downloadPdfFromPreview(){
+      const overlay = document.getElementById('pdfPreviewOverlay');
+      if(!overlay || !overlay.classList.contains('open')) return;
+      if(!__pdfPreviewState.blob){
+        showProfessorModal('Preview not ready yet.');
+        return;
+      }
+      const input = document.getElementById('pdfFileName');
+      const desired = input ? input.value : '';
+      const filename = buildPdfFileName(desired, __pdfPreviewState.defaultName);
+      if(!filename){
+        showProfessorModal('Please enter a file name.');
+        input && input.focus();
+        return;
+      }
+      try{
+        const saved = await savePdfBlob(__pdfPreviewState.blob, filename, true);
+        if(saved){
+          closePdfPreview();
+        }
+      }catch(err){
+        console.error('Download error', err);
+        showProfessorModal('Unable to download the file.');
+      }
+    }
+
+    (function(){
+      const closeBtn = document.getElementById('closePreviewBtn');
+      const downloadBtn = document.getElementById('downloadPdfBtn');
+      const overlay = document.getElementById('pdfPreviewOverlay');
+      closeBtn?.addEventListener('click', closePdfPreview);
+      downloadBtn?.addEventListener('click', downloadPdfFromPreview);
+      overlay?.addEventListener('click', (e)=>{
+        if(e.target === overlay){
+          closePdfPreview();
+        }
+      });
+      document.addEventListener('keydown', (e)=>{
+        if(e.key === 'Escape'){
+          closePdfPreview();
+        }
+      });
+    })();
   </script>
   <script src="{{ asset('js/timeago.js') }}"></script>
 </body>

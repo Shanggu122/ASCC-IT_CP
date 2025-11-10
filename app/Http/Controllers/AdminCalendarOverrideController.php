@@ -425,13 +425,33 @@ class AdminCalendarOverrideController extends Controller
                 if ($allowed === "online" && $autoResched && $isExamQuiz($b)) {
                     $newDate = $this->findNextDate($b, 60);
                     if ($newDate) {
+                        // Derive a student-facing reason from provided reason_text or reason_key
+                        $reasonTxt = trim((string) ($data["reason_text"] ?? ""));
+                        if ($reasonTxt === "" && !empty($data["reason_key"])) {
+                            $rk = (string) $data["reason_key"];
+                            // Map common keys to human labels; fallback to formatted key
+                            $map = [
+                                "weather" => "Inclement weather",
+                                "power_outage" => "Power outage",
+                                "health_advisory" => "Health advisory",
+                                "holiday_shift" => "Holiday shift",
+                                "facility" => "Facility issue",
+                                "prof_leave" => "Professor leave",
+                                "health" => "Health advisory",
+                                "emergency" => "Emergency advisory",
+                            ];
+                            $reasonTxt = $map[$rk] ?? ucfirst(str_replace("_", " ", $rk));
+                        }
+                        if ($reasonTxt === "") {
+                            $reasonTxt = "administrative reasons";
+                        }
+
                         DB::table("t_consultation_bookings")
                             ->where("Booking_ID", $b->Booking_ID)
                             ->update([
                                 "Status" => "rescheduled",
                                 "Booking_Date" => $newDate,
-                                "reschedule_reason" =>
-                                    $data["reason_text"] ?? "Admin override reschedule",
+                                "reschedule_reason" => $reasonTxt,
                             ]);
                         $rescheduled++;
                         try {
@@ -539,13 +559,32 @@ class AdminCalendarOverrideController extends Controller
                 // auto-reschedule
                 $newDate = $this->findNextDate($b, 60); // search up to 60 days
                 if ($newDate) {
+                    // Derive a student-facing reason from provided reason_text or reason_key
+                    $reasonTxt = trim((string) ($data["reason_text"] ?? ""));
+                    if ($reasonTxt === "" && !empty($data["reason_key"])) {
+                        $rk = (string) $data["reason_key"];
+                        $map = [
+                            "weather" => "Inclement weather",
+                            "power_outage" => "Power outage",
+                            "health_advisory" => "Health advisory",
+                            "holiday_shift" => "Holiday shift",
+                            "facility" => "Facility issue",
+                            "prof_leave" => "Professor leave",
+                            "health" => "Health advisory",
+                            "emergency" => "Emergency advisory",
+                        ];
+                        $reasonTxt = $map[$rk] ?? ucfirst(str_replace("_", " ", $rk));
+                    }
+                    if ($reasonTxt === "") {
+                        $reasonTxt = "administrative reasons";
+                    }
+
                     DB::table("t_consultation_bookings")
                         ->where("Booking_ID", $b->Booking_ID)
                         ->update([
                             "Status" => "rescheduled",
                             "Booking_Date" => $newDate,
-                            "reschedule_reason" =>
-                                $data["reason_text"] ?? "Admin override reschedule",
+                            "reschedule_reason" => $reasonTxt,
                         ]);
                     $rescheduled++;
                     try {

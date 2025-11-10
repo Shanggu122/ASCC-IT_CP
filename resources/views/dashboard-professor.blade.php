@@ -1132,10 +1132,17 @@ document.addEventListener('mouseover', function(e) {
         return `${datePart} ${hourStr}:${minute}:${second} ${suffix}`;
       }
 
+      // Determine earliest booking by Created_At for this day
+      let firstIdx = -1; let minTs = Number.POSITIVE_INFINITY;
+      try {
+        consultations.forEach((e,i)=>{ const t = new Date(e.Created_At).getTime(); if(!isNaN(t) && t < minTs){ minTs=t; firstIdx=i; } });
+      } catch(_) { firstIdx = -1; }
+
       consultations.forEach((entry, index) => {
+        const isFirst = (index === firstIdx);
         html += `
           <div class="consultation-entry" style="${index > 0 ? 'border-top: 1px solid #eee; padding-top: 6px; margin-top: 6px;' : ''}">
-            <div class="student-name">${entry.student}</div>
+            <div class="student-name">${entry.student}${isFirst ? '<span class="first-book-badge" title="First to book for this date" style="margin-left:6px;padding:2px 6px;border-radius:10px;background:#f59e0b;color:#fff;font-size:10px;font-weight:600;vertical-align:middle;">First</span>' : ''}</div>
             <div class="detail-row">Subject: ${entry.subject}</div>
             <div class="detail-row">Type: ${entry.type}</div>
             <div class="detail-row">Mode: ${entry.Mode}</div>

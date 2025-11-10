@@ -218,8 +218,20 @@ class MessageController extends Controller
         $todayIso = $now->toDateString(); // YYYY-mm-dd (in case column is DATE)
         $capacityStatuses = ["approved", "rescheduled"];
 
+        $meetingLinkColumn = null;
+        if (Schema::hasColumn("t_consultation_bookings", "Meeting_Link")) {
+            $meetingLinkColumn = "Meeting_Link";
+        } elseif (Schema::hasColumn("t_consultation_bookings", "meeting_link")) {
+            $meetingLinkColumn = "meeting_link";
+        }
+        $meetingLinkExpr = $meetingLinkColumn ? "NULLIF(b.`{$meetingLinkColumn}`, '')" : "NULL";
+
         $eligibleToday = DB::table("t_consultation_bookings as b")
-            ->select("b.Prof_ID", DB::raw("1 as can_video_call"))
+            ->select(
+                "b.Prof_ID",
+                DB::raw("1 as can_video_call"),
+                DB::raw("MAX({$meetingLinkExpr}) as meeting_link"),
+            )
             ->where("b.Stud_ID", $user->Stud_ID)
             ->whereIn("b.Status", $capacityStatuses)
             ->whereIn("b.Booking_Date", [$todayPad, $todayNoPad, $todayIso])
@@ -256,12 +268,22 @@ class MessageController extends Controller
                 DB::raw("lm.last_message"),
                 DB::raw("lm.last_sender"),
                 DB::raw("COALESCE(elig.can_video_call, 0) as can_video_call"),
+                DB::raw("COALESCE(elig.meeting_link, '') as meeting_link"),
             ])
             ->orderByRaw(
                 "CASE WHEN prof.Dept_ID = 1 THEN 0 WHEN prof.Dept_ID = 2 THEN 1 ELSE 2 END",
             )
             ->orderBy("prof.Name")
             ->get();
+
+        if (config("app.debug")) {
+            $professors = $professors->map(function ($professor) {
+                if ((int) ($professor->prof_id ?? 0) === 3001 && empty($professor->meeting_link)) {
+                    $professor->meeting_link = "demo-group-call-prof-3001";
+                }
+                return $professor;
+            });
+        }
 
         return view("messages", compact("professors"));
     }

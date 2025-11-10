@@ -27,28 +27,61 @@ class ConsultationBookingController extends Controller
      */
     public function store(Request $request)
     {
-        // 1) Validate incoming data
-        $data = $request->validate(
+        // 1) Validate incoming data in two steps so we can relax rules for "General Consultation"
+        $base = $request->validate(
             [
                 "subject_id" => "required|integer|exists:t_subject,Subject_ID",
-                "types" => "required|array|min:1",
-                "types.*" => "integer|exists:t_consultation_types,Consult_type_ID|string|max:255",
-                "other_type_text" => "nullable|string|max:255",
                 "booking_date" => "required|string|max:50",
                 "mode" => "required|in:online,onsite",
                 "prof_id" => "required|integer|exists:professors,Prof_ID",
+                // Types are optional here; we will enforce them conditionally below
+                "types" => "sometimes|array",
+                "types.*" => "integer|exists:t_consultation_types,Consult_type_ID|string|max:255",
+                "other_type_text" => "nullable|string|max:255",
             ],
             [
                 "subject_id.required" => "Please select a subject.",
-                "types.required" => "Please select at least one consultation type.",
-                "types.min" => "Please select at least one consultation type.",
                 "booking_date.required" => "Please select a booking date.",
                 "mode.required" => "Please select consultation mode (Online or Onsite).",
                 "prof_id.required" => "Professor information is missing. Please try again.",
-                "other_type_text.required" =>
-                    "Please specify the consultation type in the Others field.",
             ],
         );
+
+        // Determine if subject is the special "General Consultation"
+        $subjectRow = DB::table("t_subject")->where("Subject_ID", $base["subject_id"])->first();
+        $isGeneralSubject = false;
+        if ($subjectRow && isset($subjectRow->Subject_Name)) {
+            $isGeneralSubject =
+                strcasecmp(trim($subjectRow->Subject_Name), "General Consultation") === 0;
+        }
+
+        // If not General Consultation, require at least one consultation type
+        if (!$isGeneralSubject) {
+            if (
+                !$request->has("types") ||
+                empty($request->input("types")) ||
+                !is_array($request->input("types"))
+            ) {
+                return $request->wantsJson()
+                    ? response()->json(
+                        [
+                            "success" => false,
+                            "message" => "Please select at least one consultation type.",
+                            "errors" => [
+                                "types" => ["Please select at least one consultation type."],
+                            ],
+                        ],
+                        422,
+                    )
+                    : redirect()
+                        ->back()
+                        ->withErrors(["types" => "Please select at least one consultation type."])
+                        ->withInput();
+            }
+        }
+        // Merge back for existing variable name compatibility
+        $data = $base;
+        $data["types"] = $request->input("types", []);
 
         // Normalize to Asia/Manila and enforce weekday (Mon-Fri) only
         $rawInputDate = $data["booking_date"] ?? null;
@@ -124,27 +157,63 @@ class ConsultationBookingController extends Controller
         }
         $date = $carbonDate->format("D M d Y");
 
-        // Check if "Others" is selected (Consult_type_ID = 6 in your DB)
-        $customType = null;
-        if (in_array(6, $data["types"])) {
-            if (empty($data["other_type_text"])) {
-                $msg = "Please specify the consultation type in the Others field.";
+        // Prevent duplicate same-day bookings per student until the prior one is resolved
+        $studentId = Auth::user()->Stud_ID ?? null;
+        if ($studentId) {
+            $blockingStatuses = [
+                "pending",
+                "approved",
+                "completion_pending",
+                "completion_declined",
+            ];
+            $hasExisting = DB::table("t_consultation_bookings")
+                ->where("Stud_ID", $studentId)
+                ->where("Booking_Date", $date)
+                ->whereIn("Status", $blockingStatuses)
+                ->exists();
+            if ($hasExisting) {
+                $msg =
+                    "You already have a consultation booked for this date. Please finish, cancel, or reschedule the existing request before creating another.";
                 if ($request->wantsJson()) {
                     return response()->json(
                         [
                             "success" => false,
                             "message" => $msg,
-                            "errors" => ["other_type_text" => [$msg]],
+                            "errors" => ["booking_date" => [$msg]],
                         ],
                         422,
                     );
                 }
                 return redirect()
                     ->back()
-                    ->withErrors(["other_type_text" => $msg])
+                    ->withErrors(["booking_date" => $msg])
                     ->withInput();
             }
-            $customType = $data["other_type_text"];
+        }
+
+        // Check if "Others" is selected (Consult_type_ID = 6 in your DB) – only when not General Consultation
+        $customType = null;
+        if (!$isGeneralSubject) {
+            if (in_array(6, $data["types"])) {
+                if (empty($data["other_type_text"])) {
+                    $msg = "Please specify the consultation type in the Others field.";
+                    if ($request->wantsJson()) {
+                        return response()->json(
+                            [
+                                "success" => false,
+                                "message" => $msg,
+                                "errors" => ["other_type_text" => [$msg]],
+                            ],
+                            422,
+                        );
+                    }
+                    return redirect()
+                        ->back()
+                        ->withErrors(["other_type_text" => $msg])
+                        ->withInput();
+                }
+                $customType = $data["other_type_text"];
+            }
         }
 
         // Override checks first: block/forced_mode
@@ -228,8 +297,9 @@ class ConsultationBookingController extends Controller
         $bookingId = DB::table("t_consultation_bookings")->insertGetId([
             "Stud_ID" => Auth::user()->Stud_ID ?? null,
             "Prof_ID" => $data["prof_id"],
-            "Consult_type_ID" => $data["types"][0] ?? null,
-            "Custom_Type" => $customType, // <-- Save custom type if present
+            // For General Consultation, no specific consultation type is stored
+            "Consult_type_ID" => $isGeneralSubject ? null : $data["types"][0] ?? null,
+            "Custom_Type" => $isGeneralSubject ? null : $customType, // skip for general
             "Subject_ID" => $data["subject_id"],
             "Booking_Date" => $date, // normalized Manila weekday date
             "Mode" => $data["mode"],
@@ -245,16 +315,21 @@ class ConsultationBookingController extends Controller
                 $subject = DB::table("t_subject")
                     ->where("Subject_ID", $data["subject_id"])
                     ->first();
-                $consultationType = DB::table("t_consultation_types")
-                    ->where("Consult_type_ID", $data["types"][0])
-                    ->first();
+                $consultationType = null;
+                if (!$isGeneralSubject && !empty($data["types"])) {
+                    $consultationType = DB::table("t_consultation_types")
+                        ->where("Consult_type_ID", $data["types"][0])
+                        ->first();
+                }
 
                 $studentName = $student->Name ?? "A student";
                 $subjectName = $subject->Subject_Name ?? "Unknown subject";
-                $typeName = $consultationType->Consult_Type ?? "consultation";
+                $typeName = $isGeneralSubject
+                    ? "General Consultation"
+                    : $consultationType->Consult_Type ?? "consultation";
 
-                // Use custom type if "Others" was selected
-                if ($customType) {
+                // Use custom type if "Others" was selected (non-general)
+                if (!$isGeneralSubject && $customType) {
                     $typeName = $customType;
                 }
 
@@ -280,11 +355,16 @@ class ConsultationBookingController extends Controller
                 $subject = DB::table("t_subject")
                     ->where("Subject_ID", $data["subject_id"])
                     ->first();
-                $consultationType = DB::table("t_consultation_types")
-                    ->where("Consult_type_ID", $data["types"][0])
-                    ->first();
-                $typeName = $consultationType->Consult_Type ?? "consultation";
-                if (!empty($customType)) {
+                $consultationType = null;
+                if (!$isGeneralSubject && !empty($data["types"])) {
+                    $consultationType = DB::table("t_consultation_types")
+                        ->where("Consult_type_ID", $data["types"][0])
+                        ->first();
+                }
+                $typeName = $isGeneralSubject
+                    ? "General Consultation"
+                    : $consultationType->Consult_Type ?? "consultation";
+                if (!$isGeneralSubject && !empty($customType)) {
                     $typeName = $customType;
                 }
                 // Professor channel
@@ -297,6 +377,8 @@ class ConsultationBookingController extends Controller
                         "type" => $typeName,
                         "Booking_Date" => $date,
                         "Mode" => $data["mode"],
+                        // Include creation timestamp so the professor log can render the First badge immediately
+                        "Created_At" => now("Asia/Manila")->toIso8601String(),
                         "Status" => "pending",
                     ]),
                 );
