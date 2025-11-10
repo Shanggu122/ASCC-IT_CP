@@ -69,6 +69,26 @@
     </div>
   </div>
 
+  <!-- Subject Manager Modal -->
+  <div id="subjectManagerModal" class="mini-modal" aria-hidden="true">
+    <div class="mini-modal-card" role="dialog" aria-modal="true" aria-labelledby="subjectManagerTitle">
+      <div class="mini-modal-header">
+        <div class="mini-modal-title" id="subjectManagerTitle">Manage Subjects</div>
+        <button type="button" class="mini-modal-close" data-close-subjects>&times;</button>
+      </div>
+      <div class="mini-modal-body">
+        <form id="subjectManagerForm" autocomplete="off">
+          <label class="input-label" for="subjectManagerInput">New Subject</label>
+          <div class="subject-manager-input-row">
+            <input type="text" id="subjectManagerInput" name="subject_name" placeholder="Enter subject name" maxlength="100" required>
+            <button type="submit" class="btn-primary subject-manager-add">Add</button>
+          </div>
+        </form>
+        <div class="subject-manager-list" data-manager-list></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Panel Overlay -->
   <div class="panel-overlay"></div>
 
@@ -106,8 +126,10 @@
         </div>
 
         <!-- Subject Assignment -->
-        <div class="section-title" style="margin-top: 1rem;">Subject Assignment</div>
-        <div class="subject-list">
+        <div class="section-title" style="margin-top: 1rem; display:flex; align-items:center; gap:12px;">Subject Assignment
+          <button type="button" class="btn-secondary manage-subjects-btn" data-manage-subjects>Manage Subjects</button>
+        </div>
+        <div class="subject-list" data-subject-list>
           @foreach($subjects as $subj)
           <div class="subject-item">
             @php
@@ -118,6 +140,9 @@
             <label for="subject_{{ $sid }}" class="subject-name">{{ $sname }}</label>
           </div>
           @endforeach
+        </div>
+        <div class="input-group" style="margin-top:10px;">
+          <em style="font-size:12px;color:#475569;">Tip: Assign the "General Consultation" subject to enable bookings without choosing a consultation type. Students picking it will only choose date and mode.</em>
         </div>
       </div>
 
@@ -299,8 +324,10 @@
           </div>
 
           <!-- Subject Assignment -->
-          <div class="section-title" style="margin-top: 1rem;">Subject Assignment</div>
-          <div class="subject-list" id="editSubjectList">
+          <div class="section-title" style="margin-top: 1rem; display:flex; align-items:center; gap:12px;">Subject Assignment
+            <button type="button" class="btn-secondary manage-subjects-btn" data-manage-subjects>Manage Subjects</button>
+          </div>
+          <div class="subject-list" id="editSubjectList" data-edit-subject-list>
             @foreach($subjects as $subj)
             @php
               $sid = is_object($subj) ? ($subj->Subject_ID ?? '') : (is_array($subj) ? ($subj['Subject_ID'] ?? '') : '');
@@ -458,6 +485,12 @@
     <span id="notification-message"></span>
     <button onclick="hideNotification()" class="close-btn" type="button">&times;</button>
   </div>
+
+  <div data-subject-manager
+    data-index-url="{{ route('admin.subjects.index') }}"
+    data-store-url="{{ route('admin.subjects.store') }}"
+    data-destroy-base="{{ url('/admin/subjects') }}"
+    style="display:none;"></div>
 
   <script>
     // Keep the most recently saved schedule per professor to reflect changes instantly on reopen
@@ -1510,5 +1543,6 @@
       });
     }
   </script>
+  <script src="{{ asset('js/admin-subjects.js') }}" defer></script>
 </body>
 </html>

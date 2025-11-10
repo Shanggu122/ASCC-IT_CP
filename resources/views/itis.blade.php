@@ -13,6 +13,11 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
 
   <style>
+  /* Grey-out helper for disabled consultation types section */
+  #consultTypeSection.is-disabled { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
+  #consultTypeSection.is-disabled label { cursor: not-allowed; }
+  #consultTypeSection.is-disabled input[type="checkbox"],
+  #consultTypeSection.is-disabled input[type="text"] { pointer-events: none; }
 
   #calendar {
     /* Calendar input field styling */
@@ -238,6 +243,71 @@
     width: auto;
   }
 
+  /* Inline form error box (non-overlapping) */
+  .form-error-box {
+    display: none; /* shown via JS */
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 12px 14px;
+    margin: 8px 0 14px 0;
+    border: 1px solid #fca5a5; /* red-300 */
+    background: #fee2e2;       /* red-100 */
+    color: #7f1d1d;            /* red-900 */
+    border-radius: 10px;
+  }
+  .form-error-box .feb-icon {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: #ef4444; /* red-500 */
+    color: #fff; display: grid; place-items: center;
+    font-weight: 800; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial;
+    line-height: 1;
+    margin-top: 2px;
+  }
+  .form-error-box .feb-title { font-weight: 700; margin-bottom: 6px; }
+  .form-error-box ul { margin: 0; padding-left: 18px; }
+  .form-error-box li { margin: 2px 0; }
+  .form-error-box .feb-close {
+    background: transparent; border: 0; color: #7f1d1d; font-size: 22px; line-height: 1; cursor: pointer;
+  }
+
+  /* Per-field red highlight without shifting layout */
+  .field-error {
+    outline: 2px solid #ef4444;          /* red outline */
+    outline-offset: 2px;                 /* little air gap */
+    background: rgba(254, 226, 226, .45);/* light red wash */
+    border-radius: 10px;                 /* match form radius */
+  }
+  .input-error {
+    outline: 2px solid #ef4444 !important;
+    outline-offset: 2px;
+    background: #fee2e2 !important;
+    border-radius: 8px;
+  }
+  /* Slim calendar error: wrap only the grid, not the label/legend */
+  .calendar-choices { display:block; width:100%; border-radius:12px; box-sizing:border-box; position: relative; }
+  .calendar-choices.field-error { background: transparent !important; outline: none !important; outline-offset: 0 !important; }
+  /* Draw the red rectangle using a pseudo element to avoid layout shift */
+  .calendar-choices.field-error::after{
+    content:""; position:absolute; left:-12px; right:-12px; top:-3px; bottom:-3px;
+    border:1.5px solid #ef4444; border-radius:16px; pointer-events:none; box-sizing:border-box;
+  }
+  /* Inner wrapper for mode radios so error box stays slim */
+  .mode-choices { display: inline-flex; gap: 32px; align-items: center; padding: 8px 12px; border-radius: 12px; }
+  /* Make mode error look like a slim rectangle, not a tall block */
+  .mode-choices.field-error {
+    outline: 2px solid #ef4444;
+    outline-offset: 2px;
+    background: rgba(254, 226, 226, .55);
+    border-radius: 12px;
+  }
+
+  /* Keep the mode section from shifting position when error toggles (desktop only) */
+  @media (min-width: 769px){
+    .mode-selection { min-height: 146px; }
+  }
+
   /* Minimal helper: dim label when disabled (class applied via JS); keep main CSS in public css */
   .mode-selection label.disabled { opacity:.6; cursor:not-allowed; pointer-events:none; }
   /* Calendar error highlight */
@@ -414,6 +484,8 @@
       {{-- <input type="hidden" name="prof_id" value="{{ $professor->Prof_ID }}"> --}}
       <input type="hidden" name="prof_id" id="modalProfId" value="">
 
+      
+
 
       <div class="modal-header">
         <div class="profile-section">
@@ -435,7 +507,9 @@
         </div>
       </div>
 
-      <div class="checkbox-section">
+      
+
+      <div class="checkbox-section" id="consultTypeSection">
         @foreach($consultationTypes as $type)
           @if($type->Consult_Type === 'Others')
             <div class="others-checkbox-container">
@@ -466,14 +540,17 @@
           <div id="bookingWindowHint" style="font-size:12px;color:#2563eb;margin:4px 0 8px;">
             <!-- JS will fill hint about when next month opens -->
           </div>
+          <div id="calendarContainer" class="calendar-choices"></div>
           <input id="calendar" type="text" placeholder="Select Date" name="booking_date" required>
         </div>
 
 
         <div class="message-mode-container">
           <div class="mode-selection">
-            <label><input type="radio" name="mode" value="online"> Online</label>
-            <label><input type="radio" name="mode" value="onsite"> Onsite</label>
+            <div class="mode-choices">
+              <label><input type="radio" name="mode" value="online"> Online</label>
+              <label><input type="radio" name="mode" value="onsite"> Onsite</label>
+            </div>
           </div>
           <div class="button-group">
         <button type="submit" class="submit-btn">Submit</button>
@@ -633,9 +710,12 @@
 
       var picker = new Pikaday({
         field: document.getElementById('calendar'),
+        container: document.getElementById('calendarContainer'),
         format: 'ddd, MMM DD YYYY',
         onSelect: function() {
           document.getElementById('calendar').value = this.toString('ddd, MMM DD YYYY');
+          // Clear calendar error once a valid date is chosen
+          document.querySelector('.calendar-choices')?.classList.remove('field-error');
         },
         showDaysInNextAndPreviousMonths: true,
         firstDay: 1,
@@ -1109,6 +1189,8 @@
             return false;
           }
         }catch(_){ }
+        // Any valid click clears calendar error highlight
+  document.querySelector('.calendar-choices')?.classList.remove('field-error');
         let mode = btn.dataset.mode || null;
         if(!mode){
           // Fallback to cache in case the dataset isn't attached on this draw
@@ -1154,7 +1236,7 @@ async function openModal(card) {
     (function resetCalendar(){
       const input = document.getElementById('calendar');
       if(input) { input.value=''; }
-      document.querySelector('.calendar-wrapper-container')?.classList.remove('has-error');
+  document.querySelector('.calendar-choices')?.classList.remove('field-error');
       try { if(window.picker){ window.picker.setDate(null); } } catch(e) {}
       document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
     })();
@@ -1226,6 +1308,42 @@ async function openModal(card) {
 
   // Initialize / rebuild custom subject dropdown (mobile)
   initCustomSubjectDropdown();
+
+  // Toggle consultation type section for General Consultation subject (ITIS)
+  try{
+    const nativeSel = document.getElementById('modalSubjectSelect');
+    function isGeneralSelected(){
+      const opt = nativeSel && nativeSel.options[nativeSel.selectedIndex];
+      return opt && String(opt.textContent||'').trim().toLowerCase() === 'general consultation';
+    }
+    function toggleTypesForSubject(){
+      const section = document.getElementById('consultTypeSection');
+      const otherTxt = document.getElementById('otherTypeText');
+      const otherCb = document.getElementById('otherTypeCheckbox');
+      const general = isGeneralSelected();
+      if(section){
+        // Keep section visible; just grey it out and disable
+        section.classList.toggle('is-disabled', !!general);
+        section.setAttribute('aria-disabled', general ? 'true' : 'false');
+        section.querySelectorAll('input[name="types[]"], #otherTypeText').forEach(el=>{
+          if(general){ el.setAttribute('disabled','disabled'); }
+          else { el.removeAttribute('disabled'); }
+        });
+      }
+      if(general){
+        document.querySelectorAll('#bookingForm input[name="types[]"]').forEach(cb=> cb.checked=false);
+        if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
+        if(otherCb){ otherCb.checked=false; }
+      }
+    }
+    nativeSel.addEventListener('change', toggleTypesForSubject);
+    // Also hook custom dropdown list clicks
+    document.addEventListener('click', (e)=>{
+      const li = e.target && e.target.closest ? e.target.closest('#csDdList li') : null;
+      if(li){ setTimeout(toggleTypesForSubject, 0); }
+    });
+    setTimeout(toggleTypesForSubject, 0);
+  }catch(_){ }
 
     document.getElementById("modalProfilePic").src = img;
     document.getElementById("modalProfileName").textContent = name;
@@ -1365,6 +1483,12 @@ function closeModal() {
       if(input) input.value='';
       try { if(window.picker){ window.picker.setDate(null); } } catch(_){ }
       document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
+      // Clear any error highlights
+      document.getElementById('modalSubjectSelect')?.classList.remove('input-error');
+      document.getElementById('consultTypeSection')?.classList.remove('field-error');
+      document.querySelector('.mode-choices')?.classList.remove('field-error');
+      document.querySelector('.calendar-choices')?.classList.remove('field-error');
+      document.getElementById('otherTypeText')?.classList.remove('input-error');
       // Reset Others field visibility
       const otherTxt = document.getElementById('otherTypeText');
       if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
@@ -1422,44 +1546,65 @@ document.addEventListener('DOMContentLoaded', function() {
 // Client-side validation to keep modal open (prevent submit if invalid)
 const bookingForm = document.getElementById('bookingForm');
 if(bookingForm){
-  function validateBooking(){
+  function clearFieldErrors(){
+    document.getElementById('modalSubjectSelect')?.classList.remove('input-error');
+    document.getElementById('consultTypeSection')?.classList.remove('field-error');
+    document.querySelector('.mode-choices')?.classList.remove('field-error');
+    document.querySelector('.calendar-choices')?.classList.remove('field-error');
+    document.getElementById('otherTypeText')?.classList.remove('input-error');
+  }
+
+  function validateAndMark(){
+    const errs = [];
     const profId = document.getElementById('modalProfId').value.trim();
-    if(!profId) return 'Professor not selected.';
+    if(!profId) errs.push('Professor not selected.');
     const subjectSel = document.getElementById('modalSubjectSelect');
-    if(!subjectSel || !subjectSel.value){ return 'Please select a subject.'; }
+    if(!subjectSel || !subjectSel.value){ errs.push('Please select a subject.'); subjectSel?.classList.add('input-error'); }
+    const selText = subjectSel.options[subjectSel.selectedIndex]?.text?.trim().toLowerCase() || '';
+    const isGeneral = selText === 'general consultation';
     const typesChecked = bookingForm.querySelectorAll('input[name="types[]"]:checked').length;
-    if(typesChecked === 0) return 'Please select at least one consultation type.';
+    if(!isGeneral && typesChecked === 0){ errs.push('Please select at least one consultation type.'); document.getElementById('consultTypeSection')?.classList.add('field-error'); }
   const modeInputs = bookingForm.querySelectorAll('input[name="mode"]');
   const selected = Array.from(modeInputs).find(i=>i.checked);
-  if(!selected) return 'Please select consultation mode (Online or Onsite).';
+  if(!selected){ errs.push('Please select consultation mode (Online or Onsite).'); document.querySelector('.mode-choices')?.classList.add('field-error'); }
     const dateInput = document.getElementById('calendar');
   const hasSelectedCell = document.querySelector('.pika-table td.is-selected');
-  if(!dateInput.value.trim() || !hasSelectedCell){
-      return 'Please select your desired consultation date.';
-    }
+  if(!dateInput.value.trim() || !hasSelectedCell){ errs.push('Please select your desired consultation date.'); document.querySelector('.calendar-choices')?.classList.add('field-error'); }
     // Check availability cache for fully booked (defensive race)
     if(window.__availabilityCache){
       const key = dateInput.value.replace(/,/g,'');
       const rec = window.__availabilityCache[key];
-      if(rec && rec.remaining <= 0) return 'Selected date is already fully booked.';
+      if(rec && rec.remaining <= 0) errs.push('Selected date is already fully booked.');
     }
-    const otherCb = document.getElementById('otherTypeCheckbox');
-    const otherTxt = document.getElementById('otherTypeText');
-    if(otherCb && otherCb.checked && !otherTxt.value.trim()) return 'Please specify the consultation type in the Others field.';
+  const otherCb = document.getElementById('otherTypeCheckbox');
+  const otherTxt = document.getElementById('otherTypeText');
+  if(!isGeneral && otherCb && otherCb.checked && !otherTxt.value.trim()){ errs.push('Please specify the consultation type in the Others field.'); otherTxt?.classList.add('input-error'); }
     if(window.__availabilityCache){
       const key = dateInput.value.replace(/,/g,'');
       const rec = window.__availabilityCache[key];
-      if(rec && rec.mode && selected && selected.value !== rec.mode){
-        return `This date is locked to ${rec.mode}.`;
-      }
+      if(rec && rec.mode && selected && selected.value !== rec.mode){ errs.push(`This date is locked to ${rec.mode}.`); }
     }
-    return null;
+    return errs;
   }
+
+  // Clear specific error highlight on interactions
+  bookingForm.addEventListener('change', (e)=>{
+    const t=e.target;
+    if(t.id==='modalSubjectSelect') t.classList.remove('input-error');
+    if(t.name==='types[]') document.getElementById('consultTypeSection')?.classList.remove('field-error');
+  if(t.name==='mode') document.querySelector('.mode-choices')?.classList.remove('field-error');
+    if(t.id==='otherTypeText') t.classList.remove('input-error');
+  }, true);
 
   bookingForm.addEventListener('submit', async function(e){
     e.preventDefault();
-    const err = validateBooking();
-    if(err){ showNotification(err, true); return; }
+    clearFieldErrors();
+    const errs = validateAndMark();
+    if(errs.length){
+      showNotification(errs[0], true);
+      return;
+    }
+    clearFieldErrors();
 
     // Confirm details before final submission
     const ok = await studentConfirm(
@@ -1487,7 +1632,14 @@ if(bookingForm){
               if(first && first[0]) msg = first[0];
             } else if(data.message){ msg = data.message; }
         }
-        showNotification(msg, true);
+        const normalizedMsg = String(msg || '').toLowerCase();
+        if(submitBtn){ submitBtn.disabled = false; }
+        if(overlay){ overlay.classList.remove('active'); }
+        if(normalizedMsg.includes('already have a consultation booked')){
+          await studentAlert('Booking Blocked', msg);
+        } else {
+          showNotification(msg, true);
+        }
         return;
   }
       if(!res.ok){ showNotification('Server error. Please try again.', true); return; }
@@ -1770,7 +1922,7 @@ function studentConfirm(title, message){
     dlg.innerHTML = `
       <div class="confirm-header">
         <i class='bx bx-help-circle'></i>
-        <div id="studentConfirmTitleInline">Please confirm</div>
+        <div id="studentConfirmTitleInline">${title || 'Please confirm'}</div>
       </div>
       <div class="confirm-body">${message}</div>
       <div class="confirm-actions">
@@ -1799,6 +1951,33 @@ function studentConfirm(title, message){
     okBtn.onclick   =()=> close(true);
     cancelBtn.onclick =()=> close(false);
     overlay.addEventListener('click', (e)=>{ const m = dlg; if(m && !m.contains(e.target)) close(false); });
+    setTimeout(()=> okBtn.focus(), 0);
+  });
+}
+
+function studentAlert(title, message){
+  return new Promise(resolve=>{
+    const overlay=document.createElement('div'); overlay.className='confirm-overlay'; overlay.id='studentAlertOverlayInline';
+    const dlg=document.createElement('div'); dlg.className='confirm-modal student-alert'; dlg.setAttribute('role','dialog'); dlg.setAttribute('aria-modal','true'); dlg.setAttribute('aria-labelledby','studentAlertTitleInline');
+    dlg.innerHTML = `
+      <div class="confirm-header">
+        <i class='bx bx-error'></i>
+        <div id="studentAlertTitleInline">${title || 'Notice'}</div>
+      </div>
+      <div class="confirm-body">${message}</div>
+      <div class="confirm-actions">
+        <button id="alertOk" class="btn-confirm-green">OK</button>
+      </div>`;
+    overlay.appendChild(dlg);
+    document.body.appendChild(overlay);
+    requestAnimationFrame(()=> overlay.classList.add('active'));
+    function cleanup(){ document.removeEventListener('keydown', onKey); overlay.classList.remove('active'); setTimeout(()=> overlay.remove(), 150); }
+    function close(){ cleanup(); resolve(); }
+    function onKey(e){ if(e.key==='Escape' || e.key==='Enter'){ e.preventDefault(); close(); } }
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('click', (e)=>{ if(!dlg.contains(e.target)) close(); });
+    const okBtn = dlg.querySelector('#alertOk');
+    okBtn.onclick = close;
     setTimeout(()=> okBtn.focus(), 0);
   });
 }

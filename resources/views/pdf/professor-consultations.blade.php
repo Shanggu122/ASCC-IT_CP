@@ -46,6 +46,7 @@
     th { background: #f3f3f3; font-weight: 700; }
     /* Prevent date wrapping */
     .col-date { white-space: nowrap; }
+    .col-remarks { width: 180px; white-space: pre-wrap; word-break: break-word; }
 
     /* Footer signatures */
     .signature-row { display:flex; justify-content: space-between; align-items: flex-start; gap: 32px; margin-top: 24px; }
@@ -64,7 +65,27 @@
     </style>
     @php
         // Header meta
-        $semester = $semester ?? '';
+        $semesterRaw = (string) ($semester ?? '');
+        $semester = '';
+        if (trim($semesterRaw) !== '') {
+            $normalized = strtolower($semesterRaw);
+            if (str_contains($normalized, 'first')) {
+                $semester = '1st';
+            } elseif (str_contains($normalized, 'second')) {
+                $semester = '2nd';
+            } elseif (str_contains($normalized, 'mid')) {
+                $semester = 'Midyear';
+            } else {
+                $cleaned = trim($semesterRaw);
+                $normalizedTrim = rtrim($normalized);
+                if (substr($normalizedTrim, -8) === 'semester') {
+                    $cleaned = trim(substr($cleaned, 0, -strlen('semester')));
+                } elseif (substr($normalizedTrim, -4) === 'term') {
+                    $cleaned = trim(substr($cleaned, 0, -strlen('term')));
+                }
+                $semester = $cleaned !== '' ? $cleaned : trim($semesterRaw);
+            }
+        }
         $syStart = $syStart ?? '';
         $syEnd = $syEnd ?? '';
         $term = strtolower($term ?? '');
@@ -99,7 +120,7 @@
         }
     @endphp
     @php
-        $perPage = 22;
+    $perPage = 20;
         // Normalize to array and filter only Completed statuses
         $allLogs = is_array($logs) ? $logs : (array)$logs;
         $filteredLogs = array_values(array_filter($allLogs, function ($log) {
@@ -148,8 +169,8 @@
 
         <table class="info-table">
             <tr>
-                <td><span class="label">Name of the Faculty:</span> <span class="line">&nbsp;</span></td>
-                <td><span class="label">College / Department:</span> <span class="line">&nbsp;</span></td>
+                <td><span class="label">Name of the Faculty:</span> <span class="line">{{ $profName ?: 'N/A' }}</span></td>
+                <td><span class="label">College / Department:</span> <span class="line">{{ $dept ?: 'N/A' }}</span></td>
             </tr>
         </table>
 
@@ -163,6 +184,7 @@
                     <th>Type</th>
                     <th style="width:55px">Mode</th>
                     <th style="width:70px">Status</th>
+                    <th class="col-remarks">Remarks</th>
                 </tr>
             </thead>
             <tbody>
@@ -175,6 +197,7 @@
                         <td>{{ $log['type'] ?? '' }}</td>
                         <td>{{ $log['mode'] ?? '' }}</td>
                         <td>{{ $log['status'] ?? '' }}</td>
+                        <td class="col-remarks">{!! nl2br(e($log['remarks'] ?? '')) !!}</td>
                     </tr>
                 @endforeach
                 @php
@@ -189,6 +212,7 @@
                         <td>&nbsp;</td>
                         <td>&nbsp;</td>
                         <td>&nbsp;</td>
+                        <td class="col-remarks">&nbsp;</td>
                     </tr>
                 @endfor
             </tbody>

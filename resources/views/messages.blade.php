@@ -53,7 +53,7 @@
               ? \Carbon\Carbon::parse($professor->last_message_time)->timezone('Asia/Manila')->diffForHumans(['short'=>true])
               : '';
           @endphp
-          <div class="inbox-item" data-name="{{ strtolower($professor->name) }}" data-dept="{{ strtolower($deptLabels[$professor->dept_id] ?? 'other') }}" data-prof-id="{{ $professor->prof_id }}" data-can-video="{{ isset($professor->can_video_call) && $professor->can_video_call ? '1':'0' }}" onclick="loadChat('{{ $professor->name }}', {{ $professor->prof_id }})">
+          <div class="inbox-item" data-name="{{ strtolower($professor->name) }}" data-dept="{{ strtolower($deptLabels[$professor->dept_id] ?? 'other') }}" data-prof-id="{{ $professor->prof_id }}" data-can-video="{{ isset($professor->can_video_call) && $professor->can_video_call ? '1':'0' }}" data-channel="{{ $professor->meeting_link ?? '' }}" onclick="loadChat('{{ $professor->name }}', {{ $professor->prof_id }})">
               <img class="inbox-avatar" src="{{ $picUrl }}" alt="{{ $professor->name }}">
               <div class="inbox-meta">
                   <div class="name"><span class="presence-dot" data-presence="prof-{{ $professor->prof_id }}"></span>{{ $professor->name }} <span class="unread-badge hidden" data-unread="prof-{{ $professor->prof_id }}"></span></div>
@@ -386,7 +386,9 @@
           const studId = Number(currentStudentId);
           const profId = Number(currentProfId);
           if(!studId || !profId){ showToast('Missing IDs for call.', 'error'); return; }
-          const channel = `stud-${studId}-prof-${profId}`;
+          const override = active?.getAttribute('data-channel') || '';
+          const trimmed = override.trim();
+          const channel = trimmed.length ? trimmed : `stud-${studId}-prof-${profId}`;
           window.location.href = `/video-call/${encodeURIComponent(channel)}`;
         }
 

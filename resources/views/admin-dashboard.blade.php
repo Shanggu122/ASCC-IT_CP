@@ -276,7 +276,7 @@
     /* Modal Styles */
     .modal {
       position: fixed;
-      z-index: 10000;
+      z-index: 999999;
       left: 0;
       top: 0;
       width: 100%;
@@ -479,6 +479,8 @@
   .swatch-today { background:#5fb9d4; }    /* Today highlight */
   .swatch-multiple { background:#FF4500; } /* Multiple Bookings → Orangey-Red */
 
+    .header-bar { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+
     /* Drawer behavior on small screens */
     @media (max-width: 768px) {
       .legend-panel {
@@ -504,9 +506,167 @@
   @include('components.navbar-admin')
 
   <div class="main-content">
+    @php
+        $termCollection = ($termOptions ?? collect())->sortByDesc(function ($term) {
+            return optional($term->start_at)->format('Y-m-d');
+        });
+        $activeTermId = optional($activeTerm)->id;
+        $termDropdown = $termCollection->map(function ($term) {
+            $yearLabel = optional($term->academicYear)->label;
+            $label = trim(($term->name ?? 'Term') . ($yearLabel ? ' ' . $yearLabel : ''));
+
+            return [
+                'id' => $term->id,
+                'label' => $label,
+                'status' => $term->status,
+                'start_at' => optional($term->start_at)->format('Y-m-d'),
+                'end_at' => optional($term->end_at)->format('Y-m-d'),
+                'name' => $term->name,
+                'year_label' => $yearLabel,
+                'enrollment_deadline' => optional($term->enrollment_deadline)->format('Y-m-d'),
+                'grade_submission_deadline' => optional($term->grade_submission_deadline)->format('Y-m-d'),
+            ];
+        });
+    @endphp
     <div class="header">
-      <h1>Consultation Activity</h1>
+      <div class="header-bar">
+        <h1>Consultation Activity</h1>
+        <div class="term-controls">
+          <select id="adminTermDropdown" class="term-select" aria-label="Switch academic term">
+            <option value="" data-status="all">All Terms</option>
+            @foreach($termDropdown as $option)
+              <option value="{{ $option['id'] }}" data-status="{{ $option['status'] }}" @if($activeTermId === $option['id']) selected @endif>
+                {{ $option['label'] }}
+              </option>
+            @endforeach
+          </select>
+          <button type="button" id="manageAcademicYearBtn" class="manage-term-btn">
+            <i class='bx bx-cog'></i>
+            Manage Academic Year
+          </button>
+        </div>
+      </div>
     </div>
+    <div id="termManageModal" class="term-modal-backdrop" aria-hidden="true">
+      <div class="term-modal" role="dialog" aria-modal="true" aria-labelledby="termModalTitle">
+        <header>
+          <h2 id="termModalTitle">Create Academic Term</h2>
+          <div class="term-modal-actions">
+            <button type="button" id="termModalEditTrigger" class="term-edit-trigger">Edit existing</button>
+            <button type="button" id="termModalClose" class="term-close-btn" aria-label="Close">×</button>
+          </div>
+        </header>
+        <div class="term-modal-body">
+          <div class="term-progress">
+            <span data-step="1" class="active"></span>
+            <span data-step="2"></span>
+          </div>
+          <div class="term-step active" data-step="1">
+            <p>Select the semester you want to configure.</p>
+            <div class="term-choice-grid" role="listbox" aria-label="Semester choices">
+              <div class="term-choice" role="option" tabindex="0" data-value="1st Semester">
+                <h4>First Semester</h4>
+                <span>SY XXXX-XXXX</span>
+              </div>
+              <div class="term-choice" role="option" tabindex="0" data-value="2nd Semester">
+                <h4>Second Semester</h4>
+                <span>SY XXXX-XXXX</span>
+              </div>
+              <div class="term-choice" role="option" tabindex="0" data-value="Midyear Term">
+                <h4>Midyear Term</h4>
+                <span>Optional short term</span>
+              </div>
+            </div>
+          </div>
+          <div class="term-step" data-step="2">
+            <p>Set the academic year label and key dates.</p>
+            <div class="term-form-field">
+              <label for="termYearInput">Academic Year Label</label>
+              <input type="text" id="termYearInput" placeholder="SY 2025-2026" maxlength="50">
+            </div>
+            <div class="term-form-field">
+              <label for="termStartInput">Term starts</label>
+              <input type="date" id="termStartInput">
+            </div>
+            <div class="term-form-field">
+              <label for="termEndInput">Term ends</label>
+              <input type="date" id="termEndInput">
+            </div>
+            <div class="term-form-field">
+              <label for="termEnrollInput">Enrollment deadline (optional)</label>
+              <input type="date" id="termEnrollInput">
+            </div>
+            <div class="term-form-field">
+              <label for="termGradeInput">Grade submission deadline (optional)</label>
+              <input type="date" id="termGradeInput">
+            </div>
+            <div class="term-error" id="termModalError" style="display:none;"></div>
+          </div>
+        </div>
+        <footer>
+          <button type="button" class="btn-secondary" id="termModalBack" disabled>Back</button>
+          <button type="button" class="btn-primary" id="termModalNext">Next</button>
+        </footer>
+      </div>
+    </div>
+
+    <div id="termEditModal" class="term-modal-backdrop" aria-hidden="true">
+      <div class="term-modal" role="dialog" aria-modal="true" aria-labelledby="termEditTitle">
+        <header>
+          <h2 id="termEditTitle">Edit Academic Term</h2>
+          <button type="button" id="termEditClose" class="term-close-btn" aria-label="Close">×</button>
+        </header>
+        <div class="term-modal-body">
+          <div class="term-form-field">
+            <label for="termEditSelect">Select term to update</label>
+            <select id="termEditSelect"></select>
+          </div>
+          <div class="term-form-field">
+            <label for="termEditYear">Academic Year Label</label>
+            <input type="text" id="termEditYear" maxlength="50" placeholder="SY 2025-2026">
+          </div>
+          <div class="term-form-field">
+            <label for="termEditStart">Term starts</label>
+            <input type="date" id="termEditStart">
+          </div>
+          <div class="term-form-field">
+            <label for="termEditEnd">Term ends</label>
+            <input type="date" id="termEditEnd">
+          </div>
+          <div class="term-form-field">
+            <label for="termEditEnroll">Enrollment deadline (optional)</label>
+            <input type="date" id="termEditEnroll">
+          </div>
+          <div class="term-form-field">
+            <label for="termEditGrade">Grade submission deadline (optional)</label>
+            <input type="date" id="termEditGrade">
+          </div>
+          <div class="term-error" id="termEditError" style="display:none;"></div>
+        </div>
+        <footer>
+          <button type="button" class="btn-secondary" id="termEditCancel">Cancel</button>
+          <button type="button" class="btn-primary" id="termEditSave">Save Changes</button>
+        </footer>
+      </div>
+    </div>
+
+    <div id="termSwitchConfirm" class="term-modal-backdrop" aria-hidden="true">
+      <div class="term-modal" role="dialog" aria-modal="true" aria-labelledby="termConfirmTitle">
+        <header>
+          <h2 id="termConfirmTitle">Activate Semester</h2>
+          <button type="button" id="termConfirmClose" class="term-close-btn" aria-label="Close">×</button>
+        </header>
+        <div class="term-modal-body">
+          <p id="termConfirmMessage">Are you sure you want to activate this term?</p>
+          <p style="margin:0; font-size:13px; color:#475569;">Activating a term will close the current one, archive consultation records, and reset schedules for the new semester.</p>
+        </div>
+        <footer>
+          <button type="button" class="btn-secondary" id="termConfirmCancel">Cancel</button>
+          <button type="button" class="btn-primary" id="termConfirmProceed">Activate Term</button>
+        </footer>
+      </div>
+    </div>
+
     <div class="flex-layout">
       <div class="calendar-box">
         <div class="calendar-wrapper-container">
@@ -539,6 +699,7 @@
                 <div class="legend-section-title">Day Types</div>
                 <div class="legend-grid">
                   <div class="legend-item"><span class="legend-swatch swatch-today"></span>Today <i class='bx bx-sun legend-icon' aria-hidden="true"></i></div>
+
                   <div class="legend-item"><span class="legend-swatch swatch-online"></span>Online Day <i class='bx bx-video legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-forced"></span>Forced Online <i class='bx bx-switch legend-icon' aria-hidden="true"></i></div>
                   <div class="legend-item"><span class="legend-swatch swatch-holiday"></span>Holiday <i class='bx bx-party legend-icon' aria-hidden="true"></i></div>
@@ -614,11 +775,616 @@
   <link rel="stylesheet" href="{{ asset('css/toast.css') }}">
   <link rel="stylesheet" href="{{ asset('css/confirm.css') }}">
   <script>
+    window.__termContext = {
+      activeTermId: @json($activeTermId),
+      terms: @json($termDropdown),
+    };
+  </script>
+  <script>
     // Wait for DOM to be fully loaded
     document.addEventListener('DOMContentLoaded', function() {
       // Load initial mobile notifications
       loadMobileNotifications();
+      initTermManagement();
     });
+
+    function initTermManagement() {
+      const ctx = window.__termContext || {};
+      const normalizeTerm = (term) => ({
+        id: Number(term.id),
+        label: term.label,
+        status: term.status,
+        start_at: term.start_at,
+        end_at: term.end_at,
+        year_label: term.year_label || null,
+        name: term.name || null,
+        enrollment_deadline: term.enrollment_deadline || null,
+        grade_submission_deadline: term.grade_submission_deadline || null,
+      });
+
+      const state = {
+        step: 1,
+        selectedTermName: null,
+        terms: Array.isArray(ctx.terms) ? ctx.terms.map(normalizeTerm) : [],
+        activeTermId: ctx.activeTermId ? Number(ctx.activeTermId) : null,
+        pendingTermId: null,
+        previousDropdownValue: ctx.activeTermId ? String(ctx.activeTermId) : '',
+        editingTermId: null,
+      };
+
+      const dropdown = document.getElementById('adminTermDropdown');
+      const manageBtn = document.getElementById('manageAcademicYearBtn');
+      const modal = document.getElementById('termManageModal');
+      const confirmModal = document.getElementById('termSwitchConfirm');
+      const editModal = document.getElementById('termEditModal');
+      if (!dropdown || !manageBtn || !modal || !confirmModal) {
+        return;
+      }
+
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const showToast = window.showToast
+        ? window.showToast
+        : (message, type = 'info') => {
+            if (type === 'error') {
+              console.error(message);
+            } else {
+              console.log(message);
+            }
+          };
+
+      const modalSteps = Array.from(modal.querySelectorAll('.term-step'));
+      const modalProgress = Array.from(modal.querySelectorAll('.term-progress span'));
+      const modalChoices = Array.from(modal.querySelectorAll('.term-choice'));
+      const modalNext = document.getElementById('termModalNext');
+      const modalBack = document.getElementById('termModalBack');
+      const modalClose = document.getElementById('termModalClose');
+      const modalEditTrigger = document.getElementById('termModalEditTrigger');
+      const yearInput = document.getElementById('termYearInput');
+      const startInput = document.getElementById('termStartInput');
+      const endInput = document.getElementById('termEndInput');
+      const enrollmentInput = document.getElementById('termEnrollInput');
+      const gradeInput = document.getElementById('termGradeInput');
+      const modalError = document.getElementById('termModalError');
+
+      const confirmMessage = document.getElementById('termConfirmMessage');
+      const confirmProceed = document.getElementById('termConfirmProceed');
+      const confirmCancel = document.getElementById('termConfirmCancel');
+      const confirmClose = document.getElementById('termConfirmClose');
+
+      const editSelect = document.getElementById('termEditSelect');
+      const editYearInput = document.getElementById('termEditYear');
+      const editStartInput = document.getElementById('termEditStart');
+      const editEndInput = document.getElementById('termEditEnd');
+      const editEnrollInput = document.getElementById('termEditEnroll');
+      const editGradeInput = document.getElementById('termEditGrade');
+      const editError = document.getElementById('termEditError');
+      const editSave = document.getElementById('termEditSave');
+      const editCancel = document.getElementById('termEditCancel');
+      const editClose = document.getElementById('termEditClose');
+
+      const closeModal = (focusTrigger = true) => {
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+        if (focusTrigger) {
+          manageBtn.focus({ preventScroll: true });
+        }
+      };
+
+      const openModal = () => {
+        state.step = 1;
+        state.selectedTermName = null;
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+        modalError.style.display = 'none';
+        [yearInput, startInput, endInput, enrollmentInput, gradeInput].forEach((input) => {
+          input.value = '';
+        });
+        modalChoices.forEach((choice) => choice.classList.remove('active'));
+        modalNext.textContent = 'Next';
+        modalBack.disabled = true;
+        updateStepDisplay();
+      };
+
+      const clearEditForm = () => {
+        [editYearInput, editStartInput, editEndInput, editEnrollInput, editGradeInput].forEach(
+          (input) => {
+            if (input) {
+              input.value = '';
+            }
+          },
+        );
+        if (editError) {
+          editError.style.display = 'none';
+          editError.textContent = '';
+        }
+      };
+
+      const closeEditModal = (focusManage = true) => {
+        if (!editModal) {
+          return;
+        }
+        editModal.classList.remove('open');
+        editModal.setAttribute('aria-hidden', 'true');
+        state.editingTermId = null;
+        clearEditForm();
+        if (focusManage) {
+          manageBtn.focus({ preventScroll: true });
+        }
+      };
+
+      const applyEditSelection = (termId) => {
+        if (!editSelect) {
+          return;
+        }
+        const id = Number(termId);
+        if (!Number.isFinite(id)) {
+          state.editingTermId = null;
+          clearEditForm();
+          return;
+        }
+        const term = state.terms.find((item) => item.id === id);
+        if (!term) {
+          state.editingTermId = null;
+          clearEditForm();
+          return;
+        }
+        state.editingTermId = id;
+        if (editYearInput) editYearInput.value = term.year_label || '';
+        if (editStartInput) editStartInput.value = term.start_at || '';
+        if (editEndInput) editEndInput.value = term.end_at || '';
+        if (editEnrollInput) editEnrollInput.value = term.enrollment_deadline || '';
+        if (editGradeInput) editGradeInput.value = term.grade_submission_deadline || '';
+        if (editError) {
+          editError.style.display = 'none';
+          editError.textContent = '';
+        }
+      };
+
+      const populateEditOptions = () => {
+        if (!editSelect) {
+          return;
+        }
+        editSelect.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = state.terms.length ? 'Select a term' : 'No terms available yet';
+        editSelect.appendChild(placeholder);
+
+        if (!state.terms.length) {
+          clearEditForm();
+          if (editSave) editSave.disabled = true;
+          if (editError) {
+            editError.textContent = 'No existing terms to edit.';
+            editError.style.display = 'block';
+          }
+          return;
+        }
+
+        const sorted = [...state.terms].sort((a, b) => {
+          const left = a.start_at || '';
+          const right = b.start_at || '';
+          return right.localeCompare(left);
+        });
+
+        sorted.forEach((term) => {
+          const opt = document.createElement('option');
+          opt.value = String(term.id);
+          opt.textContent = term.label;
+          editSelect.appendChild(opt);
+        });
+
+        const fallbackId = sorted[0]?.id;
+        const chosenId = state.editingTermId || state.activeTermId || fallbackId;
+        if (chosenId) {
+          editSelect.value = String(chosenId);
+          applyEditSelection(chosenId);
+        } else {
+          clearEditForm();
+        }
+        if (editSave) editSave.disabled = false;
+      };
+
+      const openEditModal = async () => {
+        if (!editModal) {
+          return;
+        }
+        editModal.classList.add('open');
+        editModal.setAttribute('aria-hidden', 'false');
+        if (editSave) editSave.disabled = false;
+        if (editError) {
+          editError.style.display = 'none';
+          editError.textContent = '';
+        }
+        // Ensure we have the latest term list before populating options
+        try {
+          await refreshTerms();
+        } catch (_) {
+          // refreshTerms already reports errors via toast; continue with existing state
+        }
+        populateEditOptions();
+        if (editSelect) {
+          editSelect.focus({ preventScroll: true });
+        }
+      };
+
+      const submitTermEdit = async () => {
+        if (!state.editingTermId) {
+          if (editError) {
+            editError.textContent = 'Select a term before saving changes.';
+            editError.style.display = 'block';
+          }
+          return;
+        }
+
+        const start = editStartInput?.value || '';
+        const end = editEndInput?.value || '';
+        if (!start || !end) {
+          if (editError) {
+            editError.textContent = 'Start and end dates are required.';
+            editError.style.display = 'block';
+          }
+          return;
+        }
+        if (end < start) {
+          if (editError) {
+            editError.textContent = 'End date must be after the start date.';
+            editError.style.display = 'block';
+          }
+          return;
+        }
+
+        if (editError) {
+          editError.style.display = 'none';
+          editError.textContent = '';
+        }
+
+        if (editSave) editSave.disabled = true;
+        try {
+          const payload = {
+            start_at: start,
+            end_at: end,
+            enrollment_deadline: editEnrollInput?.value || null,
+            grade_submission_deadline: editGradeInput?.value || null,
+          };
+          const label = editYearInput?.value ? editYearInput.value.trim() : '';
+          if (label) {
+            payload.year_label = label;
+          }
+
+          const response = await fetch(`/admin/terms/${state.editingTermId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+              'X-CSRF-TOKEN': csrfToken,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const extracted = errorData?.errors
+              ? Object.values(errorData.errors)[0]?.[0]
+              : null;
+            const message = errorData?.message || extracted || 'Unable to update term.';
+            throw new Error(message);
+          }
+
+          const updated = await response.json();
+          state.editingTermId = updated.id ? Number(updated.id) : state.editingTermId;
+          closeEditModal();
+          showToast('Term updated successfully.', 'success');
+          await refreshTerms();
+        } catch (error) {
+          if (editError) {
+            editError.textContent = error.message;
+            editError.style.display = 'block';
+          }
+        } finally {
+          if (editSave) editSave.disabled = false;
+        }
+      };
+
+      const updateStepDisplay = () => {
+        modalSteps.forEach((step) => {
+          step.classList.toggle('active', Number(step.dataset.step) === state.step);
+        });
+        modalProgress.forEach((bar) => {
+          bar.classList.toggle('active', Number(bar.dataset.step) <= state.step);
+        });
+      };
+
+      const closeConfirm = (persistSelection = false) => {
+        confirmModal.classList.remove('open');
+        confirmModal.setAttribute('aria-hidden', 'true');
+        if (!persistSelection) {
+          dropdown.value = state.activeTermId ? String(state.activeTermId) : '';
+        }
+      };
+
+      const openConfirm = (term) => {
+        confirmModal.classList.add('open');
+        confirmModal.setAttribute('aria-hidden', 'false');
+        confirmMessage.textContent = `Activate ${term.label}?`;
+        confirmProceed.disabled = false;
+      };
+
+      const updateDropdown = () => {
+        dropdown.innerHTML = '';
+        const allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.dataset.status = 'all';
+        allOption.textContent = 'All Terms';
+        dropdown.appendChild(allOption);
+
+        state.terms.forEach((term) => {
+          const opt = document.createElement('option');
+          opt.value = String(term.id);
+          opt.dataset.status = term.status;
+          opt.textContent = term.label;
+          if (state.activeTermId && term.id === state.activeTermId) {
+            opt.selected = true;
+          }
+          dropdown.appendChild(opt);
+        });
+
+        if (!state.activeTermId) {
+          dropdown.value = '';
+        }
+      };
+
+      const refreshTerms = async () => {
+        try {
+          const response = await fetch('/admin/academic-terms', {
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+          });
+          if (!response.ok) {
+            throw new Error('Failed to refresh terms.');
+          }
+          const data = await response.json();
+          const flattened = [];
+          if (Array.isArray(data.years)) {
+            data.years.forEach((year) => {
+              (year.terms || []).forEach((term) => {
+                flattened.push({
+                  id: Number(term.id),
+                  label: `${term.name ?? ''} ${year.label || ''}`.trim() || term.name,
+                  status: term.status,
+                  start_at: term.start_at,
+                  end_at: term.end_at,
+                  name: term.name,
+                  year_label: year.label || null,
+                  enrollment_deadline: term.enrollment_deadline,
+                  grade_submission_deadline: term.grade_submission_deadline,
+                });
+              });
+            });
+          }
+          state.terms = flattened.map(normalizeTerm);
+          if (data.active_term?.id) {
+            state.activeTermId = Number(data.active_term.id);
+          }
+          updateDropdown();
+          if (editModal && editModal.classList.contains('open')) {
+            populateEditOptions();
+          }
+        } catch (error) {
+          showToast(error.message, 'error');
+        }
+      };
+
+      const sequenceForName = (name) => {
+        if (!name) return null;
+        const lower = name.toLowerCase();
+        if (lower.includes('1st')) return 1;
+        if (lower.includes('first')) return 1;
+        if (lower.includes('2nd')) return 2;
+        if (lower.includes('second')) return 2;
+        if (lower.includes('mid')) return 3;
+        return null;
+      };
+
+      const submitTerm = async () => {
+        modalError.style.display = 'none';
+        const label = yearInput.value.trim();
+        const start = startInput.value;
+        const end = endInput.value;
+
+        if (!state.selectedTermName) {
+          modalError.textContent = 'Choose which semester to configure.';
+          modalError.style.display = 'block';
+          state.step = 1;
+          updateStepDisplay();
+          return;
+        }
+        if (!label || !start || !end) {
+          modalError.textContent = 'Academic year, start date, and end date are required.';
+          modalError.style.display = 'block';
+          return;
+        }
+        if (end < start) {
+          modalError.textContent = 'End date must be after start date.';
+          modalError.style.display = 'block';
+          return;
+        }
+
+        modalNext.disabled = true;
+        try {
+          const payload = {
+            year: {
+              label,
+              start_at: start,
+              end_at: end,
+            },
+            term: {
+              name: state.selectedTermName,
+              sequence: sequenceForName(state.selectedTermName),
+              start_at: start,
+              end_at: end,
+              enrollment_deadline: enrollmentInput.value || null,
+              grade_submission_deadline: gradeInput.value || null,
+            },
+          };
+
+          const response = await fetch('/admin/academic-years', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+              'X-CSRF-TOKEN': csrfToken,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const message = errorData?.message || 'Unable to create term.';
+            throw new Error(message);
+          }
+
+          showToast('New term saved. Activate it whenever you are ready.', 'success');
+          closeModal();
+          await refreshTerms();
+        } catch (error) {
+          modalError.textContent = error.message;
+          modalError.style.display = 'block';
+        } finally {
+          modalNext.disabled = false;
+          modalNext.textContent = 'Save Term';
+          modalBack.disabled = false;
+        }
+      };
+
+      manageBtn.addEventListener('click', openModal);
+      modalClose.addEventListener('click', closeModal);
+      modalEditTrigger?.addEventListener('click', () => {
+        closeModal(false);
+        openEditModal();
+      });
+      modalBack.addEventListener('click', () => {
+        if (state.step === 1) {
+          closeModal();
+        } else {
+          state.step = 1;
+          modalBack.disabled = true;
+          modalNext.textContent = 'Next';
+          updateStepDisplay();
+        }
+      });
+
+      modalNext.addEventListener('click', () => {
+        if (state.step === 1) {
+          if (!state.selectedTermName) {
+            modalError.textContent = 'Select a semester first.';
+            modalError.style.display = 'block';
+            return;
+          }
+          modalError.style.display = 'none';
+          state.step = 2;
+          modalBack.disabled = false;
+          modalNext.textContent = 'Save Term';
+          updateStepDisplay();
+          return;
+        }
+
+        submitTerm();
+      });
+
+      modalChoices.forEach((choice) => {
+        choice.addEventListener('click', () => {
+          modalChoices.forEach((item) => item.classList.remove('active'));
+          choice.classList.add('active');
+          state.selectedTermName = choice.dataset.value;
+          modalError.style.display = 'none';
+        });
+        choice.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            choice.click();
+          }
+        });
+      });
+
+      editClose?.addEventListener('click', () => closeEditModal());
+      editCancel?.addEventListener('click', () => closeEditModal());
+      editSelect?.addEventListener('change', (event) => {
+        applyEditSelection(event.target.value);
+      });
+      editSave?.addEventListener('click', submitTermEdit);
+
+      confirmCancel.addEventListener('click', () => closeConfirm(false));
+      confirmClose.addEventListener('click', () => closeConfirm(false));
+
+      confirmProceed.addEventListener('click', async () => {
+        if (!state.pendingTermId) {
+          closeConfirm(false);
+          return;
+        }
+        confirmProceed.disabled = true;
+        try {
+          const response = await fetch(`/admin/terms/${state.pendingTermId}/activate`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+              'X-CSRF-TOKEN': csrfToken,
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ force: false }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const message = errorData?.message || 'Activation failed.';
+            throw new Error(message);
+          }
+
+          showToast('Term activated successfully.', 'success');
+          state.activeTermId = state.pendingTermId;
+          closeConfirm(true);
+          await refreshTerms();
+        } catch (error) {
+          showToast(error.message, 'error');
+          closeConfirm(false);
+        } finally {
+          confirmProceed.disabled = false;
+          state.pendingTermId = null;
+        }
+      });
+
+      dropdown.addEventListener('change', (event) => {
+        const selectedValue = event.target.value;
+        if (!selectedValue) {
+          event.target.value = state.activeTermId ? String(state.activeTermId) : '';
+          return;
+        }
+
+        const nextId = Number(selectedValue);
+        if (Number.isNaN(nextId)) {
+          event.target.value = state.activeTermId ? String(state.activeTermId) : '';
+          return;
+        }
+
+        if (state.activeTermId && nextId === state.activeTermId) {
+          return;
+        }
+
+        const targetTerm = state.terms.find((term) => term.id === nextId);
+        if (!targetTerm) {
+          event.target.value = state.activeTermId ? String(state.activeTermId) : '';
+          return;
+        }
+
+        state.pendingTermId = nextId;
+        state.previousDropdownValue = state.activeTermId ? String(state.activeTermId) : '';
+        openConfirm(targetTerm);
+      });
+
+      updateDropdown();
+    }
 
     // Mobile Notification Functions  
     function toggleMobileNotifications() {
@@ -1488,7 +2254,7 @@
           </div>
           <div id="autoReschedRow" style="display:none;margin:4px 0 12px 0">
             <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ov_auto_reschedule"> Auto‑reschedule affected bookings</label>
-            <div style="font-size:12px;color:#64748b;margin-top:6px">Exam/Quiz bookings will be placed first into onsite slots. Others will follow mode rules.</div>
+            <div style="font-size:12px;color:#64748b;margin-top:6px">All affected bookings will be rescheduled. Exam/Quiz bookings will be placed first into onsite slots. Others will follow mode rules.</div>
           </div>
           <div id="ov_preview" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-top:6px;display:none"></div>
         </div>

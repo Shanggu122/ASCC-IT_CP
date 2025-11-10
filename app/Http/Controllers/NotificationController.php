@@ -505,6 +505,12 @@ class NotificationController extends Controller
                     case "completed":
                         $adminMessage = "{$notification->student_name}'s consultation with {$notification->professor_name} has been completed.";
                         break;
+                    case "completion_pending":
+                        $adminMessage = "{$notification->professor_name} requested completion confirmation from {$notification->student_name}.";
+                        break;
+                    case "completion_declined":
+                        $adminMessage = "{$notification->student_name} declined the completion request from {$notification->professor_name}.";
+                        break;
                     case "rescheduled":
                         $adminMessage = "{$notification->student_name}'s consultation with {$notification->professor_name} has been rescheduled.";
                         break;

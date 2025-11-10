@@ -8,6 +8,156 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/conlog.css') }}">
+  <style>
+    .completion-review-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1200;
+      padding: 20px;
+    }
+
+    .completion-review-modal {
+      background: #ffffff;
+      border-radius: 20px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 24px 60px rgba(12, 34, 26, 0.28);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .completion-review-modal .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 16px;
+      background: #0e2f27;
+      color: #f6fffb;
+    }
+
+    .completion-review-modal .modal-header .title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 16px;
+      letter-spacing: 0.01em;
+    }
+
+    .completion-review-close {
+      background: none;
+      border: none;
+      color: inherit;
+      font-size: 20px;
+      cursor: pointer;
+      opacity: 0.75;
+      transition: opacity 0.2s ease;
+    }
+
+    .completion-review-close:hover {
+      opacity: 1;
+    }
+
+    .completion-review-modal .modal-body {
+      padding: 22px 24px 0;
+      color: #1f2a37;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .completion-review-remarks {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      margin-bottom: 18px;
+      color: #12372a;
+    }
+
+    .completion-review-remarks strong {
+      display: block;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #0d3b2e;
+      margin-bottom: 6px;
+    }
+
+    .completion-review-remarks p {
+      margin: 0;
+      white-space: pre-wrap;
+    }
+
+    .completion-review-meta {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 18px;
+    }
+
+    .completion-review-error {
+      display: none;
+      margin: 0 0 22px;
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+
+    .completion-review-actions {
+      display: flex;
+      gap: 12px;
+      padding: 18px 24px 24px;
+      background: #f8fafc;
+    }
+
+    .completion-review-actions button {
+      flex: 1;
+      border-radius: 999px;
+      border: 2px solid transparent;
+      padding: 12px 0;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .completion-review-actions .btn-outline {
+      background: #ffffff;
+      color: #b91c1c;
+      border-color: #f8d0d0;
+    }
+
+    .completion-review-actions .btn-outline:hover {
+      border-color: #b91c1c;
+      background: #fff5f5;
+    }
+
+    .completion-review-actions .btn-solid {
+      background: #1f7a67;
+      color: #ffffff;
+    }
+
+    .completion-review-actions .btn-solid:hover {
+      background: #155d4c;
+      transform: translateY(-1px);
+    }
+
+    @media (max-width: 480px) {
+      .completion-review-modal {
+        border-radius: 16px;
+      }
+
+      .completion-review-actions {
+        flex-direction: column;
+      }
+    }
+  </style>
 </head>
 <body>
   @include('components.navbar')
@@ -31,9 +181,9 @@
       <h1>Consultation Log</h1>
     </div>
     @php
-      // Build unique subjects list for subject filter (cancelled excluded)
-      $subjects = collect($bookingsFiltered ?? [])->pluck('subject')->filter(fn($s)=>filled($s))
-                   ->map(fn($s)=>trim($s))->unique()->sort()->values();
+  // Build unique "Subject" filter values based on the activity type column so the dropdown mirrors the table
+  $subjects = collect($bookingsFiltered ?? [])->pluck('type')->filter(fn($s)=>filled($s))
+       ->map(fn($s)=>trim($s))->unique()->sort()->values();
       // Build unique types list for type filter based on actual records (cancelled excluded already)
       $types = collect($bookingsFiltered ?? [])->pluck('type')->filter(fn($t)=>filled($t))
                  ->map(fn($t)=>trim($t))->unique()->sort()->values();
@@ -100,6 +250,29 @@
     
         <!-- Dynamic Data Rows -->
   @forelse($bookingsFiltered as $b)
+  @php
+    $statusLower = strtolower($b->Status ?? '');
+    $statusLabels = [
+      'completion_pending' => 'Completion Pending',
+      'completion_declined' => 'Completion Declined',
+    ];
+    $statusLabel = $statusLabels[$statusLower] ?? ucfirst($b->Status);
+    $completionReason = trim((string) ($b->completion_reason ?? ''));
+    try {
+      $completionRequestedAt = $b->completion_requested_at
+        ? \Carbon\Carbon::parse($b->completion_requested_at, 'Asia/Manila')->format('Y-m-d H:i:s')
+        : '';
+    } catch (\Throwable $_) {
+      $completionRequestedAt = '';
+    }
+    try {
+      $completionReviewedAt = $b->completion_reviewed_at
+        ? \Carbon\Carbon::parse($b->completion_reviewed_at, 'Asia/Manila')->format('Y-m-d H:i:s')
+        : '';
+    } catch (\Throwable $_) {
+      $completionReviewedAt = '';
+    }
+  @endphp
         <div class="table-row"
              data-instructor="{{ strtolower($b->Professor) }}"
              data-subject="{{ strtolower($b->subject) }}"
@@ -109,7 +282,12 @@
              data-mode="{{ strtolower($b->Mode) }}"
              data-booked="{{ \Carbon\Carbon::parse($b->Created_At)->timezone('Asia/Manila')->format('Y-m-d H:i:s') }}"
              data-booked-ts="{{ \Carbon\Carbon::parse($b->Created_At)->timezone('Asia/Manila')->timestamp }}"
-             data-status="{{ strtolower($b->Status) }}"
+             data-status="{{ $statusLower }}"
+             data-completion-reason="{{ e($completionReason) }}"
+             data-completion-requested="{{ $completionRequestedAt }}"
+             data-completion-reviewed="{{ $completionReviewedAt }}"
+             data-completion-response="{{ e($b->completion_student_response ?? '') }}"
+             data-completion-comment="{{ e($b->completion_student_comment ?? '') }}"
              data-matched="1"
         >
           <div class="table-cell" data-label="No." data-booking-id="{{ $b->Booking_ID ?? '' }}">{{ $loop->iteration }}</div>
@@ -119,7 +297,7 @@
           <div class="table-cell" data-label="Type">{{ $b->type }}</div>
           <div class="table-cell" data-label="Mode">{{ ucfirst($b->Mode) }}</div>
           <div class="table-cell" data-label="Booked At">{{ \Carbon\Carbon::parse($b->Created_At)->timezone('Asia/Manila')->format('M d Y h:i A') }}</div>
-          <div class="table-cell" data-label="Status">{{ ucfirst($b->Status) }}</div>
+          <div class="table-cell" data-label="Status" @if($completionReason) title="{{ 'Remarks: '.$completionReason }}" @endif>{{ $statusLabel }}</div>
           <div class="table-cell" data-label="Action" style="width: 100px;">
             <div class="action-btn-group" style="display:flex;gap:8px;"><!-- buttons inserted by JS --></div>
           </div>
@@ -240,6 +418,31 @@
       </div>
     </div>
   </div>
+
+  <!-- Completion Review Modal -->
+  <div class="completion-review-overlay" id="completionReviewOverlay" aria-hidden="true">
+    <div class="completion-review-modal" role="dialog" aria-modal="true" aria-labelledby="completionReviewTitle">
+      <div class="modal-header">
+        <div class="title">
+          <i class='bx bx-clipboard-check'></i>
+          <span id="completionReviewTitle">Review completion request</span>
+        </div>
+        <button type="button" class="completion-review-close" id="completionReviewClose" aria-label="Close review modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="completion-review-remarks" id="completionReviewRemarks" style="display:none;">
+          <strong>Professor remarks</strong>
+          <p id="completionReviewRemarksText"></p>
+        </div>
+        <div id="completionReviewInfo" class="completion-review-meta"></div>
+        <div class="completion-review-error" id="completionReviewError"></div>
+      </div>
+      <div class="completion-review-actions">
+        <button type="button" class="btn-outline" id="completionReviewDecline">Needs revision</button>
+        <button type="button" class="btn-solid" id="completionReviewApprove">Confirm completion</button>
+      </div>
+    </div>
+  </div>
   <script>
 const fixedTypes = [
   'tutoring',
@@ -259,6 +462,21 @@ function sanitize(raw){
     .replace(/\s+/g,' ')         // collapse whitespace
     .trim()
     .slice(0,50);
+}
+
+function decodeHtmlEntities(value){
+  if(!value) return '';
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = value;
+  return textarea.value;
+}
+
+function escapeForAttr(value){
+  return String(value ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/"/g,'&quot;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
 }
 
   // ===== Sorting + Pagination State =====
@@ -300,13 +518,32 @@ function sanitize(raw){
     return sortDir==='asc' ? cmp : -cmp;
   }
 
+  // Subject dropdown mirrors the "Type of Activity" values present in the log
   function rebuildSubjectOptions(){
     const sel = document.getElementById('subjectFilter'); if(!sel) return;
-    const seen = new Set();
-    getDataRows().forEach(r=>{ const s=(r.dataset.subject||'').trim(); if(s) seen.add(s); });
-    const cur = sel.value; const arr = Array.from(seen).sort((a,b)=>a.localeCompare(b));
+    const map = new Map();
+    getDataRows().forEach(row=>{
+      const cell = row.querySelector('.table-cell[data-label="Type"]');
+      const label = (cell ? cell.textContent : (row.dataset.type||'')).trim();
+      if(!label) return; const key = label.toLowerCase();
+      if(!map.has(key)) map.set(key, label);
+    });
+    const previous = String(sel.value||'');
+    const arr = Array.from(map.values()).sort((a,b)=>a.localeCompare(b));
     sel.innerHTML = '<option value="">All Subjects</option>' + arr.map(v=>`<option value="${v}">${v}</option>`).join('');
-    if(arr.includes(cur)) sel.value = cur;
+    const match = previous ? arr.find(v=>v.toLowerCase() === previous.toLowerCase()) : '';
+    const resolved = match || '';
+    sel.value = resolved;
+    const norm = (v)=>String(v||'').toLowerCase();
+    if(norm(previous) !== norm(resolved)){
+      if(!rebuildSubjectOptions._pending){
+        rebuildSubjectOptions._pending = true;
+        setTimeout(()=>{
+          rebuildSubjectOptions._pending = false;
+          if(typeof filterRows === 'function') filterRows();
+        }, 0);
+      }
+    }
   }
 
   // Build the Type dropdown from the table's "Type" values (no duplicates)
@@ -360,8 +597,18 @@ function sanitize(raw){
     rows.forEach(r=>{
       if(!matchedSet.has(r)) { r.style.display='none'; return; }
       const idx = matched.indexOf(r);
-      r.style.display = (idx>=start && idx<=end) ? '' : 'none';
+      const isVisible = (idx>=start && idx<=end);
+      r.style.display = isVisible ? '' : 'none';
     });
+
+    // Renumber the visible rows so the "No." column always shows 1..N for the current view
+    let displayCounter = 1;
+    for(let i=start; i<=end; i++){
+      const row = matched[i];
+      if(!row) continue;
+      const noCell = row.querySelector('.table-cell[data-label="No."]');
+      if(noCell){ noCell.textContent = String(displayCounter++); }
+    }
 
   /* pageInfo removed from UI */
     const pag = document.getElementById('paginationControls');
@@ -390,22 +637,31 @@ function sanitize(raw){
 function filterRows() {
   const inputEl = document.getElementById('searchInput');
   let search = sanitize(inputEl.value).toLowerCase();
-  if(inputEl.value !== search) inputEl.value = search; // reflect sanitized
   let type = document.getElementById('typeFilter').value.toLowerCase();
   let subject = (document.getElementById('subjectFilter')?.value||'').toLowerCase();
   let rows = document.querySelectorAll('.table-row:not(.table-header)');
 
   rows.forEach(row => {
     if (row.classList.contains('no-results-row')) return;
+    // Get key dataset values for filters
     let rowType = (row.dataset.type||'').toLowerCase();
-    let instructor = (row.dataset.instructor||'').toLowerCase();
-    let rowSubject = (row.dataset.subject||'').toLowerCase();
+  let rowSubject = (row.dataset.type||'').toLowerCase();
+
+    // Build a case-insensitive haystack from visible cell texts across ALL columns
+    // Exclude only the numbering and action columns
+    const hay = Array.from(row.querySelectorAll('.table-cell'))
+      .filter(c => {
+        const lbl = c.getAttribute('data-label')||'';
+        return lbl !== 'No.' && lbl !== 'Action';
+      })
+      .map(c => (c.textContent||'').toLowerCase().trim())
+      .join(' ');
 
     let isOthers = fixedTypes.indexOf(rowType) === -1 && rowType !== '';
 
     let matchesType = !type || (type !== 'others' && rowType === type) || (type === 'others' && isOthers);
     let matchesSubject = !subject || rowSubject === subject;
-    let matchesSearch = instructor.includes(search) || rowSubject.includes(search) || rowType.includes(search);
+    let matchesSearch = !search || hay.includes(search);
 
     row.dataset.matched = (matchesSearch && matchesType && matchesSubject) ? '1' : '0';
   });
@@ -468,9 +724,21 @@ document.addEventListener('DOMContentLoaded',()=>{ filterRows(); });
     const actionGroup = row.querySelector('.action-btn-group');
     if(!actionGroup) return;
     actionGroup.innerHTML = '';
-    const withinHour = (nowTs - createdTs) <= 3600; // 1 hour window
+    const withinHour = (nowTs - createdTs) <= 3600;
     const isPending = status === 'pending';
-    if(isPending && withinHour){
+    if(status === 'completion_pending'){
+      const btn = document.createElement('button');
+      btn.className = 'action-btn btn-review';
+      btn.type = 'button';
+      btn.title = 'Review completion request';
+      btn.innerHTML = "<i class='bx bx-task'></i>";
+      btn.addEventListener('click', function(){
+        const bookingId = row.querySelector('.table-cell[data-label="No."]')?.getAttribute('data-booking-id');
+        if(!bookingId) return;
+        openCompletionReviewFromRow(row, bookingId);
+      });
+      actionGroup.appendChild(btn);
+    } else if(isPending && withinHour){
       const btn = document.createElement('button');
       btn.className = 'action-btn btn-cancel';
       btn.type = 'button';
@@ -492,6 +760,175 @@ document.addEventListener('DOMContentLoaded',()=>{ filterRows(); });
   document.addEventListener('DOMContentLoaded', ()=>{
     document.querySelectorAll('.table .table-row').forEach(refreshRowActions);
   });
+
+  const completionReviewState = {
+    bookingId: null,
+    row: null,
+    notificationId: null,
+    pending: false,
+  };
+
+  function formatDateLabel(iso){
+    if(!iso) return '';
+    const d = new Date(iso);
+    if(Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit' });
+  }
+
+  function populateCompletionModal(details){
+    const overlay = document.getElementById('completionReviewOverlay');
+    const remarksEl = document.getElementById('completionReviewRemarks');
+    const remarksTextEl = document.getElementById('completionReviewRemarksText');
+    const infoEl = document.getElementById('completionReviewInfo');
+    const errorEl = document.getElementById('completionReviewError');
+    const approveBtn = document.getElementById('completionReviewApprove');
+    if(!overlay || !remarksEl || !infoEl || !errorEl){
+      return;
+    }
+    const reason = details.reason ? details.reason.trim() : '';
+    if(reason){
+      remarksEl.style.display = 'block';
+      if(remarksTextEl){ remarksTextEl.textContent = reason; }
+    }else{
+      remarksEl.style.display = 'none';
+      if(remarksTextEl){ remarksTextEl.textContent = ''; }
+    }
+    const requestedLabel = formatDateLabel(details.requestedAt);
+    infoEl.textContent = requestedLabel ? `Requested on ${requestedLabel}${details.professor ? ` by ${details.professor}` : ''}.` : (details.professor ? `Professor ${details.professor} sent this request.` : '');
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
+    overlay.style.display = 'flex';
+    overlay.setAttribute('aria-hidden','false');
+    setTimeout(()=>{ try{ approveBtn?.focus(); }catch(_){} }, 15);
+  }
+
+  function closeCompletionReview(){
+    const overlay = document.getElementById('completionReviewOverlay');
+    const errorEl = document.getElementById('completionReviewError');
+    const approveBtn = document.getElementById('completionReviewApprove');
+    const declineBtn = document.getElementById('completionReviewDecline');
+    const closeBtn = document.getElementById('completionReviewClose');
+    if(overlay){ overlay.style.display = 'none'; overlay.setAttribute('aria-hidden','true'); }
+    if(errorEl){ errorEl.textContent=''; errorEl.style.display='none'; }
+    approveBtn && (approveBtn.disabled = false);
+    declineBtn && (declineBtn.disabled = false);
+    closeBtn && (closeBtn.disabled = false);
+    completionReviewState.bookingId = null;
+    completionReviewState.row = null;
+    completionReviewState.notificationId = null;
+    completionReviewState.pending = false;
+  }
+
+  function openCompletionReviewFromRow(row, bookingId){
+    const professor = row?.querySelector('.instructor-cell')?.textContent?.trim() || '';
+    const reason = decodeHtmlEntities(row?.dataset?.completionReason || '');
+    const requested = row?.dataset?.completionRequested || '';
+    completionReviewState.bookingId = bookingId;
+    completionReviewState.row = row;
+    completionReviewState.notificationId = null;
+    populateCompletionModal({ professor, reason, requestedAt: requested });
+  }
+
+  function openCompletionReviewWithFetch(bookingId, notificationId){
+    completionReviewState.bookingId = bookingId;
+    completionReviewState.notificationId = notificationId || null;
+    completionReviewState.row = null;
+    const overlay = document.getElementById('completionReviewOverlay');
+    const remarksEl = document.getElementById('completionReviewRemarks');
+    const remarksTextEl = document.getElementById('completionReviewRemarksText');
+    const infoEl = document.getElementById('completionReviewInfo');
+    const errorEl = document.getElementById('completionReviewError');
+    if(overlay){
+      overlay.style.display = 'flex';
+      overlay.setAttribute('aria-hidden','false');
+    }
+    if(remarksEl){ remarksEl.style.display='none'; }
+    if(remarksTextEl){ remarksTextEl.textContent=''; }
+    if(infoEl){ infoEl.textContent = 'Loading details…'; }
+    if(errorEl){ errorEl.style.display='none'; errorEl.textContent=''; }
+    fetch(`/api/student/consultation-details/${bookingId}`)
+      .then(r=>r.json())
+      .then(data=>{
+        if(!data || !data.success){ throw new Error(data?.message || 'Unable to load details'); }
+        const consult = data.consultation || {};
+        populateCompletionModal({
+          professor: consult.professor_name || '',
+          reason: consult.completion_reason || consult.reschedule_reason || '',
+          requestedAt: consult.completion_requested_at || '',
+        });
+      })
+      .catch(err=>{
+        if(errorEl){ errorEl.textContent = err?.message || 'Unable to load completion details.'; errorEl.style.display='block'; }
+      });
+  }
+
+  function applyDecisionToRow(row, decision){
+    if(!row) return;
+    const statusCell = row.querySelector('.table-cell[data-label="Status"]');
+    if(statusCell){
+      if(decision === 'completed'){ statusCell.textContent = 'Completed'; }
+      else if(decision === 'completion_declined'){ statusCell.textContent = 'Completion Declined'; }
+      const baseRemark = decodeHtmlEntities(row.dataset.completionReason || '');
+      statusCell.title = baseRemark ? `Remarks: ${baseRemark}` : '';
+    }
+    row.dataset.status = decision;
+    row.dataset.completionResponse = decision === 'completed' ? 'agreed' : 'declined';
+    row.dataset.completionComment = '';
+    row.dataset.completionReviewed = new Date().toISOString();
+    row.dataset.matched = row.dataset.matched || '1';
+    const actionGroup = row.querySelector('.action-btn-group');
+    if(actionGroup){ actionGroup.innerHTML=''; }
+  }
+
+  function submitCompletionDecision(decision){
+    if(completionReviewState.pending || !completionReviewState.bookingId){ return; }
+    const errorEl = document.getElementById('completionReviewError');
+    const approveBtn = document.getElementById('completionReviewApprove');
+    const declineBtn = document.getElementById('completionReviewDecline');
+    const closeBtn = document.getElementById('completionReviewClose');
+    completionReviewState.pending = true;
+    approveBtn && (approveBtn.disabled = true);
+    declineBtn && (declineBtn.disabled = true);
+    closeBtn && (closeBtn.disabled = true);
+    if(errorEl){ errorEl.style.display='none'; errorEl.textContent=''; }
+    fetch('/api/consultations/update-status', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+      },
+      body: JSON.stringify({
+        id: Number(completionReviewState.bookingId),
+        status: decision
+      })
+    }).then(r=>r.json()).then(data=>{
+      if(!data || !data.success){ throw new Error(data?.message || 'Request failed'); }
+      const note = decision === 'completed' ? 'Marked as completed. Thank you!' : 'We let your professor know you still need help.';
+      if(typeof showNotification === 'function'){ showNotification(note, false); }
+      if(completionReviewState.row){ applyDecisionToRow(completionReviewState.row, decision); }
+      if(typeof filterRows === 'function'){ filterRows(); }
+      closeCompletionReview();
+    }).catch(err=>{
+      if(errorEl){ errorEl.textContent = err?.message || 'Unable to submit your response.'; errorEl.style.display='block'; }
+    }).finally(()=>{
+      completionReviewState.pending = false;
+      approveBtn && (approveBtn.disabled = false);
+      declineBtn && (declineBtn.disabled = false);
+      closeBtn && (closeBtn.disabled = false);
+    });
+  }
+
+  document.getElementById('completionReviewApprove')?.addEventListener('click', ()=>submitCompletionDecision('completed'));
+  document.getElementById('completionReviewDecline')?.addEventListener('click', ()=>submitCompletionDecision('completion_declined'));
+  document.getElementById('completionReviewClose')?.addEventListener('click', closeCompletionReview);
+
+  const completionOverlayEl = document.getElementById('completionReviewOverlay');
+  completionOverlayEl?.addEventListener('click', (e)=>{
+    if(e.target === completionOverlayEl && !completionReviewState.pending){ closeCompletionReview(); }
+  });
+
+  window.openCompletionReviewWithFetch = openCompletionReviewWithFetch;
+
 
   function cancelStudentBooking(bookingId, row, btn){
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -564,13 +1001,24 @@ function syncOverlayFromMain(){
     tMob.value = tMain.value;
   }
   if(sMain && sMob) {
-    // Ensure mobile subject options include any dynamic subjects
-    const seen = new Set();
-    const options = ['<option value="">All Subjects</option>'];
-    getDataRows().forEach(r=>{ const v=(r.dataset.subject||'').trim(); if(v) seen.add(v); });
-    const arr = Array.from(seen).sort((a,b)=>a.localeCompare(b));
-    sMob.innerHTML = options.concat(arr.map(v=>`<option value="${v}">${v}</option>`)).join('');
-    sMob.value = sMain.value;
+    // Keep subject filter aligned with consultation type labels
+    const map = new Map();
+    getDataRows().forEach(row=>{
+      const cell = row.querySelector('.table-cell[data-label="Type"]');
+      const label = (cell ? cell.textContent : (row.dataset.type||''))?.trim();
+      if(!label) return; const key = label.toLowerCase();
+      if(!map.has(key)) map.set(key, label);
+    });
+    const arr = Array.from(map.values()).sort((a,b)=>a.localeCompare(b));
+    sMob.innerHTML = '<option value="">All Subjects</option>' + arr.map(v=>`<option value="${v}">${v}</option>`).join('');
+    const current = sMain.value;
+    if(current){
+      const match = arr.find(v=>v.toLowerCase() === current.toLowerCase());
+      sMob.value = match || '';
+      if(match && match !== current){ sMain.value = match; }
+    } else {
+      sMob.value = '';
+    }
   }
   // page size is not in overlay anymore
 }
@@ -724,7 +1172,14 @@ setInterval(loadConsultationLogs, 5000);
       const date = normalizeDate(data.Booking_Date||'');
       const mode = (data.Mode||'').charAt(0).toUpperCase() + (data.Mode||'').slice(1);
       const bookedAt = data.Created_At ? new Date(data.Created_At).toLocaleString('en-US', { month:'short', day:'2-digit', year:'numeric', hour:'numeric', minute:'2-digit'}) : (existing? (existing.querySelectorAll('.table-cell')[6]?.textContent||'') : '');
-      const status = (data.Status||'').charAt(0).toUpperCase() + (data.Status||'').slice(1);
+      const rawStatus = (data.Status||'').toString().toLowerCase();
+      const statusLabelMap = {
+        completion_pending: 'Completion Pending',
+        completion_declined: 'Completion Declined',
+      };
+      const status = statusLabelMap[rawStatus] || (rawStatus ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1) : '');
+  const completionReason = data.completion_reason || '';
+  const statusTitle = completionReason ? ` title="${escapeForAttr('Remarks: ' + completionReason)}"` : '';
       const iter = existing ? (existing.querySelector('.table-cell')?.textContent||'') : (rows.length+1);
 
       const html = `
@@ -735,7 +1190,7 @@ setInterval(loadConsultationLogs, 5000);
         <div class="table-cell" data-label="Type">${data.type||''}</div>
         <div class="table-cell" data-label="Mode">${mode}</div>
         <div class="table-cell" data-label="Booked At">${bookedAt}</div>
-          <div class="table-cell" data-label="Status">${status}</div>
+          <div class="table-cell" data-label="Status"${statusTitle}>${status}</div>
           <div class="table-cell" data-label="Action" style="width: 100px;">
             <div class="action-btn-group" style="display:flex;gap:8px;"></div>
           </div>`;
@@ -755,8 +1210,13 @@ setInterval(loadConsultationLogs, 5000);
           row.dataset.booked = `${created.getFullYear()}-${String(created.getMonth()+1).padStart(2,'0')}-${String(created.getDate()).padStart(2,'0')} ${String(created.getHours()).padStart(2,'0')}:${String(created.getMinutes()).padStart(2,'0')}:00`;
           row.dataset.bookedTs = String(Math.floor(created.getTime()/1000));
         }
-        row.dataset.status = (data.Status||'').toString().toLowerCase();
+  row.dataset.status = rawStatus;
         row.dataset.matched = '1';
+  row.dataset.completionReason = data.completion_reason || '';
+  row.dataset.completionRequested = data.completion_requested_at || '';
+  row.dataset.completionReviewed = data.completion_reviewed_at || '';
+  row.dataset.completionResponse = data.completion_student_response || '';
+  row.dataset.completionComment = '';
       }
 
       if(existing){

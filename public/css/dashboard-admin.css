@@ -203,6 +203,318 @@ body {
 }
 
 /* Multiple bookings indicators */
+
+/* Manage Academic Year controls */
+.term-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.term-select {
+    min-width: 220px;
+    padding: 8px 12px;
+    border: 1px solid #c8ddd4;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: 'Poppins', sans-serif;
+    color: #0f172a;
+    background: #f4faf6;
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.term-select:focus {
+    outline: none;
+    border-color: #12372a;
+    box-shadow: 0 0 0 3px rgba(18, 55, 42, 0.18);
+    background: #ffffff;
+}
+
+.manage-term-btn {
+    padding: 9px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #12372a;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.manage-term-btn:hover {
+    background: #0d2b20;
+    transform: translateY(-1px);
+}
+
+.manage-term-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(18, 55, 42, 0.2);
+}
+
+.manage-term-btn:active {
+    transform: translateY(0);
+}
+
+.manage-term-btn i {
+    font-size: 18px;
+}
+
+/* Manage Academic Year modal */
+.term-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000000;
+    padding: 16px;
+}
+
+.term-modal-backdrop.open {
+    display: flex;
+}
+
+.term-modal {
+    position: relative;
+    z-index: 1000001;
+    width: 100%;
+    max-width: 540px;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.35);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.term-modal header {
+    padding: 20px 24px;
+    background: #12372a;
+    color: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.term-modal header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.term-modal header .term-close-btn {
+    background: none;
+    border: none;
+    color: #d9ece4;
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.term-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.term-edit-trigger {
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(10, 52, 34, 0.6);
+    color: #f8fafc;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease;
+}
+
+.term-edit-trigger:hover,
+.term-edit-trigger:focus-visible {
+    background: rgba(10, 52, 34, 0.95);
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+.term-modal-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.term-step {
+    display: none;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.term-step.active {
+    display: flex;
+}
+
+.term-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+}
+
+.term-choice {
+    padding: 14px;
+    border-radius: 10px;
+    border: 2px solid #c8ddd4;
+    cursor: pointer;
+    background: #f4faf6;
+    transition:
+        border-color 0.2s ease,
+        background 0.2s ease;
+    text-align: center;
+}
+
+.term-choice:hover,
+.term-choice:focus-visible {
+    border-color: #12372a;
+    background: #ecf3ef;
+    outline: none;
+}
+
+.term-choice.active {
+    border-color: #12372a;
+    background: #e8f2ed;
+}
+
+.term-choice h4 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    color: #0f172a;
+}
+
+.term-choice span {
+    font-size: 13px;
+    color: #475569;
+}
+
+.term-form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.term-form-field label {
+    font-weight: 600;
+    font-size: 13px;
+    color: #0f172a;
+}
+
+.term-form-field input {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #cbd5f5;
+    font-size: 14px;
+    font-family: 'Poppins', sans-serif;
+}
+
+.term-form-field input:focus {
+    outline: none;
+    border-color: #12372a;
+    box-shadow: 0 0 0 3px rgba(18, 55, 42, 0.18);
+}
+
+.term-modal footer {
+    padding: 20px 24px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    background: #f8fafc;
+}
+
+.term-modal footer button {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition:
+        background 0.2s ease,
+        transform 0.2s ease;
+}
+
+.term-modal .btn-secondary {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.term-modal .btn-secondary:hover {
+    background: #cbd5f5;
+}
+
+.term-modal .btn-primary {
+    background: #12372a;
+    color: #ffffff;
+}
+
+.term-modal .btn-primary:hover {
+    background: #0d2b20;
+}
+
+.term-modal .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.term-progress {
+    display: flex;
+    gap: 6px;
+}
+
+.term-progress span {
+    width: 26px;
+    height: 4px;
+    border-radius: 999px;
+    background: #d7e8e1;
+    transition: background 0.2s ease;
+}
+
+.term-progress span.active {
+    background: #12372a;
+}
+
+.term-error {
+    color: #b91c1c;
+    font-size: 13px;
+}
+
+@media (max-width: 640px) {
+    .term-controls {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+    }
+
+    .term-select {
+        width: 100%;
+    }
+
+    .manage-term-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .term-modal {
+        max-width: 480px;
+    }
+}
 .legend-box.multiple-bookings {
     background-color: #ff4500 !important; /* match legend */
     border: 2px solid #333;
