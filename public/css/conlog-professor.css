@@ -1107,6 +1107,7 @@ body {
     gap: 1rem;
     align-items: center;
     margin: 1rem 0;
+    flex-wrap: wrap;
 }
 .search-container input {
     width: 100%;
@@ -1136,6 +1137,14 @@ body {
     align-items: center;
     gap: 0.5rem;
     min-width: 220px;
+}
+
+.filter-group-horizontal.filter-fixed {
+    flex: 0 0 220px;
+}
+
+.filter-group-horizontal.filter-fixed .filter-select {
+    width: 100%;
 }
 .filter-select {
     padding: 0.6rem 2.2rem 0.6rem 0.8rem;

@@ -209,6 +209,60 @@
 </head>
 <body>
   @include('components.navbarprof')
+  @php
+  $termOptions = $termOptions ?? collect();
+  $activeTermId = optional($activeTerm)->id;
+  $mapTermMeta = function ($term) {
+    $year = $term->academicYear;
+    $yearLabel = $year->label ?? null;
+    $syStart = null;
+    $syEnd = null;
+    if (is_string($yearLabel) && preg_match('/(\d{4})\s*-\s*(\d{4})/', $yearLabel, $matches)) {
+      $syStart = $matches[1];
+      $syEnd = $matches[2];
+    } else {
+      $startAt = $term->academicYear?->start_at;
+      $endAt = $term->academicYear?->end_at;
+      if ($startAt instanceof \Carbon\CarbonInterface) {
+        $syStart = $startAt->format('Y');
+      }
+      if ($endAt instanceof \Carbon\CarbonInterface) {
+        $syEnd = $endAt->format('Y');
+      }
+    }
+    $sequence = (int) ($term->sequence ?? 0);
+
+    $shortLabel = match ($sequence) {
+      1 => '1st Sem',
+      2 => '2nd Sem',
+      3 => 'Midyear Term',
+      default => $term->name ?? 'Term',
+    };
+
+    $semesterLabel = match ($sequence) {
+      1 => 'First Semester',
+      2 => 'Second Semester',
+      3 => 'Midyear Term',
+      default => $term->name ?? 'Term',
+    };
+
+    $label = trim(($shortLabel ?: 'Term') . ($yearLabel ? ' ' . $yearLabel : ''));
+
+    return [
+      'id' => $term->id,
+      'label' => $label,
+      'status' => $term->status,
+      'name' => $term->name,
+      'sequence' => $sequence,
+      'semester_label' => $semesterLabel,
+      'year_label' => $yearLabel,
+      'sy_start' => $syStart,
+      'sy_end' => $syEnd,
+    ];
+  };
+  $termList = $termOptions->map($mapTermMeta)->values();
+  $activeTermMeta = $activeTerm ? $mapTermMeta($activeTerm) : null;
+  @endphp
   <!-- Custom Modal HTML for Professor Message Handling -->
   <div class="custom-modal" id="professorModal">
     <div class="custom-modal-content">
@@ -254,7 +308,21 @@
       <button type="button" class="filters-btn" id="openFiltersBtn" aria-label="Open filters" title="Filters">
         <i class='bx bx-slider-alt'></i>
       </button>
-      <div class="filter-group-horizontal">
+      <div class="filter-group-horizontal filter-fixed">
+        @php
+          $bookingsFiltered = collect($bookings ?? [])->values();
+          // Align subject filter with the consultation type labels shown in the table
+          $subjects = collect($bookingsFiltered ?? [])->pluck('type')->filter(fn($s)=>filled($s))
+                       ->map(fn($s)=>trim($s))->unique()->sort()->values();
+        @endphp
+        <select id="subjectFilter" class="filter-select" aria-label="Subject filter">
+          <option value="">All Subjects</option>
+          @foreach($subjects as $s)
+            <option value="{{ $s }}">{{ $s }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div class="filter-group-horizontal filter-fixed">
         <select id="typeFilter" class="filter-select" aria-label="Type filter">
           <option value="">All Types</option>
           @php
@@ -272,17 +340,11 @@
           <option value="Others">Others</option>
         </select>
       </div>
-      <div class="filter-group-horizontal">
-        @php
-          $bookingsFiltered = collect($bookings ?? [])->values();
-          // Align subject filter with the consultation type labels shown in the table
-          $subjects = collect($bookingsFiltered ?? [])->pluck('type')->filter(fn($s)=>filled($s))
-                       ->map(fn($s)=>trim($s))->unique()->sort()->values();
-        @endphp
-        <select id="subjectFilter" class="filter-select" aria-label="Subject filter">
-          <option value="">All Subjects</option>
-          @foreach($subjects as $s)
-            <option value="{{ $s }}">{{ $s }}</option>
+      <div class="filter-group-horizontal filter-fixed">
+        <select id="termFilter" class="filter-select" aria-label="Term filter">
+          <option value="all">All Terms</option>
+          @foreach($termList as $term)
+            <option value="{{ $term['id'] }}" @if($activeTermId === $term['id']) selected @endif>{{ $term['label'] }}</option>
           @endforeach
         </select>
       </div>
@@ -347,6 +409,7 @@
     data-type="{{ strtolower($b->type) }}"
     data-mode="{{ strtolower($b->Mode) }}"
     data-status="{{ $statusLower }}"
+    data-term-id="{{ $b->term_id ?? '' }}"
     data-completion-reason="{{ e($completionReason) }}"
     data-completion-requested="{{ $completionRequestedAt }}"
     data-completion-reviewed="{{ $completionReviewedAt }}"
@@ -629,6 +692,13 @@
     </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/pikaday/pikaday.js"></script>
+  <script>
+    window.profTermContext = {
+      activeTermId: @json($activeTermId),
+      activeTerm: @json($activeTermMeta),
+      terms: @json($termList),
+    };
+  </script>
   <script>
     let currentBookingId = null;
     let currentRescheduleButton = null;
@@ -1485,7 +1555,68 @@ document.addEventListener('DOMContentLoaded',()=>{
   const completionCancel=document.getElementById('completionRemarksCancel');
   completionSave?.addEventListener('click', submitCompletionRequest);
   completionCancel?.addEventListener('click', closeCompletionRemarks);
+  initTermFilter();
 });
+
+function initTermFilter(){
+  const ctx = window.profTermContext || {};
+  const select = document.getElementById('termFilter');
+  if(!select){ return; }
+
+  const rows = Array.from(document.querySelectorAll('.table-row[data-term-id]')); // exclude header via attribute absence
+  const actionButtons = Array.from(document.querySelectorAll('.action-btn'));
+  actionButtons.forEach(btn => {
+    if(!btn.dataset.originalDisabled){ btn.dataset.originalDisabled = btn.disabled ? '1' : '0'; }
+    if(!btn.dataset.originalMuted){ btn.dataset.originalMuted = btn.classList.contains('btn-muted') ? '1' : '0'; }
+  });
+
+  const setReadOnly = (readOnly) => {
+    actionButtons.forEach(btn => {
+      const wasDisabled = btn.dataset.originalDisabled === '1';
+      const wasMuted = btn.dataset.originalMuted === '1';
+      if(readOnly){
+        btn.setAttribute('disabled', 'disabled');
+        btn.classList.add('btn-muted');
+      }else{
+        if(wasDisabled){
+          btn.setAttribute('disabled', 'disabled');
+        }else{
+          btn.removeAttribute('disabled');
+        }
+        if(!wasMuted){ btn.classList.remove('btn-muted'); }
+      }
+    });
+  };
+
+  const applyFilter = (termId) => {
+    const activeId = ctx.activeTermId ? String(ctx.activeTermId) : null;
+    const normalized = termId ? String(termId) : (activeId || 'all');
+
+    rows.forEach(row => {
+      const rowTerm = row.dataset.termId ? String(row.dataset.termId) : '';
+      let visible = false;
+      if(normalized === 'all'){
+        visible = true;
+      }else if(normalized === 'unassigned'){
+        visible = !rowTerm;
+      }else{
+        visible = rowTerm === normalized;
+      }
+      row.style.display = visible ? '' : 'none';
+    });
+
+    const readOnly = normalized === 'all' || (activeId && normalized !== activeId);
+    setReadOnly(readOnly);
+  };
+
+  select.addEventListener('change', () => {
+    const value = select.value || (ctx.activeTermId ? String(ctx.activeTermId) : 'all');
+    applyFilter(value);
+  });
+
+  const initialValue = select.value || (ctx.activeTermId ? String(ctx.activeTermId) : 'all');
+  applyFilter(initialValue);
+}
 
 function profGetRows(){
   return Array.from(document.querySelectorAll('.table .table-row'))
@@ -2382,6 +2513,41 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
       }
     }
 
+    function resolveTermMetaForPrint() {
+      const ctx = window.profTermContext || {};
+      const select = document.getElementById('termFilter');
+      const rawSelection = select ? String(select.value || '') : '';
+      const explicitUnassigned = rawSelection === 'unassigned';
+      let normalized = rawSelection;
+
+      if (!normalized || normalized === 'all') {
+        normalized = ctx.activeTermId ? String(ctx.activeTermId) : '';
+      } else if (explicitUnassigned) {
+        normalized = '';
+      }
+
+      if (explicitUnassigned) {
+        return null;
+      }
+
+      const terms = Array.isArray(ctx.terms) ? ctx.terms : [];
+      const findById = (id) => terms.find((term) => String(term.id) === String(id));
+
+      if (normalized) {
+        const match = findById(normalized);
+        if (match) {
+          return match;
+        }
+      }
+
+      if (ctx.activeTerm && ctx.activeTerm.id) {
+        const activeMatch = findById(ctx.activeTerm.id);
+        return activeMatch || ctx.activeTerm;
+      }
+
+      return null;
+    }
+
     // PDF DOWNLOAD FEATURE
     let __pdfPreviewState = { blob: null, url: null, defaultName: '' };
 
@@ -2439,6 +2605,14 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           remarks: d.remarks
         }));
         
+        const termMeta = resolveTermMetaForPrint();
+        const metaPayload = {
+          semester: termMeta?.semester_label || termMeta?.name || termMeta?.label || '',
+          sy_start: termMeta?.sy_start || termMeta?.syStart || '',
+          sy_end: termMeta?.sy_end || termMeta?.syEnd || '',
+          term: termMeta?.term_stage || termMeta?.termStage || '',
+        };
+
         // Generate the PDF on the server
     const res = await fetch("{{ route('conlog-professor.pdf') }}", {
           method: 'POST',
@@ -2446,7 +2620,7 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
             'Content-Type': 'application/json',
             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
           },
-          body: JSON.stringify({ logs: payload })
+          body: JSON.stringify(Object.assign({ logs: payload }, metaPayload))
         });
         if(!res.ok) throw new Error('Failed to generate PDF');
         const blob = await res.blob();

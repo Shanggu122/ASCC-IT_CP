@@ -65,7 +65,27 @@
     </style>
     @php
         // Header meta
-        $semester = $semester ?? '';
+        $semesterRaw = (string) ($semester ?? '');
+        $semester = '';
+        if (trim($semesterRaw) !== '') {
+            $normalized = strtolower($semesterRaw);
+            if (str_contains($normalized, 'first')) {
+                $semester = '1st';
+            } elseif (str_contains($normalized, 'second')) {
+                $semester = '2nd';
+            } elseif (str_contains($normalized, 'mid')) {
+                $semester = 'Midyear';
+            } else {
+                $cleaned = trim($semesterRaw);
+                $normalizedTrim = rtrim($normalized);
+                if (substr($normalizedTrim, -8) === 'semester') {
+                    $cleaned = trim(substr($cleaned, 0, -strlen('semester')));
+                } elseif (substr($normalizedTrim, -4) === 'term') {
+                    $cleaned = trim(substr($cleaned, 0, -strlen('term')));
+                }
+                $semester = $cleaned !== '' ? $cleaned : trim($semesterRaw);
+            }
+        }
         $syStart = $syStart ?? '';
         $syEnd = $syEnd ?? '';
         $term = strtolower($term ?? '');
