@@ -14,7 +14,9 @@ use App\Http\Controllers\ProfVideoCallController;
 use App\Http\Controllers\AuthControllerProfessor;
 use App\Http\Controllers\ConsultationLogControllerProfessor;
 use App\Http\Controllers\ConsultationBookingControllerProfessor;
+use App\Http\Controllers\AdminAcademicTermController;
 use App\Http\Controllers\AdminAnalyticsController;
+use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\LandingController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\itisController;
@@ -1517,6 +1519,29 @@ Route::middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class])->group
     ])->name("admin.subjects.destroy");
 });
 
+Route::middleware([\App\Http\Middleware\EnsureAdminAuthenticated::class])
+    ->prefix("admin")
+    ->name("admin.")
+    ->group(function () {
+        Route::get("/academic-terms", [AdminAcademicTermController::class, "index"])->name(
+            "terms.index",
+        );
+        Route::post("/academic-years", [AdminAcademicTermController::class, "store"])->name(
+            "academic-years.store",
+        );
+        Route::post("/academic-years/{academicYear}/terms", [
+            AdminAcademicTermController::class,
+            "storeTerm",
+        ])->name("terms.store");
+        Route::put("/terms/{term}", [AdminAcademicTermController::class, "update"])->name(
+            "terms.update",
+        );
+        Route::post("/terms/{term}/activate", [
+            AdminAcademicTermController::class,
+            "activate",
+        ])->name("terms.activate");
+    });
+
 Route::post("/admin-itis/assign-subjects", [
     ConsultationBookingController::class,
     "assignSubjects",
@@ -1715,9 +1740,7 @@ Route::get("/debug/notifications", function () {
     ]);
 });
 
-Route::get("/admin/dashboard", function () {
-    return view("admin-dashboard");
-})
+Route::get("/admin/dashboard", AdminDashboardController::class)
     ->name("admin.dashboard")
     ->middleware([
         \App\Http\Middleware\EnsureAdminAuthenticated::class,
