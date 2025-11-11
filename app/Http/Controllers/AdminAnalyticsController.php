@@ -28,6 +28,7 @@ class AdminAnalyticsController extends Controller
             ->select([
                 'b.Booking_ID',
                 'b.Booking_Date',
+                'b.completion_reviewed_at',
                 'b.Status',
                 DB::raw("COALESCE(b.Custom_Type, ct.Consult_Type) as Type"),
                 'p.Dept_ID',
@@ -38,14 +39,22 @@ class AdminAnalyticsController extends Controller
             ->get();
 
         $bookings = $bookings->filter(function ($booking) use ($startDate, $endDate) {
-            $parsed = $this->parseBookingDate($booking->Booking_Date);
+            $sourceDate = $booking->completion_reviewed_at ?? $booking->Booking_Date;
+            $parsed = $this->parseBookingDate($sourceDate);
             if (!$parsed) {
                 return false;
             }
 
             $booking->parsed_date = $parsed;
+            $booking->effective_date_source = $sourceDate;
             return $parsed->betweenIncluded($startDate, $endDate);
-        })->values();
+        })
+        ->map(function ($booking) {
+            // Ensure department comparisons work even if the DB column stores descriptive strings
+            $booking->Dept_ID = $this->normalizeDeptId($booking->Dept_ID);
+            return $booking;
+        })
+        ->values();
 
         if ($bookings->isEmpty()) {
             return response()->json([
@@ -265,5 +274,53 @@ class AdminAnalyticsController extends Controller
         } catch (\Exception $e) {
             return null;
         }
+    }
+
+    private function normalizeDeptId($dept): ?int
+    {
+        if (is_null($dept)) {
+            return null;
+        }
+
+        if (is_numeric($dept)) {
+            $asInt = (int) $dept;
+            return $asInt > 0 ? $asInt : null;
+        }
+
+        $normalized = strtoupper(trim((string) $dept));
+        $identifier = preg_replace('/[^A-Z]/', '', $normalized);
+
+        if ($identifier === '') {
+            return null;
+        }
+
+        $itisTags = ['IT', 'ITIS', 'INFORMATIONTECHNOLOGY'];
+        $comSciTags = ['CS', 'COMSCI', 'COMPUTERSCIENCE'];
+
+        if (in_array($identifier, $itisTags, true)) {
+            return 1;
+        }
+
+        if (in_array($identifier, $comSciTags, true)) {
+            return 2;
+        }
+
+        if (
+            substr($identifier, 0, 2) === 'IT' ||
+            str_contains($identifier, 'ITIS') ||
+            str_contains($identifier, 'INFORMATIONTECH')
+        ) {
+            return 1;
+        }
+
+        if (
+            substr($identifier, 0, 2) === 'CS' ||
+            str_contains($identifier, 'COMSCI') ||
+            str_contains($identifier, 'COMPUTERSCIENCE')
+        ) {
+            return 2;
+        }
+
+        return null;
     }
 }
