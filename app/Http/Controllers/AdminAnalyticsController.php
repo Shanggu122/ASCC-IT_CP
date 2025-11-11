@@ -5,209 +5,265 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 
 class AdminAnalyticsController extends Controller
 {
     private const TZ = 'Asia/Manila';
-    /**
-     * Show analytics page.
-     */
+
     public function index()
     {
         return view('admin-analytics');
     }
 
-    /**
-     * Return aggregated analytics data for charts.
-     */
     public function data(Request $request)
     {
-        // Fetch all bookings with needed joins.
+        [$startDate, $endDate] = $this->resolveDateRange($request);
+        $months = $this->generateMonthLabels($startDate, $endDate);
+
         $bookings = DB::table('t_consultation_bookings as b')
             ->join('professors as p', 'p.Prof_ID', '=', 'b.Prof_ID')
-            ->join('t_consultation_types as ct', 'ct.Consult_type_ID', '=', 'b.Consult_type_ID')
+            ->join('t_student as s', 's.Stud_ID', '=', 'b.Stud_ID')
+            ->leftJoin('t_consultation_types as ct', 'ct.Consult_type_ID', '=', 'b.Consult_type_ID')
             ->select([
                 'b.Booking_ID',
                 'b.Booking_Date',
+                'b.Status',
                 DB::raw("COALESCE(b.Custom_Type, ct.Consult_Type) as Type"),
-                'p.Dept_ID'
+                'p.Dept_ID',
+                'p.Name as Professor_Name',
+                's.Name as Student_Name'
             ])
-            // Only include consultations that are fully completed. Exclude pending/approved/rescheduled.
-            ->where('b.Status', 'completed')
+            ->whereRaw('LOWER(b.Status) = ?', ['completed'])
             ->get();
 
-        // If no bookings, return zeroed structure.
+        $bookings = $bookings->filter(function ($booking) use ($startDate, $endDate) {
+            $parsed = $this->parseBookingDate($booking->Booking_Date);
+            if (!$parsed) {
+                return false;
+            }
+
+            $booking->parsed_date = $parsed;
+            return $parsed->betweenIncluded($startDate, $endDate);
+        })->values();
+
         if ($bookings->isEmpty()) {
-            return response()->json($this->emptyPayload());
+            return response()->json([
+                'itis' => $this->getEmptyDepartmentData($months),
+                'comsci' => $this->getEmptyDepartmentData($months),
+            ]);
         }
 
-        // Department mapping (adjust if different in DB)
-        $deptMap = [
-            1 => 'IT & IS',
-            2 => 'CompSci'
-        ];
+        $itisBookings = $bookings->where('Dept_ID', 1);
+        $comSciBookings = $bookings->where('Dept_ID', 2);
 
-        // --- Aggregate Topics per Department (stacked bar) ---
-        $topicCounts = [];
-        foreach ($bookings as $b) {
-            $dept = $deptMap[$b->Dept_ID] ?? 'Other';
-            $topic = $b->Type ?: 'Unknown';
-            $topicCounts[$dept][$topic] = ($topicCounts[$dept][$topic] ?? 0) + 1;
-        }
+        return response()->json([
+            'itis' => $this->processDepartmentData($itisBookings, $months),
+            'comsci' => $this->processDepartmentData($comSciBookings, $months),
+        ]);
+    }
 
-        // Determine top 3 topics overall (fallback to fixed list if fewer)
-        $overallTopicCounts = [];
-        foreach ($topicCounts as $dept => $topics) {
-            foreach ($topics as $t => $c) {
-                $overallTopicCounts[$t] = ($overallTopicCounts[$t] ?? 0) + $c;
-            }
-        }
-        arsort($overallTopicCounts);
-        $topTopics = array_slice(array_keys($overallTopicCounts), 0, 3);
-        // If less than 3, pad with placeholders
-        while (count($topTopics) < 3) {
-            $topTopics[] = 'Topic '.(count($topTopics)+1);
-        }
-
-        // Build per-dept topic data ensuring zero fill
-        $departments = array_values(array_unique(array_map(function($d){return $d;}, array_keys($topicCounts))));
-        sort($departments);
-        $topicsByDept = [];
-        foreach ($departments as $dept) {
-            foreach ($topTopics as $topic) {
-                $topicsByDept[$dept][$topic] = $topicCounts[$dept][$topic] ?? 0;
-            }
-        }
-
-    // Pre-init weekday counts (Mon-Fri only) using ISO weekday numbers to avoid locale name issues.
-    $dayCounts = ['Monday'=>0,'Tuesday'=>0,'Wednesday'=>0,'Thursday'=>0,'Friday'=>0];
-    $weekendCounts = ['Saturday'=>0,'Sunday'=>0];
-    $isoToName = [1=>'Monday',2=>'Tuesday',3=>'Wednesday',4=>'Thursday',5=>'Friday',6=>'Saturday',7=>'Sunday'];
-
-        // --- Monthly Consultation Activity (line chart) ---
-        $monthOrder = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        // Determine range (current year) or from earliest booking year if different
-        $monthsUsed = [];
-        $monthlyCounts = [];
-    $debugRaw = [];
-    foreach ($bookings as $b) {
-            // Booking_Date stored like 'Mon Aug 26 2025'
-            $carbon = $this->parseBookingDate($b->Booking_Date);
-            if (!$carbon) continue;
-            $monthLabel = $carbon->format('M');
-            $dept = $deptMap[$b->Dept_ID] ?? 'Other';
-            $monthlyCounts[$dept][$monthLabel] = ($monthlyCounts[$dept][$monthLabel] ?? 0) + 1;
-            $monthsUsed[$monthLabel] = true;
-
-            // Weekday counts (locale-agnostic)
-            $dow = $carbon->dayOfWeekIso; // 1=Mon ... 7=Sun
-            if ($dow >=1 && $dow <=5) {
-                $dayCounts[$isoToName[$dow]]++;
-            } elseif ($dow == 6 || $dow == 7) {
-                $weekendCounts[$isoToName[$dow]]++;
-            }
-
-            if ($request->boolean('include_raw')) {
-                $debugRaw[] = [
-                    'booking_date_raw' => $b->Booking_Date,
-                    'parsed_weekday_iso' => $dow,
-                    'parsed_weekday_name' => $dow >=1 && $dow <=5 ? $isoToName[$dow] : $carbon->format('l'),
-                    'dept' => $dept,
-                    'parsed_date' => $carbon->toDateString(),
-                ];
-            }
-        }
-        // Use only months that appear OR last 6 months if prefer; here we order by monthOrder filter to those used
-        $months = array_values(array_filter($monthOrder, fn($m)=>isset($monthsUsed[$m])));
+    private function getEmptyDepartmentData(array $months): array
+    {
         if (empty($months)) {
-            $months = array_slice($monthOrder, 0, 5); // default first five months
-        }
-        $activitySeries = [];
-        foreach ($departments as $dept) {
-            $activitySeries[$dept] = [];
-            foreach ($months as $m) {
-                $activitySeries[$dept][] = $monthlyCounts[$dept][$m] ?? 0;
-            }
+            $months = [Carbon::now(self::TZ)->format('M Y')];
         }
 
-    // Peak consultation days already built in $dayCounts
-
-        $payload = [
+        return [
+            'totalConsultations' => 0,
+            'activeProfessors' => 0,
+            'activeStudents' => 0,
             'topics' => [
-                'departments' => $departments,
-                'topics' => $topTopics,
-                'data' => $topicsByDept,
+                'topics' => [],
+                'professors' => [],
+                'data' => []
             ],
             'activity' => [
                 'months' => $months,
-                'series' => $activitySeries,
+                'series' => [[
+                    'name' => 'Consultations',
+                    'data' => array_fill(0, count($months), 0)
+                ]]
             ],
-            'peak_days' => $dayCounts,
-            'weekend_days' => $weekendCounts,
-            'debug' => $request->boolean('include_raw') ? $debugRaw : null,
-            'server_time' => [
-                'manila_now' => Carbon::now(self::TZ)->format('Y-m-d H:i:s'),
-                'utc_now' => Carbon::now('UTC')->format('Y-m-d H:i:s'),
-            ],
+            'peak_days' => [],
+            'weekend_days' => []
+        ];
+    }
+
+    private function processDepartmentData($bookings, array $months): array
+    {
+        if ($bookings->isEmpty()) {
+            return $this->getEmptyDepartmentData($months);
+        }
+
+    $totalConsultations = $bookings->count();
+    $activeProfessors = $bookings->unique('Professor_Name')->count();
+    $activeStudents = $bookings->unique('Student_Name')->count();
+
+        $topicsData = $this->processTopicsData($bookings);
+        $activityData = $this->processActivityData($bookings, $months);
+        $peakDaysData = $this->processPeakDaysData($bookings);
+
+        return [
+            'totalConsultations' => $totalConsultations,
+            'activeProfessors' => $activeProfessors,
+            'activeStudents' => $activeStudents,
+            'topics' => $topicsData,
+            'activity' => $activityData,
+            'peak_days' => $peakDaysData['weekdays'],
+            'weekend_days' => $peakDaysData['weekend']
+        ];
+    }
+
+    private function processTopicsData($bookings): array
+    {
+        // Group bookings by professor first
+        $bookingsByProf = $bookings->groupBy('Professor_Name');
+        $professors = $bookingsByProf->keys()->values();
+        
+        // Get unique topics and initialize counters
+        $topics = $bookings->pluck('Type')->unique()->values();
+        $topicsByProf = [];
+        
+        // Process each professor's bookings
+        foreach ($bookingsByProf as $profName => $profBookings) {
+            foreach ($profBookings->groupBy('Type') as $topic => $topicBookings) {
+                $topicsByProf[$topic][$profName] = $topicBookings->count();
+            }
+        }
+
+        // Format data for chart
+        $data = [];
+        foreach ($topics as $topic) {
+            $data[$topic] = [];
+            foreach ($professors as $prof) {
+                $data[$topic][] = $topicsByProf[$topic][$prof] ?? 0;
+            }
+        }
+
+        return [
+            'topics' => $topics,
+            'professors' => $professors,
+            'data' => $data
+        ];
+    }
+
+    private function processActivityData($bookings, array $months): array
+    {
+        // Initialize monthly data with zeros
+        $monthlyData = array_fill_keys($months, 0);
+
+        // Group bookings by month
+        $bookingsByMonth = $bookings->groupBy(function ($booking) {
+            return ($booking->parsed_date ?? $this->parseBookingDate($booking->Booking_Date))?->format('M Y');
+        })->filter(function ($group, $key) {
+            return !is_null($key);
+        });
+
+        // Count bookings for each month
+        foreach ($bookingsByMonth as $month => $monthBookings) {
+            if (isset($monthlyData[$month])) {
+                $monthlyData[$month] = $monthBookings->count();
+            }
+        }
+
+        return [
+            'months' => $months,
+            'series' => [[
+                'name' => 'Consultations',
+                'data' => array_values($monthlyData)
+            ]]
+        ];
+    }
+
+    private function processPeakDaysData($bookings): array
+    {
+        $allDays = [
+            'Monday' => 0, 'Tuesday' => 0, 'Wednesday' => 0, 
+            'Thursday' => 0, 'Friday' => 0, 'Saturday' => 0, 'Sunday' => 0
         ];
 
-        return response()->json($payload);
+        // Group bookings by day of week
+        $bookingsByDay = $bookings->groupBy(function ($booking) {
+            return ($booking->parsed_date ?? $this->parseBookingDate($booking->Booking_Date))?->format('l');
+        })->filter(function ($group, $key) {
+            return !is_null($key);
+        });
+
+        // Count bookings for each day
+        foreach ($bookingsByDay as $day => $dayBookings) {
+            if (isset($allDays[$day])) {
+                $allDays[$day] = $dayBookings->count();
+            }
+        }
+
+        // Split into weekdays and weekend
+        $weekdays = array_filter(array_intersect_key($allDays, array_flip(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])));
+        $weekend = array_filter(array_intersect_key($allDays, array_flip(['Saturday', 'Sunday'])));
+
+        return [
+            'weekdays' => $weekdays,
+            'weekend' => $weekend
+        ];
+    }
+
+    private function resolveDateRange(Request $request): array
+    {
+        $tz = self::TZ;
+
+        try {
+            $end = $request->filled('end_date')
+                ? Carbon::parse($request->input('end_date'), $tz)->endOfDay()
+                : Carbon::now($tz)->endOfDay();
+        } catch (\Exception $e) {
+            $end = Carbon::now($tz)->endOfDay();
+        }
+
+        try {
+            $start = $request->filled('start_date')
+                ? Carbon::parse($request->input('start_date'), $tz)->startOfDay()
+                : $end->copy()->subMonths(5)->startOfMonth();
+        } catch (\Exception $e) {
+            $start = $end->copy()->subMonths(5)->startOfMonth();
+        }
+
+        if ($start->greaterThan($end)) {
+            $start = $end->copy()->startOfDay();
+        }
+
+        return [$start, $end];
+    }
+
+    private function generateMonthLabels(Carbon $start, Carbon $end): array
+    {
+        $period = CarbonPeriod::create(
+            $start->copy()->startOfMonth(),
+            '1 month',
+            $end->copy()->startOfMonth()
+        );
+
+        $labels = [];
+        foreach ($period as $month) {
+            $labels[] = $month->format('M Y');
+        }
+
+        if (empty($labels)) {
+            $labels[] = $start->format('M Y');
+        }
+
+        return $labels;
     }
 
     private function parseBookingDate($dateString): ?Carbon
     {
-        if (!$dateString) return null;
-        $clean = trim(preg_replace('/\s+/', ' ', str_replace([','], '', $dateString)));
+        if (!$dateString) {
+            return null;
+        }
 
-        // 1. Direct pattern with weekday at start e.g. Fri Aug 29 2025 ...
-        if (preg_match('/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})/i', $clean, $m)) {
-            return $this->buildCarbon($m[2], $m[3], $m[4]);
-        }
-        // 2. Any Month Day Year sequence anywhere in the string
-        if (preg_match('/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})/i', $clean, $m2)) {
-            return $this->buildCarbon($m2[1], $m2[2], $m2[3]);
-        }
-        // 3. ISO / SQL date formats YYYY-MM-DD or with time
-        if (preg_match('/(\d{4})-(\d{2})-(\d{2})/', $clean, $m3)) {
-            try { return Carbon::createFromDate((int)$m3[1], (int)$m3[2], (int)$m3[3], self::TZ)->startOfDay(); } catch (\Exception $e) {}
-        }
-        // 4. Fallback generic parse
-        try { return Carbon::parse($clean, self::TZ)->startOfDay(); } catch (\Exception $e) { return null; }
-    }
-
-    private function buildCarbon(string $monTxt, string $dayTxt, string $yearTxt): ?Carbon
-    {
-        $monthMap = [
-            'Jan'=>1,'Feb'=>2,'Mar'=>3,'Apr'=>4,'May'=>5,'Jun'=>6,
-            'Jul'=>7,'Aug'=>8,'Sep'=>9,'Oct'=>10,'Nov'=>11,'Dec'=>12
-        ];
-        $monKey = ucfirst(strtolower(substr($monTxt,0,3))); // normalize e.g. AUG -> Aug
-        if (!isset($monthMap[$monKey])) return null;
-        if (!ctype_digit($dayTxt) || !ctype_digit($yearTxt)) return null;
         try {
-            return Carbon::createFromDate((int)$yearTxt, $monthMap[$monKey], (int)$dayTxt, self::TZ)->startOfDay();
-        } catch (\Exception $e) { return null; }
-    }
-
-    private function emptyPayload(): array
-    {
-        return [
-            'topics' => [
-                'departments' => ['IT & IS','CompSci'],
-                'topics' => ['Programming','Networking','Capstone'],
-                'data' => [
-                    'IT & IS' => ['Programming'=>0,'Networking'=>0,'Capstone'=>0],
-                    'CompSci' => ['Programming'=>0,'Networking'=>0,'Capstone'=>0],
-                ],
-            ],
-            'activity' => [
-                'months' => ['Jan','Feb','Mar','Apr','May'],
-                'series' => [
-                    'IT & IS' => [0,0,0,0,0],
-                    'CompSci' => [0,0,0,0,0]
-                ],
-            ],
-            'peak_days' => ['Monday'=>0,'Tuesday'=>0,'Wednesday'=>0,'Thursday'=>0,'Friday'=>0],
-        ];
+            return Carbon::parse($dateString, self::TZ);
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 }
