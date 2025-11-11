@@ -1349,12 +1349,18 @@ function closeProfessorModal() {
     ];
 
     // Basic front-end sanitizer to reduce junk / obvious attempt strings
-    function sanitize(input){
+    function sanitize(input, options){
       if(!input) return '';
+      const opts = options || {};
       let cleaned = input.replace(/\/\*.*?\*\//g,''); // remove /* */ comments
       cleaned = cleaned.replace(/--/g,' '); // collapse double dashes
       cleaned = cleaned.replace(/[;`'"<>]/g,' '); // strip risky punctuation
-      cleaned = cleaned.replace(/\s+/g,' ').trim(); // normalize whitespace
+      if(opts.preserveSpacing){
+        cleaned = cleaned.replace(/[\r\n\t\f\v]+/g,' '); // flatten control whitespace
+        cleaned = cleaned.replace(/\u00A0/g,' '); // normalize nbsp
+      }else{
+        cleaned = cleaned.replace(/\s+/g,' ').trim(); // normalize whitespace
+      }
       return cleaned.slice(0,250); // enforce hard limit
     }
 
@@ -1514,8 +1520,15 @@ function closeProfessorModal() {
       if(!chatForm || !chatInput) return;
       chatInput.addEventListener('input', () => {
         const raw = chatInput.value;
-        const cleaned = sanitize(raw);
-        if(cleaned !== raw) chatInput.value = cleaned;
+        const hadTrailingSpace = /\s$/.test(raw);
+        const cleaned = sanitize(raw, { preserveSpacing: true });
+        const lostTrailing = hadTrailingSpace && !cleaned.endsWith(' ');
+        const normalized = lostTrailing ? `${cleaned} ` : cleaned;
+        if(normalized !== raw){
+          const cursor = normalized.length;
+          chatInput.value = normalized;
+          try{ chatInput.setSelectionRange(cursor, cursor); }catch(_){ /* ignore unsupported */ }
+        }
       });
       function sendQuick(text){ if(!text) return; chatInput.value = text; chatForm.dispatchEvent(new Event('submit')); }
       quickReplies?.addEventListener('click',(e)=>{ const btn=e.target.closest('.quick-reply'); if(btn){ sendQuick(btn.dataset.message); } });
@@ -1523,9 +1536,9 @@ function closeProfessorModal() {
       chatForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const raw = chatInput.value;
-        const cleaned = sanitize(raw);
-        if(!cleaned){ chatInput.value=''; chatInput.focus(); return; }
-        chatInput.value = cleaned;
+  const cleaned = sanitize(raw, { preserveSpacing: true });
+  if(!cleaned.trim()){ chatInput.value=''; chatInput.focus(); return; }
+  chatInput.value = cleaned;
 
         if(quickReplies && quickReplies.style.display !== 'none'){
           quickReplies.style.display = 'none';
@@ -1533,11 +1546,12 @@ function closeProfessorModal() {
         }
 
         // Show user bubble
-        if(chatBody){ const um = document.createElement('div'); um.classList.add('message','user'); um.innerText = cleaned; chatBody.appendChild(um); chatBody.scrollTop = chatBody.scrollHeight; }
+  const displayMessage = cleaned.trimEnd();
+  if(chatBody){ const um = document.createElement('div'); um.classList.add('message','user'); um.innerText = displayMessage; chatBody.appendChild(um); chatBody.scrollTop = chatBody.scrollHeight; }
         chatInput.value = '';
 
         try{
-          const res = await fetch('/chat', { method:'POST', credentials:'same-origin', headers:{ 'Accept':'application/json','Content-Type':'application/json','X-CSRF-TOKEN':csrfToken }, body: JSON.stringify({ message: cleaned }) });
+          const res = await fetch('/chat', { method:'POST', credentials:'same-origin', headers:{ 'Accept':'application/json','Content-Type':'application/json','X-CSRF-TOKEN':csrfToken }, body: JSON.stringify({ message: displayMessage }) });
           let reply = 'Server error.';
           if(res.ok){ const data = await res.json(); reply = data.reply || reply; } else { try{ const err = await res.json(); reply = err.message || reply; }catch(_){} }
           if(chatBody){ const bm = document.createElement('div'); bm.classList.add('message','bot'); bm.innerText = reply; chatBody.appendChild(bm); chatBody.scrollTop = chatBody.scrollHeight; }
