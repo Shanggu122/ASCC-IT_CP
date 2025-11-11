@@ -19,23 +19,7 @@
           <h1>Consultation Analytics Dashboard</h1>
         </div>
 
-        <div class="filters">
-          <div class="filter-group">
-            <label for="start-date">Start Date:</label>
-            <input type="date" id="start-date" placeholder="Select start date">
-          </div>
-          <div class="filter-group">
-            <label for="end-date">End Date:</label>
-            <input type="date" id="end-date" placeholder="Select end date">
-          </div>
-          <div class="filter-actions">
-            <button type="button" class="apply-btn" id="apply-range">
-              <i class='bx bx-filter-alt'></i> Apply Filters
-            </button>
-            <button type="button" class="reset-btn" id="reset-range">
-              <i class='bx bx-reset'></i> Reset
-          </div>
-        </div>
+        <!-- Date filters removed per latest requirement -->
       </div>
 
       <div class="department-tabs">
@@ -120,9 +104,7 @@
 
     // Constants
     const REFRESH_MS = 15000; // 15s polling interval
-    const dateFilters = { start: null, end: null };
-    let startInput;
-    let endInput;
+
 
     // Chart state management
     const charts = {
@@ -346,12 +328,10 @@
       log('Loading analytics...');
 
       try {
-        const params = new URLSearchParams();
-        if (dateFilters.start) params.append('start_date', dateFilters.start);
-        if (dateFilters.end) params.append('end_date', dateFilters.end);
-        params.append('_', Date.now().toString());
+  const params = new URLSearchParams();
+  params.append('_', Date.now().toString());
 
-        const response = await fetch('/api/admin/analytics?' + params.toString());
+  const response = await fetch('/api/admin/analytics?' + params.toString());
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -413,31 +393,6 @@
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       log('Initializing analytics...');
-      startInput = document.getElementById('start-date');
-      endInput = document.getElementById('end-date');
-
-      // Set up date filters
-      if (startInput && endInput) {
-        setDefaultDateRange();
-
-        const applyBtn = document.getElementById('apply-range');
-        const resetBtn = document.getElementById('reset-range');
-
-        if (applyBtn) {
-          applyBtn.addEventListener('click', () => {
-            applyDateRange(startInput.value, endInput.value);
-          });
-        }
-
-        if (resetBtn) {
-          resetBtn.addEventListener('click', () => {
-            setDefaultDateRange();
-            charts.lastHash = null;
-            loadAnalytics(true);
-          });
-        }
-      }
-
       // Add resize handler with debounce
       let resizeTimeout;
       window.addEventListener('resize', () => {
