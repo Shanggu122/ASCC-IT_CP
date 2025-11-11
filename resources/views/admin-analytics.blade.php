@@ -367,8 +367,6 @@
             <button type="button" class="apply-btn" id="apply-range">
               <i class='bx bx-filter-alt'></i> Apply Filters
             </button>
-            <button type="button" class="reset-btn" id="reset-range">
-              <i class='bx bx-reset'></i> Reset
           </div>
         </div>
       </div>
@@ -786,19 +784,10 @@
         setDefaultDateRange();
 
         const applyBtn = document.getElementById('apply-range');
-        const resetBtn = document.getElementById('reset-range');
 
         if (applyBtn) {
           applyBtn.addEventListener('click', () => {
             applyDateRange(startInput.value, endInput.value);
-          });
-        }
-
-        if (resetBtn) {
-          resetBtn.addEventListener('click', () => {
-            setDefaultDateRange();
-            charts.lastHash = null;
-            loadAnalytics(true);
           });
         }
       }
