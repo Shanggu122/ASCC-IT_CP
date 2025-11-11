@@ -4,7 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
-  <title>Meeting — {{ $counterpartName ?? $channel ?? 'Room' }}</title>
+  @php
+    $callTitle = 'Online Consultation with ' . (($counterpartName ?? null) !== null && trim($counterpartName) !== '' ? $counterpartName : 'your professor');
+  @endphp
+  <title>{{ $callTitle }}</title>
   <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
   <link rel="stylesheet" href="/css/video-call.css" />
   <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
@@ -13,7 +16,7 @@
 <body>
   <div class="layout no-sidebar">
     <div class="topbar">
-      <div class="title">Meeting — {{ $counterpartName ?? ($channel ?? 'Room') }}</div>
+  <div class="title">{{ $callTitle }}</div>
       <div></div>
     </div>
     <div id="stage">
@@ -64,6 +67,7 @@
       <div class="tabs">
         <div class="tab active" data-tab="chat">Chat</div>
         <div class="tab" data-tab="people">People</div>
+        <button type="button" class="close-sidebar-btn" id="closeSidebar" aria-label="Close panel"><i class='bx bx-x'></i></button>
       </div>
       <div class="panel" id="panel-chat"><div class="messages" id="messages"></div></div>
       <div class="panel hidden" id="panel-people"><ul class="participants" id="participants"></ul></div>
@@ -174,6 +178,7 @@
     const participantsEl   = document.getElementById('participants');
     const messageBox       = document.getElementById('messageBox');
     const sendBtn          = document.getElementById('sendBtn');
+  const closeSidebarBtn  = document.getElementById('closeSidebar');
 
     const settingsModal    = document.getElementById('settingsModal');
     const cameraSelect     = document.getElementById('cameraSelect');
@@ -195,6 +200,81 @@
   const resQuickSelect   = document.getElementById('resQuickSelect');
   const openSettingsFromMic = document.getElementById('openSettingsFromMic');
   const openSettingsFromCam = document.getElementById('openSettingsFromCam');
+  let autoplayOverlayEl = null;
+  let autoplayResumeBtn = null;
+
+  function ensureAutoplayOverlay(){
+      if(autoplayOverlayEl){ return autoplayOverlayEl; }
+      const overlay = document.createElement('div');
+      overlay.className = 'autoplay-overlay';
+      overlay.setAttribute('aria-hidden', 'true');
+      overlay.innerHTML = `
+        <div class="autoplay-card">
+          <h3>Playback paused</h3>
+          <p>Tap resume to enable audio and video for this consultation.</p>
+          <button type="button" class="autoplay-resume-btn">Resume playback</button>
+        </div>`;
+      const btn = overlay.querySelector('.autoplay-resume-btn');
+      if(btn){
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            await attemptResumePlayback();
+          } finally {
+            btn.disabled = false;
+            hideAutoplayOverlay();
+          }
+        });
+      }
+      document.body.appendChild(overlay);
+      autoplayResumeBtn = btn;
+      autoplayOverlayEl = overlay;
+      return overlay;
+  }
+
+  function showAutoplayOverlay(){
+      const overlay = ensureAutoplayOverlay();
+      overlay.classList.add('visible');
+      overlay.setAttribute('aria-hidden', 'false');
+      if(autoplayResumeBtn){
+        autoplayResumeBtn.disabled = false;
+        try { autoplayResumeBtn.focus({ preventScroll: true }); } catch {}
+      }
+  }
+
+  function hideAutoplayOverlay(){
+      if(!autoplayOverlayEl){ return; }
+      autoplayOverlayEl.classList.remove('visible');
+      autoplayOverlayEl.setAttribute('aria-hidden', 'true');
+  }
+
+  async function attemptResumePlayback(){
+      try {
+        if(localVideoTrack){ localVideoTrack.play(localContainer); }
+      } catch {}
+      try {
+        if(screenVideoTrack){ screenVideoTrack.play(localContainer); }
+      } catch {}
+      const remotes = Array.isArray(client?.remoteUsers) ? client.remoteUsers : [];
+      remotes.forEach(user => {
+        if(!user){ return; }
+        const tile = remoteTiles.get(String(user.uid));
+        if(user.videoTrack && tile){
+          try { user.videoTrack.play(tile.videoHost); } catch {}
+        }
+        if(user.audioTrack){
+          try { user.audioTrack.play(); } catch {}
+        }
+      });
+  }
+
+  function setupAutoplayGuard(){
+      if(typeof AgoraRTC === 'undefined'){ return; }
+      AgoraRTC.onAutoplayFailed = () => {
+        showAutoplayOverlay();
+      };
+  }
+  setupAutoplayGuard();
   function showRetryChat(){ /* intentionally hidden from UI to avoid noise */ }
 
   const remoteTiles = new Map();
@@ -670,18 +750,27 @@
         return;
       }
       const layout = computeLayout(activeCount);
-      remoteGrid.style.setProperty('--remote-columns', String(layout.cols));
-      remoteGrid.classList.toggle('single-row', layout.rows <= 1);
-      remoteGrid.classList.toggle('double-row', layout.rows === 2);
-    const isTripleWide = layout.cols === 3 && layout.rows === 2;
-    remoteGrid.classList.toggle('triple-wide', isTripleWide);
-      remoteGrid.classList.toggle('multi-row', layout.rows >= 3);
-    const shouldTighten = !isTripleWide && (layout.cols >= 4 || activeCount >= 6);
-    remoteGrid.classList.toggle('tight', shouldTighten);
-  remoteGrid.classList.toggle('two-up', layout.cols === 2 && activeCount === 2);
-      const signature = `${layout.cols}x${layout.rows}-${activeCount}`;
+      const isMobile = window.matchMedia('(max-width: 768px)').matches;
+      const shouldStackMobile = isMobile && activeCount <= 2;
+      const effectiveCols = shouldStackMobile ? 1 : layout.cols;
+      const effectiveRows = shouldStackMobile ? Math.max(1, activeCount) : layout.rows;
+      remoteGrid.style.setProperty('--remote-columns', String(effectiveCols));
+      remoteGrid.classList.toggle('mobile-stack', shouldStackMobile);
+      const isSingleRow = shouldStackMobile || layout.rows <= 1;
+      const isDoubleRow = !shouldStackMobile && layout.rows === 2;
+      const isTripleWide = !shouldStackMobile && layout.cols === 3 && layout.rows === 2;
+      const isMultiRow = !shouldStackMobile && layout.rows >= 3;
+      const shouldTighten = !shouldStackMobile && !isTripleWide && (layout.cols >= 4 || activeCount >= 6);
+      const isTwoUp = !shouldStackMobile && layout.cols === 2 && activeCount === 2;
+      remoteGrid.classList.toggle('single-row', isSingleRow);
+      remoteGrid.classList.toggle('double-row', isDoubleRow);
+      remoteGrid.classList.toggle('triple-wide', isTripleWide);
+      remoteGrid.classList.toggle('multi-row', isMultiRow);
+      remoteGrid.classList.toggle('tight', shouldTighten);
+      remoteGrid.classList.toggle('two-up', isTwoUp);
+      const signature = `${effectiveCols}x${effectiveRows}-${activeCount}-${shouldStackMobile ? 'stack' : 'grid'}`;
       if(signature !== lastLayoutSignature){
-        rebuildGrid(layout.cols, layout.rows);
+        rebuildGrid(effectiveCols, effectiveRows);
         lastLayoutSignature = signature;
       }
     }
@@ -1016,6 +1105,9 @@
     }
     participantsBtn.addEventListener('click', ()=> toggleSidebarFor('people'));
     chatBtn.addEventListener('click', ()=> toggleSidebarFor('chat'));
+    closeSidebarBtn?.addEventListener('click', ()=>{
+      layoutEl.classList.remove('show-sidebar');
+    });
     // Mic/Video dropdowns
     function closeDrops(){ micDropdown.classList.remove('open'); videoDropdown.classList.remove('open'); }
     document.addEventListener('click', (e)=>{

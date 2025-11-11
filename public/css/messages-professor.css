@@ -58,6 +58,90 @@ body {
     color: #12372a;
 }
 
+.inbox-header-line {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1rem 0 0.6rem;
+}
+
+.inbox-header-line h2 {
+    margin: 0;
+    flex: 1 1 auto;
+}
+
+.class-call-control {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.class-call-btn {
+    background-color: #08664d;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    transition:
+        background 0.18s ease,
+        box-shadow 0.18s ease;
+}
+
+.class-call-btn:hover {
+    background-color: #0a7d5f;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.class-call-btn.is-disabled,
+.class-call-btn:disabled {
+    background-color: #97b4aa;
+    cursor: not-allowed;
+    box-shadow: none;
+    opacity: 0.75;
+}
+
+.class-call-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 220px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 14px 24px rgba(0, 0, 0, 0.16);
+    padding: 8px 0;
+    display: none;
+    z-index: 30;
+}
+
+.class-call-menu.is-open {
+    display: block;
+}
+
+.class-call-menu-item {
+    width: 100%;
+    padding: 10px 16px;
+    text-align: left;
+    background: transparent;
+    border: none;
+    font-size: 0.92rem;
+    color: #0b3d2d;
+    cursor: pointer;
+    transition: background 0.16s ease;
+}
+
+.class-call-menu-item:hover {
+    background: #edf6f3;
+}
+
+.class-call-menu-empty {
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    color: #4c6a5f;
+}
+
 .inbox-item {
     padding: 8px 10px;
     border-bottom: 1px solid #eee;
@@ -156,7 +240,7 @@ body {
     body .main-content {
         padding-top: 0;
     }
-    .inbox h2 {
+    .inbox-header-line h2 {
         margin: 0 0 0.4rem;
         font-size: 1.15rem;
     }
@@ -401,6 +485,28 @@ body {
         height: 100vh;
         min-height: 100vh;
     }
+    .inbox-header-line {
+        flex-wrap: wrap;
+        margin-top: 0.5rem;
+        gap: 0.5rem;
+    }
+    .class-call-control {
+        width: 100%;
+        display: flex;
+        justify-content: flex-start;
+    }
+    .class-call-btn {
+        width: 100%;
+        text-align: center;
+        border-radius: 16px;
+    }
+    .class-call-menu {
+        position: static;
+        width: 100%;
+        margin-top: 6px;
+        box-shadow: none;
+        border: 1px solid #d6e7e2;
+    }
     .inbox {
         width: 100vw;
         max-width: 100vw;
@@ -432,6 +538,17 @@ body {
     }
     .chat-panel.active {
         display: flex;
+    }
+    .chat-panel.active::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 70px;
+        background: #fff;
+        z-index: 8;
+        pointer-events: none;
     }
     .chat-header {
         padding-left: 3rem; /* space for back button */

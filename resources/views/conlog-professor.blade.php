@@ -511,6 +511,15 @@
         </div>
         <div class="filters-drawer-body">
           <div class="filter-group">
+            <label class="filter-label" for="termFilterMobile">Term</label>
+            <select id="termFilterMobile" class="filter-select" aria-label="Term (mobile)">
+              <option value="all">All Terms</option>
+              @foreach($termList as $term)
+                <option value="{{ $term['id'] }}">{{ $term['label'] }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="filter-group">
             <label class="filter-label" for="typeFilterMobile">Type</label>
             <select id="typeFilterMobile" class="filter-select" aria-label="Type (mobile)">
               <option value="">All Types</option>
@@ -2022,15 +2031,18 @@ function profSyncOverlay(){
   profRebuildSubjectOptions();
   const tMain=document.getElementById('typeFilter');
   const sMain=document.getElementById('subjectFilter');
+  const termMain=document.getElementById('termFilter');
   const tMob=document.getElementById('typeFilterMobile');
   const sMob=document.getElementById('subjectFilterMobile');
+  const termMob=document.getElementById('termFilterMobile');
   if(tMain && tMob) tMob.value=tMain.value;
   if(sMain && sMob) sMob.value=sMain.value;
+  if(termMain && termMob) termMob.value=termMain.value;
 }
 function openFilters(){ const ov=document.getElementById('filtersOverlay'); if(!ov) return; profSyncOverlay(); ov.classList.add('open'); ov.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }
 function closeFilters(){ const ov=document.getElementById('filtersOverlay'); if(!ov) return; ov.classList.remove('open'); ov.setAttribute('aria-hidden','true'); document.body.style.overflow=''; }
-function applyFiltersFromOverlay(){ const tMain=document.getElementById('typeFilter'); const sMain=document.getElementById('subjectFilter'); const tMob=document.getElementById('typeFilterMobile'); const sMob=document.getElementById('subjectFilterMobile'); if(tMain&&tMob){ tMain.value=tMob.value; tMain.dispatchEvent(new Event('change')); } if(sMain&&sMob){ sMain.value=sMob.value; sMain.dispatchEvent(new Event('change')); } closeFilters(); }
-function resetFiltersOverlay(){ const tMob=document.getElementById('typeFilterMobile'); const sMob=document.getElementById('subjectFilterMobile'); if(tMob) tMob.value=''; if(sMob) sMob.value=''; }
+function applyFiltersFromOverlay(){ const tMain=document.getElementById('typeFilter'); const sMain=document.getElementById('subjectFilter'); const termMain=document.getElementById('termFilter'); const tMob=document.getElementById('typeFilterMobile'); const sMob=document.getElementById('subjectFilterMobile'); const termMob=document.getElementById('termFilterMobile'); if(tMain&&tMob){ tMain.value=tMob.value; tMain.dispatchEvent(new Event('change')); } if(sMain&&sMob){ sMain.value=sMob.value; sMain.dispatchEvent(new Event('change')); } if(termMain&&termMob){ termMain.value=termMob.value; termMain.dispatchEvent(new Event('change')); } closeFilters(); }
+function resetFiltersOverlay(){ const tMob=document.getElementById('typeFilterMobile'); const sMob=document.getElementById('subjectFilterMobile'); const termMob=document.getElementById('termFilterMobile'); if(tMob) tMob.value=''; if(sMob) sMob.value=''; if(termMob) termMob.value='all'; }
 document.getElementById('openFiltersBtn')?.addEventListener('click', openFilters);
 document.getElementById('closeFiltersBtn')?.addEventListener('click', closeFilters);
 document.getElementById('applyFiltersBtn')?.addEventListener('click', applyFiltersFromOverlay);

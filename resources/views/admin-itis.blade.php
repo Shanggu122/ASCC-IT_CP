@@ -63,9 +63,7 @@
           <button type="button" class="chooser-option" data-open-add="student">Add Student</button>
         </div>
       </div>
-      <div class="mini-modal-actions">
-        <button type="button" class="btn-secondary" data-close-chooser>Close</button>
-      </div>
+      
     </div>
   </div>
 

@@ -121,16 +121,17 @@ html {
     align-content: stretch;
 }
 .remote-grid.two-up {
-    width: min(100%, 1320px);
+    width: min(100%, 1800px);
     grid-auto-rows: auto;
     align-content: center;
     justify-content: center;
-    gap: clamp(14px, 2vw, 28px);
+    gap: clamp(10px, 1.4vw, 22px);
 }
 .remote-grid.two-up .remote-tile {
     height: auto;
-    aspect-ratio: 1 / 1;
-    max-width: min(620px, 50vw);
+    aspect-ratio: 16 / 9;
+    max-width: min(1100px, 80vw);
+    max-height: min(720px, 65vh);
     justify-self: center;
 }
 .remote-grid.two-up .remote-video-slot,
@@ -355,6 +356,66 @@ html {
     font-size: 14px;
 }
 
+.autoplay-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(4, 9, 14, 0.82);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 140;
+    padding: 20px;
+}
+.autoplay-overlay.visible {
+    display: flex;
+}
+.autoplay-overlay .autoplay-card {
+    background: #0f1b24;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px;
+    padding: 22px 26px;
+    max-width: 320px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 22px 44px rgba(0, 0, 0, 0.45);
+}
+.autoplay-overlay .autoplay-card h3 {
+    margin: 0 0 12px;
+    font-size: 1.1rem;
+    color: #f4f7f9;
+}
+.autoplay-overlay .autoplay-card p {
+    margin: 0 0 18px;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+.autoplay-overlay .autoplay-card button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: none;
+    background: linear-gradient(135deg, #1fa58a, #1a8f6c);
+    color: #ffffff;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+        transform 0.15s ease,
+        box-shadow 0.15s ease;
+}
+.autoplay-overlay .autoplay-card button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+}
+.autoplay-overlay .autoplay-card button:disabled {
+    background: #3a5f5b;
+    cursor: wait;
+    box-shadow: none;
+}
+
 /* Controls */
 #controls-panel {
     position: absolute;
@@ -470,6 +531,8 @@ html {
 }
 .tabs {
     display: flex;
+    align-items: center;
+    position: relative;
 }
 .tab {
     flex: 1;
@@ -482,8 +545,28 @@ html {
     background: #15514e;
     font-weight: 600;
 }
+.close-sidebar-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    background: transparent;
+    border: none;
+    color: #f5fffb;
+    font-size: 1.6rem;
+    cursor: pointer;
+    padding: 6px 10px;
+}
+.close-sidebar-btn:hover {
+    color: #8dd8d2;
+}
+.close-sidebar-btn:focus-visible {
+    outline: 2px solid rgba(141, 216, 210, 0.55);
+    border-radius: 8px;
+}
 .panel {
-    flex: 1;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow: auto;
     padding: 10px;
 }
@@ -701,33 +784,138 @@ select,
         transform: translateY(100%);
         transition: transform 0.25s ease;
         z-index: 60;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 56px);
+        max-height: calc(100vh - 56px);
+        background: #0f3432;
+        padding: 48px 0 0;
+        box-sizing: border-box;
     }
     .layout.show-sidebar #sidebar {
         transform: translateY(0);
     }
     .layout.no-sidebar #sidebar {
-        display: block;
+        display: flex;
+    }
+    .close-sidebar-btn {
+        display: inline-flex;
+        position: absolute;
+        top: -36px;
+        right: 12px;
+        transform: none;
+        background: transparent;
+        padding: 6px;
+        border-radius: 12px;
+        box-shadow: none;
+    }
+    .tabs {
+        padding: 0 0 14px;
     }
     #controls-panel {
         height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        gap: 8px;
+    }
+    #controls-panel > div:first-child {
+        display: none;
+    }
+    #controls-panel .controls-right {
+        flex: 0 0 auto;
+        padding: 0;
+        min-width: 0;
+    }
+    #controls-panel .controls-center {
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
     }
     #local-player.video-player {
-        width: 34vw;
-        height: 19vw;
+        width: 26vw;
+        height: 42vw;
+        aspect-ratio: auto;
         bottom: 66px;
         right: 8px;
+    }
+    #controls-panel .ctrl {
+        flex: 1 1 0;
+        max-width: 78px;
+    }
+    #controls-panel .ctrl .ctrl-btn {
+        width: 100%;
     }
     #controls-panel .ctrl .ctrl-btn span {
         display: none;
     }
+    #controls-panel .ctrl .caret {
+        display: none;
+    }
     #controls-panel .icon-btn {
-        width: 56px;
+        flex: 1 1 0;
+        max-width: 78px;
+        width: auto;
     }
     .tab {
         padding: 8px;
     }
     .msg-input {
         padding-bottom: 10px;
+    }
+    #remote-player.video-player {
+        padding: 12px 12px calc(12px + 76px);
+        align-items: center;
+    }
+    #remote-player .remote-grid {
+        width: 100%;
+        max-width: calc(100vw - 24px);
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(var(--remote-columns), minmax(0, 1fr));
+        gap: 12px;
+    }
+    #remote-player .remote-grid .remote-tile {
+        width: 100%;
+        border-radius: 16px;
+    }
+    #remote-player .remote-grid.mobile-stack {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+    }
+    #remote-player .remote-grid.mobile-stack .remote-tile {
+        max-width: 520px;
+        margin-left: auto;
+        margin-right: auto;
+        aspect-ratio: 3 / 4;
+        min-height: 320px;
+    }
+    #remote-player .remote-grid:not(.mobile-stack) .remote-tile {
+        aspect-ratio: 4 / 5;
+        min-height: 240px;
+    }
+    .remote-name {
+        left: 14px;
+        transform: none;
+        text-align: left;
+    }
+    #leave-btn {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        height: 38px;
+        padding: 0 18px;
+        border-radius: 24px;
+        font-size: 14px;
+        z-index: 80;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    }
+    .topbar {
+        padding-right: 96px;
     }
 }
 

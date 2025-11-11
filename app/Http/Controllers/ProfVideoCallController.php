@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 
 class ProfVideoCallController extends Controller
@@ -22,9 +23,12 @@ class ProfVideoCallController extends Controller
             }
         }
 
+        $professor = Auth::guard("professor")->user();
+
         return view("video-call-professor", [
             "channel" => $channel,
             "counterpartName" => $counterpartName,
+            "professorName" => $professor?->Name,
         ]);
     }
 }
