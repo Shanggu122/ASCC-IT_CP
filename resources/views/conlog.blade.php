@@ -198,6 +198,14 @@
         <i class='bx bx-slider-alt'></i>
       </button>
       <div class="filter-group-horizontal">
+        <select id="subjectFilter" class="filter-select" aria-label="Subject filter">
+          <option value="">All Subjects</option>
+          @foreach($subjects as $s)
+            <option value="{{ $s }}">{{ $s }}</option>
+          @endforeach
+        </select>
+      </div>
+      <div class="filter-group-horizontal">
         <select id="typeFilter" class="filter-select" aria-label="Type filter">
           <option value="">All Types</option>
           @foreach($types as $t)
@@ -207,19 +215,11 @@
             <option value="Others">Others</option>
           @endif
         </select>
-          <!-- Custom filter dropdown (mobile) -->
-    <div id="typeFilterDropdown" class="cs-dd" style="display:none;">
-            <button type="button" class="cs-dd-trigger" id="typeFilterTrigger">All Types</button>
-            <ul class="cs-dd-list" id="typeFilterList"></ul>
-          </div>
-      </div>
-      <div class="filter-group-horizontal">
-        <select id="subjectFilter" class="filter-select" aria-label="Subject filter">
-          <option value="">All Subjects</option>
-          @foreach($subjects as $s)
-            <option value="{{ $s }}">{{ $s }}</option>
-          @endforeach
-        </select>
+        <!-- Custom filter dropdown (mobile) -->
+        <div id="typeFilterDropdown" class="cs-dd" style="display:none;">
+          <button type="button" class="cs-dd-trigger" id="typeFilterTrigger">All Types</button>
+          <ul class="cs-dd-list" id="typeFilterList"></ul>
+        </div>
       </div>
       <div class="filter-group-horizontal page-size-group" style="margin-left:auto">
         <select id="pageSize" class="filter-select" aria-label="Items per page" style="width:92px">
@@ -338,6 +338,15 @@
         </div>
         <div class="filters-drawer-body">
           <div class="filter-group">
+            <label class="filter-label" for="subjectFilterMobile">Subject</label>
+            <select id="subjectFilterMobile" class="filter-select" aria-label="Subject (mobile)">
+              <option value="">All Subjects</option>
+              @foreach($subjects as $s)
+                <option value="{{ $s }}">{{ $s }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="filter-group">
             <label class="filter-label" for="typeFilterMobile">Type</label>
             <select id="typeFilterMobile" class="filter-select" aria-label="Type (mobile)">
               <option value="">All Types</option>
@@ -347,15 +356,6 @@
               @if(!in_array('Others', $types->toArray()))
                 <option value="Others">Others</option>
               @endif
-            </select>
-          </div>
-          <div class="filter-group">
-            <label class="filter-label" for="subjectFilterMobile">Subject</label>
-            <select id="subjectFilterMobile" class="filter-select" aria-label="Subject (mobile)">
-              <option value="">All Subjects</option>
-              @foreach($subjects as $s)
-                <option value="{{ $s }}">{{ $s }}</option>
-              @endforeach
             </select>
           </div>
           
