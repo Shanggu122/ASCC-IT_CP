@@ -126,6 +126,28 @@ class ChatBotProfessorIntentsTest extends TestCase
         $this->assertStringContainsString("Capstone Project", $reply);
     }
 
+    public function test_professor_out_of_scope_message_returns_scope_notice(): void
+    {
+        $response = $this->postJson("/chat", ["message" => "Do I look pogi today?"]);
+
+        $response->assertStatus(200);
+        $reply = strtolower($response->json("reply"));
+
+        $this->assertStringContainsString("english", $reply);
+        $this->assertStringContainsString("consultation", $reply);
+    }
+
+    public function test_professor_profanity_returns_respectful_notice(): void
+    {
+        $response = $this->postJson("/chat", ["message" => "fuck you"]);
+
+        $response->assertStatus(200);
+        $reply = strtolower($response->json("reply"));
+
+        $this->assertStringContainsString("respectful", $reply);
+        $this->assertStringContainsString("english", $reply);
+    }
+
     private function ensureSchema(): void
     {
         if (!Schema::hasTable("professors")) {

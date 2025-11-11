@@ -113,7 +113,7 @@ class ChatBotStudentStatusTest extends TestCase
         $res = $this->post("/chat", ["message" => "Do I have a schedule this week?"]);
         $res->assertStatus(200);
         $text = $res->json("reply");
-        $this->assertStringContainsString("Your this week consultations:", $text);
+        $this->assertStringContainsString("Your approved this week consultations:", $text);
         // Should mention Fri (Oct 31) with at least one entry
         $this->assertStringContainsString("Fri (Oct 31)", $text);
     }
@@ -126,7 +126,7 @@ class ChatBotStudentStatusTest extends TestCase
         $res = $this->post("/chat", ["message" => "Do I have a schedule this week?"]);
         $res->assertStatus(200);
         $text = strtolower($res->json("reply"));
-        $this->assertStringContainsString("no consultations this week", $text);
+        $this->assertStringContainsString("no approved consultations this week", $text);
     }
 
     public function test_per_day_bookings_default_includes_pending()
@@ -199,5 +199,15 @@ class ChatBotStudentStatusTest extends TestCase
         $this->assertStringContainsString("Your consultation with", $text);
         $this->assertStringContainsString("Abaleta", $text);
         $this->assertStringContainsString("Approved", $text);
+    }
+
+    public function test_tagalog_question_prompts_english_fallback()
+    {
+        $res = $this->post("/chat", ["message" => "kailan schedule ko?"]);
+        $res->assertStatus(200);
+        $text = strtolower($res->json("reply"));
+
+        $this->assertStringContainsString("english", $text);
+        $this->assertStringContainsString("consultation", $text);
     }
 }

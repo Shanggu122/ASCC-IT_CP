@@ -12,10 +12,18 @@ use Carbon\CarbonPeriod;
 use App\Services\AcademicTermService;
 use App\Services\CalendarOverrideService;
 use App\Services\DialogflowService;
+use App\Services\OutOfScopeDetector;
+use App\Services\NlpIntentResolver;
+use App\Services\ProfanityDetector;
 // Conversation persistence removed (FAQ only)
 
 class ChatBotController extends Controller
 {
+    public function __construct(
+        private ProfanityDetector $profanityDetector,
+        private OutOfScopeDetector $outOfScopeDetector,
+        private NlpIntentResolver $intentResolver,
+    ) {}
     public function chat(Request $request, DialogflowService $dialogflow)
     {
         $text = (string) $request->input("message");
@@ -55,7 +63,8 @@ class ChatBotController extends Controller
     // --- Private helpers ---
     private function handleProfessorIntents(string $message, $professor): ?string
     {
-        $normalized = mb_strtolower(trim($message));
+        $originalMessage = trim($message);
+        $normalized = mb_strtolower($originalMessage);
         if ($normalized === "") {
             return null;
         }
@@ -63,6 +72,18 @@ class ChatBotController extends Controller
         $profId = $professor->Prof_ID ?? null;
         if (!$profId) {
             return null;
+        }
+
+        if ($this->containsProfanity($normalized)) {
+            return $this->profanityResponse();
+        }
+
+        $nlpIntent = $this->intentResolver->resolveProfessor($originalMessage);
+        if ($nlpIntent) {
+            $nlpReply = $this->respondToProfessorNlp($nlpIntent, $originalMessage, $professor);
+            if ($nlpReply !== null) {
+                return $nlpReply;
+            }
         }
 
         $tz = "Asia/Manila";
@@ -898,11 +919,209 @@ class ChatBotController extends Controller
         return preg_match("/\\b" . preg_quote($needle, "/") . "\\b/u", $haystack) === 1;
     }
 
+    private function containsSystemKeyword(string $m): bool
+    {
+        return $this->containsAny($m, [
+            "consult",
+            "consultation",
+            "booking",
+            "schedule",
+            "sched",
+            "sked",
+            "professor",
+            "prof ",
+            "subject",
+            "slot",
+            "availability",
+            "student",
+            "status",
+            "department",
+            "office hour",
+            "office-hour",
+            "faculty",
+            "calendar",
+            "term",
+            "semester",
+            "academic",
+            "resched",
+            "cancel",
+            "message",
+            "chat",
+            "class",
+            "course",
+            "dashboard",
+            "appointment",
+        ]);
+    }
+
+    private function isOutOfScopeSmallTalk(string $m): bool
+    {
+        if ($this->containsSystemKeyword($m)) {
+            return false;
+        }
+
+        if (str_contains($m, "?")) {
+            return true;
+        }
+
+        $questionPatterns = [
+            "/\\bwho\\b/u",
+            "/\\bwhat\\b/u",
+            "/\\bwhen\\b/u",
+            "/\\bwhere\\b/u",
+            "/\\bwhy\\b/u",
+            "/\\bhow\\b/u",
+            "/\\bcan\\b/u",
+            "/\\bwill\\b/u",
+            "/\\bwould\\b/u",
+            "/\\bdo\\b/u",
+            "/\\bdoes\\b/u",
+            "/\\bam\\b/u",
+            "/\\bare\\b/u",
+            "/\\bak\s*o\s*ba\\b/u",
+            "/\\bpwede\\b/u",
+            "/\\bpuwede\\b/u",
+            "/\\bbakit\\b/u",
+            "/\\bpaano\\b/u",
+        ];
+
+        foreach ($questionPatterns as $pattern) {
+            if (preg_match($pattern, $m) === 1) {
+                return true;
+            }
+        }
+
+        $smallTalkKeywords = [
+            "pogi",
+            "gwapo",
+            "ganda",
+            "maganda",
+            "pangit",
+            "mabaho",
+            "bango",
+            "cute",
+            "handsome",
+            "pretty",
+            "ugly",
+            "look good",
+            "look bad",
+            "feel good",
+            "feel bad",
+        ];
+
+        return $this->containsAny($m, $smallTalkKeywords);
+    }
+
+    private function outOfScopeResponse(): string
+    {
+        return "I can help with ASCC consultation schedules, bookings, professors, and related questions. That topic is outside what I can answer.";
+    }
+
+    private function isLikelyTagalog(string $m): bool
+    {
+        $directKeywords = [
+            "kailan",
+            "paano",
+            "magkano",
+            "magkaroon",
+            "kamusta",
+            "kumusta",
+            "opo",
+            "hindi",
+            "oo",
+            "saan",
+            "dito",
+            "diyan",
+            "iyon",
+            "ganyan",
+            "ganun",
+            "ganon",
+            "ba",
+            "naman",
+            "nga",
+            "din",
+            "daw",
+            "pa",
+            "na",
+            "pogi",
+            "gwapo",
+            "maganda",
+            "pangit",
+            "mabaho",
+            "mabait",
+            "mahal",
+        ];
+
+        foreach ($directKeywords as $keyword) {
+            if ($this->containsWord($m, $keyword)) {
+                return true;
+            }
+        }
+
+        $patterns = [
+            "/\bako\b/u",
+            "/\bko\b/u",
+            "/\bmo\b/u",
+            "/\bniya\b/u",
+            "/\bnyo\b/u",
+            "/\bka\b/u",
+            "/\bsiya\b/u",
+            "/\bsila\b/u",
+            "/\btayo\b/u",
+            "/\bkami\b/u",
+            "/\bbakit\b/u",
+            "/\bsino\b/u",
+            "/\bano\b/u",
+            "/\bmahal\b/u",
+            "/\bpo\b/u",
+            "/\bho\b/u",
+            "/\bparang\b/u",
+            "/\bhalos\b/u",
+            "/\bmasyado\b/u",
+            "/\bdi\b/u",
+            "/\bwala\b/u",
+            "/\bmeron\b/u",
+            "/\bmeron?g\b/u",
+        ];
+
+        $hits = 0;
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $m) === 1) {
+                $hits++;
+                if ($hits >= 2) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function englishOnlyFallback(): string
+    {
+        return "I can only help with ASCC consultation schedules in English. Please rephrase your question in English.";
+    }
+
+    private function containsProfanity(string $m): bool
+    {
+        return $this->profanityDetector->detectsProfanity($m);
+    }
+
+    private function profanityResponse(): string
+    {
+        return "Let's keep our conversation respectful. I can only help with ASCC consultation questions in English.";
+    }
+
     private function handleDbIntents(string $message): ?string
     {
-        $m = mb_strtolower(trim($message));
+        $originalMessage = trim($message);
+        $m = mb_strtolower($originalMessage);
         if ($m === "") {
             return null;
+        }
+
+        if ($this->containsProfanity($m)) {
+            return $this->profanityResponse();
         }
 
         // Early guard: non-scheduling FAQ like "How do I contact my professor after booking?"
@@ -941,6 +1160,14 @@ class ChatBotController extends Controller
                 str_contains($m, "schedule"))
         ) {
             return "You can cancel a booking within 1 hour from the time you created it, as long as it’s still Pending. After 1 hour or once it’s Approved you can’t cancel in the system. If you need to change the time, message your professor to request a reschedule.";
+        }
+
+        $nlpIntent = $this->intentResolver->resolveStudent($originalMessage);
+        if ($nlpIntent) {
+            $nlpReply = $this->respondToStudentNlp($nlpIntent, $originalMessage);
+            if ($nlpReply !== null) {
+                return $nlpReply;
+            }
         }
 
         // If it's a pure how-to booking question with no professor and no date, let Dialogflow handle it
@@ -999,12 +1226,18 @@ class ChatBotController extends Controller
         if ($asksToBook || $negAvailability) {
             $prof = $this->matchProfessorFromMessage($m);
             if ($prof) {
+                if ($this->isLikelyTagalog($m)) {
+                    return $this->englishOnlyFallback();
+                }
                 return "You can only book on dates that are in " .
                     $prof->Name .
                     "'s schedule and still have open slots. " .
                     "To check availability, ask: 'Are there available slots for " .
                     $prof->Name .
                     " on Friday?' or view their 'this/next week' schedule.";
+            }
+            if ($this->isLikelyTagalog($m)) {
+                return $this->englishOnlyFallback();
             }
             return "You can only book on dates that are in the professor's schedule and still have open slots. " .
                 "Specify the professor and date, e.g.: 'Are there available slots for Prof Benito on 2025-11-03?'";
@@ -1712,6 +1945,9 @@ class ChatBotController extends Controller
             ) {
                 $prof = $this->matchProfessorFromMessage($m);
                 if (!$prof) {
+                    if ($this->isLikelyTagalog($m)) {
+                        return $this->englishOnlyFallback();
+                    }
                     return "I could not find that professor.";
                 }
 
@@ -2013,6 +2249,9 @@ class ChatBotController extends Controller
                 }
                 return "Subjects of " . $prof->Name . ": " . implode(", ", $subs) . ".";
             } else {
+                if ($this->isLikelyTagalog($m)) {
+                    return $this->englishOnlyFallback();
+                }
                 return "I could not find that professor.";
             }
         }
@@ -2085,6 +2324,9 @@ class ChatBotController extends Controller
                 }
                 return "Schedule of " . $prof->Name . ": " . $sched;
             } else {
+                if ($this->isLikelyTagalog($m)) {
+                    return $this->englishOnlyFallback();
+                }
                 return "I could not find that professor.";
             }
         }
@@ -2105,6 +2347,9 @@ class ChatBotController extends Controller
             $prof = $this->matchProfessorFromMessage($m);
             // If no strong match, suggest closest names
             if (!$prof) {
+                if ($this->isLikelyTagalog($m)) {
+                    return $this->englishOnlyFallback();
+                }
                 return "I could not find that professor.";
             }
 
@@ -2131,11 +2376,17 @@ class ChatBotController extends Controller
         ) {
             $prof = $this->matchProfessorFromMessage($m);
             if (!$prof) {
+                if ($this->isLikelyTagalog($m)) {
+                    return $this->englishOnlyFallback();
+                }
                 return 'Please specify the professor. Example: "Are there available slots for Professor Benito tomorrow?"';
             }
 
             $date = $this->extractDate($m);
             if (!$date) {
+                if ($this->isLikelyTagalog($m)) {
+                    return $this->englishOnlyFallback();
+                }
                 return 'Please specify a date (e.g., "tomorrow", "Monday", or "2025-09-15").';
             }
             $dateKey = $date->copy()->timezone("Asia/Manila")->startOfDay()->format("D M d Y");
@@ -2187,6 +2438,14 @@ class ChatBotController extends Controller
                 $capacity,
                 $modeNote,
             );
+        }
+
+        if ($this->isLikelyTagalog($m)) {
+            return $this->englishOnlyFallback();
+        }
+
+        if ($this->outOfScopeDetector->isOutOfScope($m)) {
+            return $this->outOfScopeResponse();
         }
 
         return null; // not handled
@@ -2739,6 +2998,636 @@ class ChatBotController extends Controller
             return "You have no " . $label . " consultations " . $range . ".";
         }
         return implode("\n", $lines);
+    }
+
+    private function respondToStudentNlp(array $intent, string $originalMessage): ?string
+    {
+        $intentIdRaw = $intent["intent_id"] ?? null;
+        if (!is_string($intentIdRaw) || trim($intentIdRaw) === "") {
+            return null;
+        }
+
+        $intentId = strtolower(trim($intentIdRaw));
+
+        if ($intentId === "student_professors_for_subject") {
+            $subjectName = $intent["subject"] ?? null;
+            if (!is_string($subjectName) || trim($subjectName) === "") {
+                return null;
+            }
+            $subject = $this->matchSubjectFromMessage("subject " . $subjectName);
+            if (!$subject) {
+                $sugs = $this->suggestSubjects($subjectName);
+                if (!empty($sugs)) {
+                    return "I could not find that subject. Did you mean: " .
+                        implode(", ", $sugs) .
+                        "?";
+                }
+                return "I could not find any matching subject.";
+            }
+
+            $names = DB::table("professor_subject as ps")
+                ->join("professors as p", "p.Prof_ID", "=", "ps.Prof_ID")
+                ->join("t_subject as s", "s.Subject_ID", "=", "ps.Subject_ID")
+                ->where("s.Subject_ID", $subject->Subject_ID)
+                ->distinct()
+                ->orderBy("p.Name")
+                ->pluck("p.Name")
+                ->toArray();
+
+            if (empty($names)) {
+                return "There are no assigned professors for '" .
+                    $subject->Subject_Name .
+                    "' right now.";
+            }
+
+            return sprintf(
+                "Professors who handle %s: %s.",
+                $subject->Subject_Name,
+                implode(", ", $names),
+            );
+        }
+
+        if ($intentId === "student_status_with_professor") {
+            $user = Auth::user();
+            $studId = $user->Stud_ID ?? null;
+            if (!$studId) {
+                return "Please sign in to check your bookings.";
+            }
+
+            $profName = $intent["professor"] ?? null;
+            if (!is_string($profName) || trim($profName) === "") {
+                return null;
+            }
+
+            $prof = $this->findProfessorByNameLike($profName);
+            if (!$prof) {
+                $prof = $this->matchProfessorFromMessage("professor " . $profName);
+            }
+
+            if (!$prof) {
+                return "I could not find that professor.";
+            }
+
+            return $this->studentStatusWithProfessorRow((int) $studId, $prof);
+        }
+
+        if ($intentId === "student_consultation_summary") {
+            $user = Auth::user();
+            $studId = $user->Stud_ID ?? null;
+            if (!$studId) {
+                return "Please sign in to check your bookings.";
+            }
+
+            $timeframeRaw = $intent["timeframe"] ?? "UNSPECIFIED";
+            $timeframe = strtoupper(is_string($timeframeRaw) ? $timeframeRaw : "UNSPECIFIED");
+            $statusesRaw = $intent["statuses"] ?? [];
+            $statuses = $this->normalizeStatusFilters(is_array($statusesRaw) ? $statusesRaw : []);
+            $acceptedOnly = (bool) ($intent["accepted_only"] ?? false);
+
+            if (in_array("pending", $statuses, true)) {
+                $acceptedOnly = false;
+            }
+
+            $profName = $intent["professor"] ?? null;
+            if (is_string($profName) && trim($profName) !== "") {
+                $prof = $this->findProfessorByNameLike($profName);
+                if (!$prof) {
+                    $prof = $this->matchProfessorFromMessage("professor " . $profName);
+                }
+                if (!$prof) {
+                    return "I could not find that professor.";
+                }
+                return $this->studentStatusWithProfessorRow((int) $studId, $prof);
+            }
+
+            $tz = "Asia/Manila";
+
+            if ($timeframe === "NEXT") {
+                if (empty($statuses)) {
+                    $statuses = $acceptedOnly
+                        ? ["approved", "accepted", "rescheduled"]
+                        : ["approved", "accepted", "rescheduled", "pending"];
+                }
+                return $this->studentLatestConsultationSummary(
+                    (int) $studId,
+                    $statuses,
+                    $acceptedOnly,
+                );
+            }
+
+            if (in_array($timeframe, ["TODAY", "TOMORROW", "DATE"], true)) {
+                $date = null;
+                if ($timeframe === "TODAY") {
+                    $date = Carbon::now($tz);
+                } elseif ($timeframe === "TOMORROW") {
+                    $date = Carbon::now($tz)->addDay();
+                } elseif (!empty($intent["date"])) {
+                    try {
+                        $date = Carbon::parse((string) $intent["date"], $tz);
+                    } catch (\Throwable $e) {
+                        $date = null;
+                    }
+                }
+
+                if ($date) {
+                    if (empty($statuses)) {
+                        $statuses = $acceptedOnly
+                            ? ["approved", "accepted", "rescheduled"]
+                            : ["approved", "accepted", "rescheduled", "pending"];
+                    }
+                    return $this->studentConsultationsForDate(
+                        (int) $studId,
+                        $date,
+                        $statuses,
+                        $acceptedOnly,
+                    );
+                }
+            }
+
+            if (in_array($timeframe, ["THIS_WEEK", "NEXT_WEEK"], true)) {
+                $which = $timeframe === "NEXT_WEEK" ? "next" : "this";
+                if (empty($statuses)) {
+                    $statuses = $acceptedOnly
+                        ? ["approved", "accepted", "rescheduled"]
+                        : ["approved", "accepted", "rescheduled"];
+                }
+                $label = $this->buildStatusLabelForSummary($statuses);
+                return $this->summarizeStudentWeekFiltered(
+                    (int) $studId,
+                    $which,
+                    $statuses,
+                    $label,
+                );
+            }
+
+            if (!empty($statuses)) {
+                $label = $this->buildStatusLabelForSummary($statuses);
+                return $this->summarizeStudentByStatuses(
+                    (int) $studId,
+                    $statuses,
+                    "Your " . $label . " consultations:",
+                );
+            }
+
+            $fallbackStatuses = $acceptedOnly
+                ? ["approved", "accepted", "rescheduled"]
+                : ["approved", "accepted", "rescheduled", "pending"];
+
+            return $this->studentLatestConsultationSummary(
+                (int) $studId,
+                $fallbackStatuses,
+                $acceptedOnly,
+            );
+        }
+
+        return null;
+    }
+
+    private function respondToProfessorNlp(
+        array $intent,
+        string $originalMessage,
+        $professor,
+    ): ?string {
+        $intentIdRaw = $intent["intent_id"] ?? null;
+        if (!is_string($intentIdRaw) || trim($intentIdRaw) === "") {
+            return null;
+        }
+
+        $intentId = strtolower(trim($intentIdRaw));
+        $profId = $professor->Prof_ID ?? null;
+        if (!$profId) {
+            return null;
+        }
+
+        $tz = "Asia/Manila";
+        $now = Carbon::now($tz);
+
+        if ($intentId === "professor_consultation_summary") {
+            $timeframeRaw = $intent["timeframe"] ?? "UNSPECIFIED";
+            $timeframe = strtoupper(is_string($timeframeRaw) ? $timeframeRaw : "UNSPECIFIED");
+            $studentsOnly = (bool) ($intent["students_only"] ?? false);
+            $dateValue = $intent["date"] ?? null;
+            if ($timeframe === "DATE" && is_string($dateValue) && trim($dateValue) !== "") {
+                try {
+                    $date = Carbon::parse($dateValue, $tz);
+                } catch (\Throwable $e) {
+                    $date = null;
+                }
+                if ($date) {
+                    $reply = $this->professorConsultationSummaryByTimeframe(
+                        (int) $profId,
+                        "DATE",
+                        $studentsOnly,
+                        $now,
+                        $date,
+                    );
+                    if ($reply !== null) {
+                        return $reply;
+                    }
+                }
+            }
+
+            $reply = $this->professorConsultationSummaryByTimeframe(
+                (int) $profId,
+                $timeframe,
+                $studentsOnly,
+                $now,
+            );
+            if ($reply !== null) {
+                return $reply;
+            }
+        }
+
+        if ($intentId === "professor_available_slots") {
+            $dateString = $intent["date"] ?? null;
+            if (!is_string($dateString) || trim($dateString) === "") {
+                return null;
+            }
+            try {
+                $date = Carbon::parse($dateString, $tz);
+            } catch (\Throwable $e) {
+                return null;
+            }
+            return $this->professorAvailableSlotsToday((int) $profId, $date);
+        }
+
+        if ($intentId === "professor_schedule_summary") {
+            return $this->professorScheduleSummary($professor);
+        }
+
+        if ($intentId === "professor_subjects_summary") {
+            return $this->professorSubjectsSummary($profId);
+        }
+
+        if ($intentId === "professor_completed_count") {
+            $timeframeRaw = $intent["timeframe"] ?? "UNSPECIFIED";
+            $timeframe = strtoupper(is_string($timeframeRaw) ? $timeframeRaw : "UNSPECIFIED");
+            return $this->professorCompletedCountSummary((int) $profId, $timeframe, $now);
+        }
+
+        if ($intentId === "professor_semester_boundary") {
+            $boundary = strtoupper((string) ($intent["boundary"] ?? ""));
+            if ($boundary === "START") {
+                return $this->professorSemesterBoundary(true);
+            }
+            if ($boundary === "END") {
+                return $this->professorSemesterBoundary(false);
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeStatusFilters(array $raw): array
+    {
+        $map = [
+            "pending" => ["pending"],
+            "approved" => ["approved", "accepted"],
+            "accepted" => ["approved", "accepted"],
+            "rescheduled" => ["rescheduled"],
+            "completed" => ["completed", "done", "finished"],
+            "done" => ["completed", "done", "finished"],
+            "finished" => ["completed", "done", "finished"],
+            "declined" => ["declined"],
+            "canceled" => ["cancelled", "canceled"],
+            "cancelled" => ["cancelled", "canceled"],
+        ];
+
+        $result = [];
+        foreach ($raw as $status) {
+            $key = strtolower((string) $status);
+            if (isset($map[$key])) {
+                foreach ($map[$key] as $mapped) {
+                    $result[] = $mapped;
+                }
+            } elseif ($key !== "") {
+                $result[] = $key;
+            }
+        }
+
+        if (empty($result)) {
+            return [];
+        }
+
+        return array_values(array_unique($result));
+    }
+
+    private function buildStatusLabelForSummary(array $statuses): string
+    {
+        $lower = array_map("strtolower", $statuses);
+        $labels = [];
+        if (in_array("pending", $lower, true)) {
+            $labels[] = "pending";
+        }
+        if (count(array_intersect($lower, ["approved", "accepted"])) > 0) {
+            $labels[] = "approved/accepted";
+        }
+        if (in_array("rescheduled", $lower, true)) {
+            $labels[] = "rescheduled";
+        }
+        if (count(array_intersect($lower, ["completed", "done", "finished"])) > 0) {
+            $labels[] = "completed";
+        }
+
+        if (empty($labels)) {
+            return "consultations";
+        }
+
+        return implode(" + ", $labels);
+    }
+
+    private function studentLatestConsultationSummary(
+        int $studId,
+        array $statuses,
+        bool $acceptedOnly,
+    ): string {
+        $statuses = array_values(array_unique(array_map("strtolower", $statuses)));
+        if (empty($statuses)) {
+            $statuses = ["approved", "accepted", "rescheduled"];
+        }
+
+        $query = DB::table("t_consultation_bookings as b")
+            ->leftJoin("professors as p", "p.Prof_ID", "=", "b.Prof_ID")
+            ->where("b.Stud_ID", $studId)
+            ->whereIn(DB::raw("LOWER(b.Status)"), $statuses)
+            ->orderByDesc("b.created_at")
+            ->select(
+                "b.Booking_Date",
+                "b.Status",
+                "b.Prof_ID",
+                "p.Name as Professor_Name",
+                "p.Schedule",
+            );
+
+        if (Schema::hasColumn("t_consultation_bookings", "Mode")) {
+            $query->addSelect("b.Mode");
+        }
+
+        $upcoming = $query->first();
+
+        if (!$upcoming) {
+            return $acceptedOnly
+                ? "You don't have any accepted consultations scheduled yet."
+                : "You don't have any consultations scheduled.";
+        }
+
+        $mode = null;
+        if (isset($upcoming->Mode) && $upcoming->Mode !== null && $upcoming->Mode !== "") {
+            $mode = ucfirst((string) $upcoming->Mode);
+        } else {
+            try {
+                $dateKey = (string) ($upcoming->Booking_Date ?? "");
+                if ($dateKey !== "" && isset($upcoming->Prof_ID)) {
+                    $ov = app(CalendarOverrideService::class)->evaluate(
+                        (int) $upcoming->Prof_ID,
+                        $dateKey,
+                    );
+                    if (!empty($ov["forced_mode"])) {
+                        $mode = ucfirst((string) $ov["forced_mode"]);
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $timeStr = null;
+        try {
+            $dateKey = (string) ($upcoming->Booking_Date ?? "");
+            if ($dateKey !== "" && !empty($upcoming->Schedule ?? "")) {
+                $dateObj = Carbon::parse($dateKey, "Asia/Manila");
+                $dow = strtolower($dateObj->format("l"));
+                $parsed = $this->parseProfessorSchedule((string) $upcoming->Schedule);
+                $times = $parsed[$dow] ?? [];
+                if (!empty($times)) {
+                    $timeStr = $times[0];
+                }
+            }
+        } catch (\Throwable $e) {
+        }
+
+        $parts = [];
+        $parts[] = ucfirst((string) ($upcoming->Status ?? "Unknown"));
+        if ($mode) {
+            $parts[] = $mode;
+        }
+        $statusMode = "(" . implode(", ", $parts) . ")";
+        $dateDisp = (string) ($upcoming->Booking_Date ?? "(date not set)");
+        $prefix = $acceptedOnly ? "Your latest accepted consultation" : "Your latest consultation";
+
+        if ($timeStr) {
+            return sprintf(
+                "%s is with %s on %s at %s %s.",
+                $prefix,
+                (string) ($upcoming->Professor_Name ?? "Professor"),
+                $dateDisp,
+                $timeStr,
+                $statusMode,
+            );
+        }
+
+        return sprintf(
+            "%s is with %s on %s %s.",
+            $prefix,
+            (string) ($upcoming->Professor_Name ?? "Professor"),
+            $dateDisp,
+            $statusMode,
+        );
+    }
+
+    private function studentConsultationsForDate(
+        int $studId,
+        Carbon $date,
+        array $statuses,
+        bool $acceptedOnly,
+    ): string {
+        $tz = "Asia/Manila";
+        $key = $date->copy()->timezone($tz)->startOfDay()->format("D M d Y");
+        $statuses = array_values(array_unique(array_map("strtolower", $statuses)));
+
+        $rows = DB::table("t_consultation_bookings as b")
+            ->leftJoin("professors as p", "p.Prof_ID", "=", "b.Prof_ID")
+            ->where("b.Stud_ID", $studId)
+            ->where("b.Booking_Date", $key)
+            ->whereIn(DB::raw("LOWER(b.Status)"), $statuses)
+            ->orderByDesc("b.created_at")
+            ->select("b.Booking_Date", "b.Status", "p.Name as Professor_Name")
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return sprintf(
+                "You have no %sconsultations on %s.",
+                $acceptedOnly ? "accepted " : "",
+                $date->format("D, M d Y"),
+            );
+        }
+
+        $list = [];
+        foreach ($rows as $r) {
+            $list[] = sprintf(
+                "%s — %s",
+                (string) ($r->Professor_Name ?? "Professor"),
+                ucfirst((string) $r->Status),
+            );
+        }
+
+        return sprintf(
+            "You have %d %sconsultation(s) on %s: %s.",
+            (int) $rows->count(),
+            $acceptedOnly ? "accepted " : "",
+            $date->format("D, M d Y"),
+            implode(", ", $list),
+        );
+    }
+
+    private function studentStatusWithProfessorRow(int $studId, $prof): string
+    {
+        $row = DB::table("t_consultation_bookings as b")
+            ->leftJoin("professors as p", "p.Prof_ID", "=", "b.Prof_ID")
+            ->where("b.Stud_ID", (int) $studId)
+            ->where("b.Prof_ID", (int) $prof->Prof_ID)
+            ->orderByDesc("b.created_at")
+            ->select("b.Booking_Date", "b.Status", "p.Name as Professor_Name")
+            ->first();
+
+        if (!$row) {
+            return "You don't have any booking with Professor " . $prof->Name . ".";
+        }
+
+        $status = strtolower((string) ($row->Status ?? ""));
+        $acceptedStatuses = ["approved", "accepted", "rescheduled"];
+        $isAccepted = in_array($status, $acceptedStatuses, true);
+        $dateText = (string) ($row->Booking_Date ?? "(date not set)");
+
+        if ($isAccepted) {
+            return sprintf(
+                "Yes. Your consultation with %s is %s (%s).",
+                (string) ($row->Professor_Name ?? $prof->Name),
+                ucfirst($status),
+                $dateText,
+            );
+        }
+
+        if ($status === "pending") {
+            return sprintf(
+                "Not yet. Your consultation with %s is still Pending (%s).",
+                (string) ($row->Professor_Name ?? $prof->Name),
+                $dateText,
+            );
+        }
+
+        if (in_array($status, ["declined", "rejected", "cancelled", "canceled"], true)) {
+            return sprintf(
+                "No. Your consultation with %s is %s (%s).",
+                (string) ($row->Professor_Name ?? $prof->Name),
+                ucfirst($status),
+                $dateText,
+            );
+        }
+
+        return sprintf(
+            "Latest status with %s is %s (%s).",
+            (string) ($row->Professor_Name ?? $prof->Name),
+            ucfirst($status ?: "Unknown"),
+            $dateText,
+        );
+    }
+
+    private function professorConsultationSummaryByTimeframe(
+        int $profId,
+        string $timeframe,
+        bool $studentsOnly,
+        Carbon $now,
+        ?Carbon $explicitDate = null,
+    ): ?string {
+        $tz = "Asia/Manila";
+
+        if ($timeframe === "DATE" && $explicitDate) {
+            $target = $explicitDate->copy()->setTimezone($tz)->startOfDay();
+            $rows = $this->fetchProfessorBookingsForRange($profId, $target, $target);
+            return $this->formatProfessorDaySummary($rows, $target, $studentsOnly);
+        }
+
+        if ($timeframe === "TODAY" || $timeframe === "UNSPECIFIED") {
+            $target = $now->copy()->setTimezone($tz)->startOfDay();
+            $rows = $this->fetchProfessorBookingsForRange($profId, $target, $target);
+            return $this->formatProfessorDaySummary($rows, $target, $studentsOnly);
+        }
+
+        if ($timeframe === "THIS_WEEK" || $timeframe === "NEXT_WEEK") {
+            $start = $now->copy()->setTimezone($tz)->startOfWeek(Carbon::MONDAY);
+            if ($timeframe === "NEXT_WEEK") {
+                $start = $start->copy()->addWeek();
+            }
+            $end = $start->copy()->endOfWeek(Carbon::SUNDAY);
+            $rows = $this->fetchProfessorBookingsForRange($profId, $start, $end);
+            return $this->formatProfessorRangeSummary($rows, $start, $end);
+        }
+
+        return null;
+    }
+
+    private function professorCompletedCountSummary(
+        int $profId,
+        string $timeframe,
+        Carbon $now,
+    ): string {
+        $tz = "Asia/Manila";
+        $timeframe = strtoupper($timeframe);
+
+        if ($timeframe === "TODAY") {
+            $today = $now->copy()->setTimezone($tz)->startOfDay();
+            $count = $this->countCompletedConsultationsForRange($profId, $today, $today);
+            $label = $today->format("F j, Y");
+            return sprintf(
+                "You completed %d consultation%s today (%s).",
+                $count,
+                $count === 1 ? "" : "s",
+                $label,
+            );
+        }
+
+        if (
+            $timeframe === "THIS_WEEK" ||
+            $timeframe === "NEXT_WEEK" ||
+            $timeframe === "UNSPECIFIED"
+        ) {
+            $start = $now->copy()->setTimezone($tz)->startOfWeek(Carbon::MONDAY);
+            if ($timeframe === "NEXT_WEEK") {
+                $start = $start->copy()->addWeek();
+            }
+            $end = $start->copy()->endOfWeek(Carbon::SUNDAY);
+            $count = $this->countCompletedConsultationsForRange($profId, $start, $end);
+            $rangeLabel = $start->format("M j") . " - " . $end->format("M j, Y");
+            return sprintf(
+                "You completed %d consultation%s this week (%s).",
+                $count,
+                $count === 1 ? "" : "s",
+                $rangeLabel,
+            );
+        }
+
+        if ($timeframe === "MONTH") {
+            $startOfMonth = $now->copy()->setTimezone($tz)->startOfMonth();
+            $endOfMonth = $startOfMonth->copy()->endOfMonth();
+            $count = $this->countCompletedConsultationsForRange(
+                $profId,
+                $startOfMonth,
+                $endOfMonth,
+            );
+            $monthLabel = $startOfMonth->format("F Y");
+            return sprintf(
+                "You completed %d consultation%s this month (%s).",
+                $count,
+                $count === 1 ? "" : "s",
+                $monthLabel,
+            );
+        }
+
+        if ($timeframe === "SEMESTER") {
+            return $this->professorSemesterCompletionSummary($profId);
+        }
+
+        return $this->professorSemesterCompletionSummary($profId);
     }
 
     private function matchProfessorFromMessage(string $m)

@@ -38,4 +38,31 @@ return [
             "channel" => env("SLACK_BOT_USER_DEFAULT_CHANNEL"),
         ],
     ],
+
+    "openai_moderation" => [
+        "enabled" => env("OPENAI_MODERATION_ENABLED", false),
+        "key" => env("OPENAI_MODERATION_KEY", env("OPENAI_API_KEY")),
+        "base_uri" => env("OPENAI_MODERATION_BASE_URI", "https://api.openai.com"),
+        "model" => env("OPENAI_MODERATION_MODEL", "omni-moderation-latest"),
+        "timeout" => env("OPENAI_MODERATION_TIMEOUT", 5),
+        "flag_threshold" => env("OPENAI_MODERATION_FLAG_THRESHOLD", 0.5),
+    ],
+
+    "out_of_scope" => [
+        "enabled" => env("OPENAI_OUT_OF_SCOPE_ENABLED", false),
+        "key" => env("OPENAI_OUT_OF_SCOPE_KEY", env("OPENAI_API_KEY")),
+        "base_uri" => env("OPENAI_OUT_OF_SCOPE_BASE_URI", "https://api.openai.com"),
+        "model" => env("OPENAI_OUT_OF_SCOPE_MODEL", "gpt-4.1-mini"),
+        "timeout" => env("OPENAI_OUT_OF_SCOPE_TIMEOUT", 5),
+        "confidence_threshold" => env("OPENAI_OUT_OF_SCOPE_CONFIDENCE_THRESHOLD", 0.6),
+    ],
+
+    "openai_intents" => [
+        "enabled" => env("OPENAI_INTENT_ENABLED", false),
+        "key" => env("OPENAI_INTENT_KEY", env("OPENAI_API_KEY")),
+        "base_uri" => env("OPENAI_INTENT_BASE_URI", "https://api.openai.com"),
+        "model" => env("OPENAI_INTENT_MODEL", "gpt-4.1-mini"),
+        "timeout" => env("OPENAI_INTENT_TIMEOUT", 5),
+        "confidence_threshold" => env("OPENAI_INTENT_CONFIDENCE_THRESHOLD", 0.6),
+    ],
 ];
