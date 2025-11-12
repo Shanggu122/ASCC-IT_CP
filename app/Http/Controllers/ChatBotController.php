@@ -101,6 +101,9 @@ class ChatBotController extends Controller
                 "ngayon ba",
                 "sa ngayon",
             ]);
+        $mentionsWeek = $this->mentionsWeek($normalized);
+        $mentionsMonth = $this->mentionsMonth($normalized);
+        $mentionsSemester = $this->mentionsSemester($normalized);
 
         if (
             $mentionsStudents &&
@@ -114,6 +117,46 @@ class ChatBotController extends Controller
                 ["completed"],
                 "Students you've already completed today (%s):",
                 "You have not completed any consultations yet today (%s).",
+            );
+        }
+
+        if (
+            $mentionsStudents &&
+            $this->mentionsCompletedConsultations($normalized) &&
+            $mentionsWeek
+        ) {
+            $startOfWeek = $today->copy()->startOfWeek(Carbon::MONDAY);
+            $endOfWeek = $today->copy()->endOfWeek(Carbon::SUNDAY);
+            $rows = $this->fetchProfessorBookingsForRange($profId, $startOfWeek, $endOfWeek);
+
+            return $this->formatProfessorCompletedRangeSummary(
+                $rows,
+                $startOfWeek,
+                $endOfWeek,
+                "Students you've completed this week (%s):",
+                "You have not completed any consultations yet this week (%s).",
+            );
+        }
+
+        if (
+            $mentionsStudents &&
+            $this->mentionsCompletedConsultations($normalized) &&
+            !$this->mentionsToday($normalized) &&
+            !$mentionsImmediate &&
+            !$mentionsWeek &&
+            !$mentionsMonth &&
+            !$mentionsSemester
+        ) {
+            $startOfWeek = $today->copy()->startOfWeek(Carbon::MONDAY);
+            $endOfWeek = $today->copy()->endOfWeek(Carbon::SUNDAY);
+            $rows = $this->fetchProfessorBookingsForRange($profId, $startOfWeek, $endOfWeek);
+
+            return $this->formatProfessorCompletedRangeSummary(
+                $rows,
+                $startOfWeek,
+                $endOfWeek,
+                "Students you've completed this week (%s):",
+                "You have not completed any consultations yet this week (%s).",
             );
         }
 
@@ -478,6 +521,68 @@ class ChatBotController extends Controller
                     : null;
 
             $parts = [];
+            if ($time) {
+                $parts[] = $time;
+            }
+            $parts[] = $studentName;
+            $line = "- " . implode(" - ", $parts);
+
+            $tags = [$statusLabel];
+            if ($modeLabel) {
+                $tags[] = $modeLabel;
+            }
+            if (!empty($tags)) {
+                $line .= " (" . implode(", ", $tags) . ")";
+            }
+            if ($subjectLabel) {
+                $line .= " - " . $subjectLabel;
+            }
+
+            $lines[] = $line;
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function formatProfessorCompletedRangeSummary(
+        $rows,
+        Carbon $start,
+        Carbon $end,
+        string $titlePattern,
+        string $emptyPattern,
+    ): string {
+        $rangeLabel = $start->format("M j") . " - " . $end->format("M j, Y");
+
+        $list = $rows
+            ->filter(function ($row) {
+                $status = $this->normalizeStatus($row->Status ?? "");
+                return $status === "completed";
+            })
+            ->values();
+
+        if ($list->isEmpty()) {
+            return sprintf($emptyPattern, $rangeLabel);
+        }
+
+        $lines = [sprintf($titlePattern, $rangeLabel)];
+        foreach ($list as $row) {
+            $date = $this->parseBookingDate($row->Booking_Date ?? null);
+            $dateLabel = $date
+                ? $date->format("D, M j")
+                : (string) ($row->Booking_Date ?? "Date TBA");
+            $time = $this->formatTime($row->Booking_Time ?? null);
+            $studentName = $this->formatStudentName($row);
+            $statusLabel = $this->friendlyStatus($row->Status ?? "");
+            $modeLabel =
+                isset($row->Mode) && $row->Mode !== null && $row->Mode !== ""
+                    ? ucfirst(strtolower((string) $row->Mode))
+                    : null;
+            $subjectLabel =
+                isset($row->subject_name) && $row->subject_name
+                    ? (string) $row->subject_name
+                    : null;
+
+            $parts = [$dateLabel];
             if ($time) {
                 $parts[] = $time;
             }
