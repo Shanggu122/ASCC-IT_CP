@@ -12,162 +12,402 @@
 </head>
 <body>
   @include('components.navbar-admin')
-    <div class="main-content">
-    <div class="header">
-      <h1>Consultation Analytics</h1>
+  <div class="main-content">
+    <div class="analytics-container">
+      <div class="fixed-section">
+        <div class="header">
+          <h1>Consultation Analytics Dashboard</h1>
+        </div>
+
+        <!-- Date filters removed per latest requirement -->
+      </div>
+
+      <div class="department-tabs">
+        <button class="department-tab active" data-dept="itis">
+          <i class='bx bx-building-house'></i> ITIS Department
+        </button>
+        <button class="department-tab" data-dept="comsci">
+          <i class='bx bx-code-alt'></i> ComSci Department
+        </button>
+      </div>
     </div>
-    <div class="grid">
-      <div class="card chart-card">
-        <h2>Top Consultation Topics</h2>
-        <div class="legend-inline" id="topicLegend"></div>
-  <canvas id="topicsChart"></canvas>
+
+    <div class="scrollable-content">
+      <!-- ITIS Section -->
+      <div class="department-section active" id="itis-section">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h3>Total ITIS Consultations</h3>
+          <div class="stat-value" id="itis-total">0</div>
+        </div>
       </div>
-      <div class="card chart-card">
-        <h2>Consultation Activity</h2>
-  <canvas id="activityChart"></canvas>
+      <div class="grid">
+        <div class="card chart-card">
+          <h2>Top ITIS Consultation Topics</h2>
+          <div class="legend-inline" id="itisTopicLegend"></div>
+          <div class="chart-container">
+            <canvas id="itisTopicsChart"></canvas>
+          </div>
+        </div>
+        <div class="card chart-card">
+          <h2>ITIS Consultation Activity</h2>
+          <div class="chart-container">
+            <canvas id="itisActivityChart"></canvas>
+          </div>
+        </div>
+        <div class="card chart-card">
+          <h2>ITIS Peak Days</h2>
+          <div class="chart-container">
+            <canvas id="itisPeakDaysChart"></canvas>
+          </div>
+        </div>
       </div>
-      <div class="card chart-card">
-        <h2>Peak Consultation Days</h2>
-  <canvas id="peakDaysChart"></canvas>
+    </div>
+
+    <!-- ComSci Section -->
+    <div class="department-section" id="comsci-section">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <h3>Total ComSci Consultations</h3>
+          <div class="stat-value" id="comsci-total">0</div>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="card chart-card">
+          <h2>Top ComSci Consultation Topics</h2>
+          <div class="legend-inline" id="comsciTopicLegend"></div>
+          <div class="chart-container">
+            <canvas id="comsciTopicsChart"></canvas>
+          </div>
+        </div>
+        <div class="card chart-card">
+          <h2>ComSci Consultation Activity</h2>
+          <div class="chart-container">
+            <canvas id="comsciActivityChart"></canvas>
+          </div>
+        </div>
+        <div class="card chart-card">
+          <h2>ComSci Peak Days</h2>
+          <div class="chart-container">
+            <canvas id="comsciPeakDaysChart"></canvas>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Load Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <!-- Initialize charts -->
   <script>
+    // Debug flag
+    const DEBUG = true;
+
+    // Constants
     const REFRESH_MS = 15000; // 15s polling interval
-    const charts = { topics:null, activity:null, peak:null, lastHash:null };
 
-    async function loadAnalytics(force=false){
-      try {
-        const res = await fetch('/api/admin/analytics?_=' + Date.now());
-        const data = await res.json();
-        const hash = JSON.stringify({t:data.topics,a:data.activity,p:data.peak_days,w:data.weekend_days});
-        if(!force && hash === charts.lastHash) return; // no change
-        charts.lastHash = hash;
-        // ensure crisp canvases intrinsic size before (re)creating charts
-        setCanvasSize('topicsChart');
-        setCanvasSize('activityChart');
-        setCanvasSize('peakDaysChart');
-        buildTopicsChart(data.topics);
-        buildActivityChart(data.activity);
-        buildPeakDaysChart(data.peak_days, data.weekend_days);
-      }catch(e){console.error('Analytics load failed',e);}    
-    }
 
-    function setCanvasSize(id){
-      const c = document.getElementById(id);
-      if(!c) return;
-  const dpr = window.devicePixelRatio || 1; // native scale only
-      // target logical display size
-  let logicalWidth = c.parentElement.clientWidth - 40; // padding allowance
-  const maxWidth = 600; // clamp so it doesn't look oversized
-  if(logicalWidth > maxWidth) logicalWidth = maxWidth;
-      const logicalHeight = 400;
-      c.style.width = logicalWidth + 'px';
-      c.style.height = logicalHeight + 'px';
-      c.width = Math.round(logicalWidth * dpr);
-      c.height = Math.round(logicalHeight * dpr);
-    }
+    // Chart state management
+    const charts = {
+      itis: { topics: null, activity: null, peak: null },
+      comsci: { topics: null, activity: null, peak: null },
+      lastHash: null
+    };
 
-    // Prototype palette (soft-to-dark greens + muted teal) matching your design
-    // Order used across charts: Programming, Networking, Capstone, (extras), then Mon-Fri for donut
-    const palette = [
-  '#A1DF76', // light green
-  '#63947C', // gray green
-  '#31845D', // medium green
-  '#02703D', // dark green
-  '#16423C', // dark turquoise
-  '#0B4E3A', // extra accent
-  '#075044'  // extra accent 2
-    ];
+    // Color schemes
+    const palettes = {
+      itis: ['#A1DF76', '#63947C', '#31845D', '#02703D', '#16423C'],
+      comsci: ['#76A1DF', '#7C6394', '#5D3184', '#3D0270', '#3C1642']
+    };
 
-    function buildTopicsChart(t){
-      const ctx = document.getElementById('topicsChart');
-      if(charts.topics){ charts.topics.destroy(); charts.topics=null; }
-      const departments = t.departments; // x axis
-      const topics = t.topics;
-      // Build legend
-      const legend = document.getElementById('topicLegend');
-      legend.innerHTML = topics.map((topic,i)=>`<span><span class="swatch" style="background:${palette[i%palette.length]}"></span>${topic}</span>`).join('');
-      const datasets = topics.map((topic,i)=>({
-        label: topic,
-        data: departments.map(dep=> (t.data[dep] ? t.data[dep][topic] : 0)),
-        backgroundColor: palette[i%palette.length],
-        categoryPercentage: 0.7,
-        barPercentage: 0.85,
-        maxBarThickness: 60
-      }));
-      charts.topics = new Chart(ctx,{type:'bar',data:{labels:departments,datasets},options:{responsive:false,animation:false,plugins:{legend:{display:false}},scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true,suggestedMax:20,ticks:{stepSize:2}}}}});
-    }
-
-    function buildActivityChart(a){
-      const ctx = document.getElementById('activityChart');
-      if(charts.activity){ charts.activity.destroy(); charts.activity=null; }
-      let months = a.months.slice();
-      const series = a.series; const deptNames = Object.keys(series);
-      // Trim trailing months where every dept value is zero
-      let last = months.length - 1;
-      const allZeroAt = (idx)=> deptNames.every(d=> (series[d][idx]||0) === 0);
-      while(last > 0 && allZeroAt(last)) last--;
-      if(last < months.length - 1){
-        months = months.slice(0,last+1);
-        deptNames.forEach(d=>{ series[d] = series[d].slice(0,last+1); });
-      }
-      const deptColorMap = {
-        'IT & IS':'#16423C',
-        'CompSci':'#31845D',
-      };
-      const datasets = deptNames.map((dept,i)=>{
-        const color = deptColorMap[dept] || palette[(i+2)%palette.length];
-        return {
-          label: dept,
-          data: series[dept],
-          tension:.3,
-          fill:false,
-          borderColor: color,
-          backgroundColor: color,
-          pointRadius:4,
-          pointHoverRadius:6,
-          borderWidth:3,
-        };
-      });
-      charts.activity = new Chart(ctx,{type:'line',data:{labels:months,datasets},options:{responsive:false,animation:false,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true,precision:0,suggestedMax:15,ticks:{stepSize:1}}}}});
-    }
-
-    function buildPeakDaysChart(d, weekend){
-      const ctx = document.getElementById('peakDaysChart');
-      if(charts.peak){ charts.peak.destroy(); charts.peak=null; }
-      const order = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
-      const dayColors = {
-        'Monday':'#A1DF76',
-        'Tuesday':'#63947C',
-        'Wednesday':'#31845D',
-        'Thursday':'#02703D',
-        'Friday':'#16423C'
-      };
-      const labels = order.filter(day=> typeof d[day] !== 'undefined');
-      const values = labels.map(k=> d[k] || 0);
-      const total = values.reduce((a,b)=>a+b,0);
-      if(total === 0){
-        const wkVals = ['Saturday','Sunday'].map(k=> weekend && weekend[k] ? weekend[k] : 0);
-        const wkTotal = wkVals.reduce((a,b)=>a+b,0);
-        if(wkTotal>0){
-          charts.peak = new Chart(ctx,{type:'doughnut',data:{labels:['Saturday','Sunday'],datasets:[{data:wkVals,backgroundColor:['#5A8275','#0B3B36']} ]},options:{animation:false,plugins:{title:{display:true,text:'Only weekend bookings so far'},legend:{position:'right'}},devicePixelRatio:window.devicePixelRatio||1}});
-          return;
+    // Helper function to log debug messages
+    function log(message, data = null) {
+      if (DEBUG) {
+        if (data) {
+          console.log(message, data);
         } else {
-          ctx.parentElement.innerHTML = '<h2>Peak Consultation Days</h2><p style="margin:1rem 0 0;font-size:.9rem;color:#333;">No bookings yet.</p>';
-          return;
+          console.log(message);
         }
       }
-      charts.peak = new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data:values,backgroundColor:labels.map(day=>dayColors[day]||'#094B40')}]},options:{responsive:false,animation:false,plugins:{legend:{position:'right'}}}});
     }
 
-  // Debug UI removed
+    // Canvas setup helper
+    function setCanvasSize(id) {
+      const canvas = document.getElementById(id);
+      if (!canvas) {
+        log(`Canvas ${id} not found`);
+        return;
+      }
+      
+      const container = canvas.parentElement;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      const dpr = window.devicePixelRatio || 1;
 
-    document.addEventListener('DOMContentLoaded', ()=>{ 
-      loadAnalytics(true); 
-      setInterval(()=>loadAnalytics(false), REFRESH_MS); 
-      document.addEventListener('visibilitychange',()=>{ if(!document.hidden) loadAnalytics(false); });
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      
+      log(`Canvas ${id} sized to ${width}x${height} (dpr: ${dpr})`);
+    }
+
+    // Chart builders
+    function buildTopicsChart(dept, t) {
+      if (!t?.topics?.length) {
+        log(`No topic data for ${dept}`);
+        return;
+      }
+
+      const canvas = document.getElementById(`${dept}TopicsChart`);
+      if (!canvas) {
+        log(`Topics chart canvas not found for ${dept}`);
+        return;
+      }
+
+      if (charts[dept].topics) {
+        charts[dept].topics.destroy();
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        log(`Could not get 2D context for ${dept} topics chart`);
+        return;
+      }
+
+      const legend = document.getElementById(`${dept}TopicLegend`);
+      if (legend) {
+        legend.innerHTML = t.topics.map((topic, i) => 
+          `<span><span class="swatch" style="background:${palettes[dept][i%5]}"></span>${topic}</span>`
+        ).join('');
+      }
+
+            charts[dept].topics = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: t.professors || [],
+          datasets: t.topics.map((topic, i) => ({
+            label: topic,
+            data: t.data[topic] || [],
+            backgroundColor: palettes[dept][i%5],
+            borderColor: palettes[dept][i%5],
+            borderWidth: 1,
+            barPercentage: 0.7,
+            categoryPercentage: 0.85,
+            maxBarThickness: 50
+          }))
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              stacked: true,
+              grid: { display: false }
+            },
+            y: {
+              stacked: true,
+              beginAtZero: true,
+              ticks: {
+                stepSize: 1,
+                precision: 0
+              }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    function buildActivityChart(dept, a) {
+      if (!a?.months?.length) {
+        log(`No activity data for ${dept}`);
+        return;
+      }
+
+      const canvas = document.getElementById(`${dept}ActivityChart`);
+      if (!canvas) {
+        log(`Activity chart canvas not found for ${dept}`);
+        return;
+      }
+
+      if (charts[dept].activity) {
+        charts[dept].activity.destroy();
+      }
+
+      charts[dept].activity = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels: a.months,
+          datasets: a.series.map((s, i) => ({
+            label: s.name,
+            data: s.data,
+            borderColor: palettes[dept][i%5],
+            backgroundColor: palettes[dept][i%5],
+            tension: 0.4,
+            fill: false
+          }))
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { 
+                stepSize: 1,
+                precision: 0 
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function buildPeakDaysChart(dept, days, weekend) {
+      if (!days) {
+        log(`No peak days data for ${dept}`);
+        return;
+      }
+
+      const canvas = document.getElementById(`${dept}PeakDaysChart`);
+      if (!canvas) {
+        log(`Peak days chart canvas not found for ${dept}`);
+        return;
+      }
+
+      if (charts[dept].peak) {
+        charts[dept].peak.destroy();
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        log(`Could not get 2D context for ${dept} peak days chart`);
+        return;
+      }
+
+      const labels = Object.keys(days);
+      const data = Object.values(days);
+
+      charts[dept].peak = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: labels.map((_, i) => palettes[dept][i%5])
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { 
+              position: 'right',
+              labels: {
+                boxWidth: 12,
+                padding: 15,
+                font: {
+                  size: 11
+                }
+              }
+            }
+          },
+          layout: {
+            padding: {
+              right: 20
+            }
+          }
+        }
+      });
+    }
+
+    // Main analytics loader
+    async function loadAnalytics(force = false) {
+      log('Loading analytics...');
+
+      try {
+  const params = new URLSearchParams();
+  params.append('_', Date.now().toString());
+
+  const response = await fetch('/api/admin/analytics?' + params.toString());
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        log('Received data:', data);
+
+        const hash = JSON.stringify(data);
+        if (!force && hash === charts.lastHash) {
+          log('No data changes');
+          return;
+        }
+        charts.lastHash = hash;
+
+        // Update stats
+        ['itis', 'comsci'].forEach(dept => {
+          if (data[dept]) {
+            document.getElementById(`${dept}-total`).textContent = data[dept].totalConsultations || 0;
+
+            // Ensure proper canvas sizes
+            setCanvasSize(`${dept}TopicsChart`);
+            setCanvasSize(`${dept}ActivityChart`);
+            setCanvasSize(`${dept}PeakDaysChart`);
+
+            // Build charts
+            buildTopicsChart(dept, data[dept].topics);
+            buildActivityChart(dept, data[dept].activity);
+            buildPeakDaysChart(dept, data[dept].peak_days, data[dept].weekend_days);
+          }
+        });
+      } catch (error) {
+        log('Error loading analytics:', error);
+      }
+    }
+
+    // Tab switching
+    document.querySelectorAll('.department-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const dept = tab.dataset.dept;
+        document.querySelectorAll('.department-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.department-section').forEach(s => s.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(`${dept}-section`).classList.add('active');
+      });
+    });
+
+    // Handle window resizing
+    function handleResize() {
+      ['itis', 'comsci'].forEach(dept => {
+        setCanvasSize(`${dept}TopicsChart`);
+        setCanvasSize(`${dept}ActivityChart`);
+        setCanvasSize(`${dept}PeakDaysChart`);
+        
+        if (charts[dept].topics) charts[dept].topics.resize();
+        if (charts[dept].activity) charts[dept].activity.resize();
+        if (charts[dept].peak) charts[dept].peak.resize();
+      });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      log('Initializing analytics...');
+      // Add resize handler with debounce
+      let resizeTimeout;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(handleResize, 250);
+      });
+
+      // Initial load
+      loadAnalytics(true);
+      
+      // Set up auto-refresh
+      setInterval(() => loadAnalytics(false), REFRESH_MS);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) loadAnalytics(false);
+      });
     });
   </script>
 </body>

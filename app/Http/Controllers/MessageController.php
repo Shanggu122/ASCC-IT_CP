@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use App\Events\PresencePing;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Carbon;
 
 class MessageController extends Controller
 {
@@ -218,19 +219,25 @@ class MessageController extends Controller
         $todayIso = $now->toDateString(); // YYYY-mm-dd (in case column is DATE)
         $capacityStatuses = ["approved", "rescheduled"];
 
-        $meetingLinkColumn = null;
-        if (Schema::hasColumn("t_consultation_bookings", "Meeting_Link")) {
-            $meetingLinkColumn = "Meeting_Link";
-        } elseif (Schema::hasColumn("t_consultation_bookings", "meeting_link")) {
-            $meetingLinkColumn = "meeting_link";
-        }
+        $meetingLinkColumn = $this->detectColumn("t_consultation_bookings", [
+            "Meeting_Link",
+            "meeting_link",
+        ]);
+        $bookingTimeColumn = $this->detectColumn("t_consultation_bookings", [
+            "Booking_Time",
+            "booking_time",
+        ]);
         $meetingLinkExpr = $meetingLinkColumn ? "NULLIF(b.`{$meetingLinkColumn}`, '')" : "NULL";
+        $bookingTimeExpr = $bookingTimeColumn ? "NULLIF(b.`{$bookingTimeColumn}`, '')" : "NULL";
 
         $eligibleToday = DB::table("t_consultation_bookings as b")
             ->select(
                 "b.Prof_ID",
                 DB::raw("1 as can_video_call"),
                 DB::raw("MAX({$meetingLinkExpr}) as meeting_link"),
+                DB::raw("MIN({$bookingTimeExpr}) as booking_time"),
+                DB::raw("MIN(NULLIF(b.Booking_Date, '')) as booking_date"),
+                DB::raw("COUNT(DISTINCT b.Stud_ID) as student_count"),
             )
             ->where("b.Stud_ID", $user->Stud_ID)
             ->whereIn("b.Status", $capacityStatuses)
@@ -269,6 +276,9 @@ class MessageController extends Controller
                 DB::raw("lm.last_sender"),
                 DB::raw("COALESCE(elig.can_video_call, 0) as can_video_call"),
                 DB::raw("COALESCE(elig.meeting_link, '') as meeting_link"),
+                DB::raw("COALESCE(elig.booking_date, '') as booking_date"),
+                DB::raw("COALESCE(elig.booking_time, '') as booking_time"),
+                DB::raw("COALESCE(elig.student_count, 0) as schedule_students"),
             ])
             ->orderByRaw(
                 "CASE WHEN prof.Dept_ID = 1 THEN 0 WHEN prof.Dept_ID = 2 THEN 1 ELSE 2 END",
@@ -276,14 +286,26 @@ class MessageController extends Controller
             ->orderBy("prof.Name")
             ->get();
 
-        if (config("app.debug")) {
-            $professors = $professors->map(function ($professor) {
-                if ((int) ($professor->prof_id ?? 0) === 3001 && empty($professor->meeting_link)) {
-                    $professor->meeting_link = "demo-group-call-prof-3001";
-                }
-                return $professor;
-            });
-        }
+        $professors = $professors->map(function ($professor) {
+            if (
+                config("app.debug") &&
+                (int) ($professor->prof_id ?? 0) === 3001 &&
+                empty($professor->meeting_link)
+            ) {
+                $professor->meeting_link = "demo-group-call-prof-3001";
+            }
+            $channel = $this->buildScheduleChannel(
+                (int) ($professor->prof_id ?? 0),
+                $professor->meeting_link ?? "",
+                $professor->booking_date ?? null,
+                $professor->booking_time ?? null,
+            );
+            $professor->schedule_channel = $channel;
+            if (empty($professor->meeting_link)) {
+                $professor->meeting_link = $channel;
+            }
+            return $professor;
+        });
 
         return view("messages", compact("professors"));
     }
@@ -304,8 +326,26 @@ class MessageController extends Controller
         $todayNoPad = $now->format("D M j Y");
         $todayIso = $now->toDateString();
         $capacityStatuses = ["approved", "rescheduled"];
+        $meetingLinkColumn = $this->detectColumn("t_consultation_bookings", [
+            "Meeting_Link",
+            "meeting_link",
+        ]);
+        $bookingTimeColumn = $this->detectColumn("t_consultation_bookings", [
+            "Booking_Time",
+            "booking_time",
+        ]);
+        $modeColumn = $this->detectColumn("t_consultation_bookings", ["Mode", "mode"]);
+        $meetingLinkExpr = $meetingLinkColumn ? "NULLIF(b.`{$meetingLinkColumn}`, '')" : "NULL";
+        $bookingTimeExpr = $bookingTimeColumn ? "NULLIF(b.`{$bookingTimeColumn}`, '')" : "NULL";
+
         $eligibleToday = DB::table("t_consultation_bookings as b")
-            ->select("b.Stud_ID", DB::raw("1 as can_video_call"))
+            ->select(
+                "b.Stud_ID",
+                DB::raw("1 as can_video_call"),
+                DB::raw("MAX({$meetingLinkExpr}) as meeting_link"),
+                DB::raw("MIN(NULLIF(b.Booking_Date, '')) as booking_date"),
+                DB::raw("MIN({$bookingTimeExpr}) as booking_time"),
+            )
             ->where("b.Prof_ID", $user->Prof_ID)
             ->whereIn("b.Status", $capacityStatuses)
             ->whereIn("b.Booking_Date", [$todayPad, $todayNoPad, $todayIso])
@@ -330,12 +370,123 @@ class MessageController extends Controller
                     'SUBSTRING_INDEX(GROUP_CONCAT(m.Sender ORDER BY m.Created_At DESC), ",", 1) as last_sender',
                 ),
                 DB::raw("COALESCE(elig.can_video_call, 0) as can_video_call"),
+                DB::raw("COALESCE(elig.meeting_link, '') as meeting_link"),
+                DB::raw("COALESCE(elig.booking_date, '') as booking_date"),
+                DB::raw("COALESCE(elig.booking_time, '') as booking_time"),
             ])
-            ->groupBy("stu.Name", "stu.Stud_ID", "stu.profile_picture", "elig.can_video_call")
+            ->groupBy(
+                "stu.Name",
+                "stu.Stud_ID",
+                "stu.profile_picture",
+                "elig.can_video_call",
+                "elig.meeting_link",
+                "elig.booking_date",
+                "elig.booking_time",
+            )
             ->orderBy("last_message_time", "desc")
             ->get();
 
-        return view("messages-professor", compact("students"));
+        $students = $students->map(function ($student) use ($user) {
+            $channel = $this->buildScheduleChannel(
+                (int) ($user->Prof_ID ?? 0),
+                $student->meeting_link ?? "",
+                $student->booking_date ?? null,
+                $student->booking_time ?? null,
+            );
+            $student->schedule_channel = $channel;
+            if ((int) ($student->can_video_call ?? 0) === 1 && empty($student->meeting_link)) {
+                $student->meeting_link = $channel;
+            }
+            return $student;
+        });
+
+        $todaySchedules = [];
+        $scheduleSelect = [
+            DB::raw("NULLIF(b.Booking_Date, '') as booking_date"),
+            DB::raw("b.Stud_ID as stud_id"),
+        ];
+        $scheduleSelect[] = DB::raw(
+            $meetingLinkColumn
+                ? "NULLIF(b.`{$meetingLinkColumn}`, '') as meeting_link"
+                : "NULL as meeting_link",
+        );
+        $scheduleSelect[] = DB::raw(
+            $bookingTimeColumn
+                ? "NULLIF(b.`{$bookingTimeColumn}`, '') as booking_time"
+                : "NULL as booking_time",
+        );
+        $scheduleSelect[] = DB::raw(
+            $modeColumn ? "NULLIF(b.`{$modeColumn}`, '') as mode" : "NULL as mode",
+        );
+
+        $bookingsToday = DB::table("t_consultation_bookings as b")
+            ->select($scheduleSelect)
+            ->where("b.Prof_ID", $user->Prof_ID)
+            ->whereIn("b.Status", $capacityStatuses)
+            ->whereIn("b.Booking_Date", [$todayPad, $todayNoPad, $todayIso])
+            ->orderBy("b.Booking_Date")
+            ->when($bookingTimeColumn, function ($query) use ($bookingTimeColumn) {
+                return $query->orderBy("b.{$bookingTimeColumn}");
+            })
+            ->get();
+
+        $buckets = [];
+        foreach ($bookingsToday as $entry) {
+            $channel = $this->buildScheduleChannel(
+                (int) ($user->Prof_ID ?? 0),
+                $entry->meeting_link ?? "",
+                $entry->booking_date ?? null,
+                $entry->booking_time ?? null,
+            );
+            if (!isset($buckets[$channel])) {
+                $buckets[$channel] = [
+                    "channel" => $channel,
+                    "booking_date" => $entry->booking_date,
+                    "booking_time" => $entry->booking_time,
+                    "mode" => $entry->mode ?? null,
+                    "student_ids" => [],
+                ];
+            }
+            if (!empty($entry->stud_id)) {
+                $buckets[$channel]["student_ids"][] = $entry->stud_id;
+            }
+            $existingTime = $buckets[$channel]["booking_time"] ?? null;
+            if (
+                (string) ($entry->booking_time ?? "") !== "" &&
+                ($existingTime === null ||
+                    $existingTime === "" ||
+                    strcmp((string) $entry->booking_time, (string) $existingTime) < 0)
+            ) {
+                $buckets[$channel]["booking_time"] = $entry->booking_time;
+            }
+        }
+
+        foreach ($buckets as $bucket) {
+            $todaySchedules[] = [
+                "channel" => $bucket["channel"],
+                "label" => $this->formatScheduleLabel(
+                    $bucket["booking_date"] ?? null,
+                    $bucket["booking_time"] ?? null,
+                    count($bucket["student_ids"]),
+                    $bucket["mode"] ?? null,
+                ),
+                "date" => $bucket["booking_date"],
+                "time" => $bucket["booking_time"],
+                "studentCount" => count($bucket["student_ids"]),
+                "mode" => $bucket["mode"],
+            ];
+        }
+
+        usort($todaySchedules, function ($a, $b) {
+            $timeA = $a["time"] ?? "";
+            $timeB = $b["time"] ?? "";
+            return strcmp((string) $timeA, (string) $timeB);
+        });
+
+        return view("messages-professor", [
+            "students" => $students,
+            "todaySchedules" => $todaySchedules,
+        ]);
     }
 
     public function loadMessages($bookingId)
@@ -591,5 +742,96 @@ class MessageController extends Controller
             return response()->json(["error" => "not_found"], 404);
         }
         return response()->json($row);
+    }
+
+    private function detectColumn(string $table, array $candidates): ?string
+    {
+        if (!Schema::hasTable($table)) {
+            return null;
+        }
+        $columns = Schema::getColumnListing($table);
+        foreach ($candidates as $candidate) {
+            if (in_array($candidate, $columns, true)) {
+                return $candidate;
+            }
+        }
+        return null;
+    }
+
+    private function buildScheduleChannel(
+        int $profId,
+        $meetingLink,
+        $bookingDate,
+        $bookingTime,
+    ): string {
+        $link = trim((string) ($meetingLink ?? ""));
+        if ($link !== "") {
+            return $link;
+        }
+        $dateKey = trim((string) ($bookingDate ?? ""));
+        $timeKey = trim((string) ($bookingTime ?? ""));
+        $raw = $profId . "|" . $dateKey . "|" . $timeKey;
+        if ($raw === "0||") {
+            return "schedule-prof-" . $profId;
+        }
+        $hash = substr(sha1($raw), 0, 12);
+        return "schedule-prof-{$profId}-{$hash}";
+    }
+
+    private function formatScheduleLabel(
+        $bookingDate,
+        $bookingTime,
+        int $count,
+        $mode = null,
+    ): string {
+        $parts = [];
+        $dateStr = trim((string) ($bookingDate ?? ""));
+        if ($dateStr !== "") {
+            $parts[] = $this->humanizeDate($dateStr);
+        }
+        $timeStr = trim((string) ($bookingTime ?? ""));
+        if ($timeStr !== "") {
+            $parts[] = $this->humanizeTime($timeStr);
+        }
+        $modeStr = trim((string) ($mode ?? ""));
+        if ($modeStr !== "") {
+            $parts[] = ucfirst(strtolower($modeStr));
+        }
+        if ($count > 0) {
+            $parts[] = $count === 1 ? "1 student" : $count . " students";
+        }
+        $parts = array_values(array_filter($parts, fn($part) => $part !== ""));
+        $label = implode(" | ", $parts);
+        return $label !== "" ? $label : "Class call";
+    }
+
+    private function humanizeDate(string $value): string
+    {
+        try {
+            return Carbon::parse($value, "Asia/Manila")->isoFormat("MMM D, YYYY");
+        } catch (\Throwable $e) {
+            return $value;
+        }
+    }
+
+    private function humanizeTime(string $value): string
+    {
+        $raw = trim($value);
+        if ($raw === "") {
+            return "";
+        }
+        $formats = ["H:i:s", "H:i", "g:i A", "g:i a"];
+        foreach ($formats as $format) {
+            try {
+                return Carbon::createFromFormat($format, $raw, "Asia/Manila")->format("g:i A");
+            } catch (\Throwable $e) {
+                // continue
+            }
+        }
+        try {
+            return Carbon::parse($raw, "Asia/Manila")->format("g:i A");
+        } catch (\Throwable $e) {
+            return $raw;
+        }
     }
 }

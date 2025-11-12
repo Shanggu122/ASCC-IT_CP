@@ -11,6 +11,18 @@
   <link rel="stylesheet" href="{{ asset('css/admin-navbar.css') }}">
   <link rel="stylesheet" href="{{ asset('css/admin-comsci.css') }}">
   <link rel="stylesheet" href="{{ asset('css/confirm-modal.css') }}">
+  <style>
+    /* View toggle styles (minimal, scoped) */
+    .search-container{ display:flex; align-items:center; gap:12px; }
+    .search-container input[type="text"]{ flex:1; }
+    .view-toggle{ display:flex; gap:8px; align-items:center; }
+    .view-toggle button{ background:transparent; border:1px solid #d1d5db; padding:6px 8px; border-radius:8px; cursor:pointer; color:#0f5132; display:inline-flex; align-items:center; justify-content:center; }
+    .view-toggle button.active{ background:#0f5132; color:#fff; border-color:#0f5132; }
+    .profile-cards-grid.list-view{ display:flex !important; flex-direction:column; gap:12px; }
+    .profile-cards-grid.list-view .profile-card{ display:flex !important; flex-direction:row !important; align-items:center; gap:12px; padding:12px 16px; max-width:100%; }
+    .profile-cards-grid.list-view .profile-card img{ width:48px; height:48px; object-fit:cover; border-radius:50%; }
+    .profile-cards-grid.list-view .profile-name{ font-size:1rem; font-weight:600; }
+  </style>
 </head>
 <body>
   @include('components.navbar-admin')
@@ -28,6 +40,10 @@
 
     <div class="search-container">
   <input type="text" id="searchInput" placeholder="Search..." autocomplete="off" spellcheck="false" maxlength="50" pattern="[A-Za-z0-9 ]{0,50}" aria-label="Search professors" oninput="this.value=this.value.replace(/[^A-Za-z0-9 ]/g,'')">
+  <div class="view-toggle" role="tablist" aria-label="View Toggle">
+    <button type="button" id="btnGridView" title="Grid view" aria-pressed="true" class="active"><i class='bx bx-grid-alt'></i></button>
+    <button type="button" id="btnListView" title="List view" aria-pressed="false"><i class='bx bx-list-ul'></i></button>
+  </div>
     </div>
 
     <div class="profile-cards-grid">
@@ -63,9 +79,7 @@
             <button type="button" class="chooser-option" data-open-add="student">Add Student</button>
           </div>
         </div>
-        <div class="mini-modal-actions">
-          <button type="button" class="btn-secondary" data-close-chooser>Close</button>
-        </div>
+        
       </div>
     </div>
 
@@ -1265,6 +1279,30 @@
         }
         const editDisp = document.getElementById('editProfId');
         if(editDisp){ editDisp.setAttribute('autocomplete','one-time-code'); editDisp.addEventListener('focus', ()=>{ editDisp.readOnly = true; setTimeout(()=>{ editDisp.readOnly = false; }, 80); }); }
+      }catch(_){ }
+
+      // View toggle: grid / list
+      try{
+        const gridBtn = document.getElementById('btnGridView');
+        const listBtn = document.getElementById('btnListView');
+        const container = document.querySelector('.profile-cards-grid');
+        function applyView(v){
+          if(!container) return;
+          if(v === 'list'){
+            container.classList.add('list-view');
+            if(gridBtn) { gridBtn.classList.remove('active'); gridBtn.setAttribute('aria-pressed','false'); }
+            if(listBtn) { listBtn.classList.add('active'); listBtn.setAttribute('aria-pressed','true'); }
+          } else {
+            container.classList.remove('list-view');
+            if(gridBtn) { gridBtn.classList.add('active'); gridBtn.setAttribute('aria-pressed','true'); }
+            if(listBtn) { listBtn.classList.remove('active'); listBtn.setAttribute('aria-pressed','false'); }
+          }
+          try{ localStorage.setItem('comsci_view', v); }catch(_){ }
+        }
+        if(gridBtn) gridBtn.addEventListener('click', ()=> applyView('grid'));
+        if(listBtn) listBtn.addEventListener('click', ()=> applyView('list'));
+        const saved = (localStorage.getItem('comsci_view') || 'grid');
+        applyView(saved);
       }catch(_){ }
     });
 

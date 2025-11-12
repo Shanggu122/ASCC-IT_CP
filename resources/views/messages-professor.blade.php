@@ -11,13 +11,20 @@
 </head>
 <body class="messages-page">
   @include('components.navbarprof')
+  @php $todaySchedules = $todaySchedules ?? []; @endphp
 
   <div class="main-content">
   <!-- Messaging Area -->
   <div class="messages-wrapper">
     <!-- Inbox -->
     <div class="inbox">
-  <h2>Students</h2>
+  <div class="inbox-header-line">
+    <h2>Students</h2>
+    <div class="class-call-control">
+      <button type="button" class="class-call-btn is-disabled" id="start-class-call" disabled aria-expanded="false">Start class call</button>
+      <div class="class-call-menu" id="class-call-menu" role="menu"></div>
+    </div>
+  </div>
       @foreach($students as $student)
         @php
           $pic = null;
@@ -32,7 +39,7 @@
           $displayMessage = $youPrefix . $lastMessage;
           $relTime = $student->last_message_time ? \Carbon\Carbon::parse($student->last_message_time)->timezone('Asia/Manila')->diffForHumans(['short'=>true]) : '';
         @endphp
-  <div class="inbox-item" data-stud-id="{{ $student->stud_id }}" data-can-video="{{ isset($student->can_video_call) && $student->can_video_call ? '1':'0' }}" onclick="loadChat('{{ $student->name }}', {{ $student->stud_id }})">
+  <div class="inbox-item" data-stud-id="{{ $student->stud_id }}" data-can-video="{{ isset($student->can_video_call) && $student->can_video_call ? '1':'0' }}" data-channel="{{ e($student->meeting_link ?? '') }}" data-schedule-channel="{{ e($student->schedule_channel ?? '') }}" onclick="loadChat('{{ $student->name }}', {{ $student->stud_id }})">
           <img class="inbox-avatar" src="{{ $picUrl }}" alt="{{ $student->name }}">
           <div class="inbox-meta">
             <div class="name"><span class="presence-dot" data-presence="stud-{{ $student->stud_id }}"></span>{{ $student->name }} <span class="unread-badge hidden" data-unread="stud-{{ $student->stud_id }}"></span></div>
@@ -77,7 +84,7 @@
     </div>
   </div>
 </div>
-  <script>window.csrfToken='{{ csrf_token() }}';</script>
+  <script>window.csrfToken='{{ csrf_token() }}'; window.PROF_SCHEDULES = @json($todaySchedules);</script>
   <script src="{{ asset('js/chat-common.js') }}"></script>
   <script src="https://js.pusher.com/7.0/pusher.min.js"></script>
   <script>
@@ -114,6 +121,91 @@
   let currentChatPerson = '';
   let currentStudentId = null; // direct messaging target
   const currentProfId = {{ auth()->guard('professor')->user()->Prof_ID ?? 0 }};
+  const todaySchedules = Array.isArray(window.PROF_SCHEDULES) ? window.PROF_SCHEDULES : [];
+  let classCallMenuOpen = false;
+
+  function disableChatInputsUntilSelection(){
+    const msgInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+    if(msgInput){ msgInput.disabled = true; }
+    if(sendBtn){ sendBtn.disabled = true; }
+    setAttachmentEnabled(false);
+  }
+
+  function initClassCallControl(){
+    const btn = document.getElementById('start-class-call');
+    const menu = document.getElementById('class-call-menu');
+    if(!btn || !menu) return;
+    if(!todaySchedules.length){
+      btn.disabled = true;
+      btn.classList.add('is-disabled');
+      btn.title = 'No approved schedules for today.';
+      menu.innerHTML = '<div class="class-call-menu-empty">No schedules for today</div>';
+      return;
+    }
+    btn.disabled = false;
+    btn.classList.remove('is-disabled');
+    btn.removeAttribute('title');
+    btn.setAttribute('aria-expanded', 'false');
+    menu.innerHTML = '';
+    todaySchedules.forEach(function(schedule){
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'class-call-menu-item';
+      item.setAttribute('role','menuitem');
+      item.dataset.channel = schedule.channel;
+      item.textContent = schedule.label;
+      item.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        closeClassCallMenu();
+        launchScheduleCall(schedule.channel);
+      });
+      menu.appendChild(item);
+    });
+    if(todaySchedules.length === 1){
+      btn.addEventListener('click', function(){
+        launchScheduleCall(todaySchedules[0].channel);
+      });
+      classCallMenuOpen = false;
+      menu.classList.remove('is-open');
+      menu.style.display = 'none';
+    } else {
+      btn.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        toggleClassCallMenu();
+      });
+      document.addEventListener('click', function(){
+        if(classCallMenuOpen){ closeClassCallMenu(); }
+      });
+    }
+  }
+
+  function toggleClassCallMenu(){
+    const btn = document.getElementById('start-class-call');
+    const menu = document.getElementById('class-call-menu');
+    if(!btn || !menu) return;
+    classCallMenuOpen = !classCallMenuOpen;
+    menu.classList.toggle('is-open', classCallMenuOpen);
+    btn.setAttribute('aria-expanded', classCallMenuOpen ? 'true' : 'false');
+  }
+
+  function closeClassCallMenu(){
+    const btn = document.getElementById('start-class-call');
+    const menu = document.getElementById('class-call-menu');
+    if(!btn || !menu) return;
+    classCallMenuOpen = false;
+    menu.classList.remove('is-open');
+    btn.setAttribute('aria-expanded', 'false');
+  }
+
+  function launchScheduleCall(channel){
+    closeClassCallMenu();
+    if(!channel){
+      showToast('Missing schedule channel for class call.', 'error');
+      return;
+    }
+    window.location.href = `/prof-call/${encodeURIComponent(channel)}`;
+  }
 
   // Helper: enable/disable attachment control based on chat selection
   function setAttachmentEnabled(enabled){
@@ -196,6 +288,8 @@
                 </div>
               </div>`;
             el.setAttribute('data-can-video','0');
+            el.setAttribute('data-channel', info.meeting_link || '');
+            el.setAttribute('data-schedule-channel', info.schedule_channel || '');
             // Insert at top after the header (h2)
             const afterHeader = wrapper.querySelector('h2')?.nextElementSibling;
             if(afterHeader){ wrapper.insertBefore(el, afterHeader); } else { wrapper.appendChild(el); }
@@ -376,11 +470,6 @@
         if(canVideo){ vbtn.disabled=false; vbtn.classList.remove('is-blocked'); vbtn.title='Start video call'; }
         else { vbtn.disabled=true; vbtn.classList.add('is-blocked'); vbtn.title='Video call available only on scheduled consultation day'; }
       }
-    // On page load, ensure chat input is disabled until a student is selected
-    document.addEventListener('DOMContentLoaded', function() {
-      document.getElementById('message-input').disabled = true;
-      document.getElementById('send-btn').disabled = true;
-    });
       try { localStorage.setItem('chat_last_student_id', String(studId)); } catch(e){}
       // Highlight active inbox item (needed so avatar restore can find image)
       document.querySelectorAll('.inbox-item').forEach(it=>it.classList.remove('active'));
@@ -399,11 +488,16 @@
         showToast('Video call is only allowed on your scheduled consultation day.','error');
         return;
       }
-  const studId = Number(currentStudentId);
-  const profId = Number(currentProfId);
-  if(!studId || !profId){ alert('Missing IDs for call.'); return; }
-  const channel = `stud-${studId}-prof-${profId}`;
-  window.location.href = `/prof-call/${encodeURIComponent(channel)}`;
+      const studId = Number(currentStudentId);
+      const profId = Number(currentProfId);
+      if(!studId || !profId){ showToast('Missing IDs for call.', 'error'); return; }
+      let channel = '';
+      if(active){
+        channel = (active.getAttribute('data-channel') || '').trim();
+        if(!channel){ channel = (active.getAttribute('data-schedule-channel') || '').trim(); }
+      }
+      if(!channel){ channel = `stud-${studId}-prof-${profId}`; }
+      launchScheduleCall(channel);
     }
 
     let selectedFiles = [];
@@ -620,8 +714,8 @@
   </script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      // Disable attachment control until a student is picked
-      setAttachmentEnabled(false);
+      disableChatInputsUntilSelection();
+      initClassCallControl();
       const vbtn=document.getElementById('video-call-btn'); if(vbtn){ vbtn.disabled=true; vbtn.classList.add('is-blocked'); }
       // Desktop: show chat panel and try to restore last opened student; Mobile: don't auto-load any chat
       if (!isMobile()) {

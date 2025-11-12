@@ -511,6 +511,15 @@
         </div>
         <div class="filters-drawer-body">
           <div class="filter-group">
+            <label class="filter-label" for="termFilterMobile">Term</label>
+            <select id="termFilterMobile" class="filter-select" aria-label="Term (mobile)">
+              <option value="all">All Terms</option>
+              @foreach($termList as $term)
+                <option value="{{ $term['id'] }}">{{ $term['label'] }}</option>
+              @endforeach
+            </select>
+          </div>
+          <div class="filter-group">
             <label class="filter-label" for="typeFilterMobile">Type</label>
             <select id="typeFilterMobile" class="filter-select" aria-label="Type (mobile)">
               <option value="">All Types</option>
@@ -573,11 +582,11 @@
         <div id="chatBox"></div>
       </div>
       <div id="quickReplies" class="quick-replies">
-        <button type="button" class="quick-reply" data-message="How do I book a consultation?">How do I book?</button>
-        <button type="button" class="quick-reply" data-message="What are the consultation statuses?">Statuses?</button>
-        <button type="button" class="quick-reply" data-message="How can I reschedule my consultation?">Reschedule</button>
-        <button type="button" class="quick-reply" data-message="Can I cancel my booking?">Cancel booking</button>
-        <button type="button" class="quick-reply" data-message="How do I contact my professor after booking?">Contact professor</button>
+        <button type="button" class="quick-reply" data-message="What are my consultations for today?">Today's consultations</button>
+        <button type="button" class="quick-reply" data-message="Who are the students scheduled for consultation today?">Students today</button>
+        <button type="button" class="quick-reply" data-message="What are my consultations for this week?">This week</button>
+        <button type="button" class="quick-reply" data-message="How many consultation slots are still available today?">Slots today</button>
+        <button type="button" class="quick-reply" data-message="What is my schedule?">My schedule</button>
       </div>
       <button type="button" id="quickRepliesToggle" class="quick-replies-toggle" style="display:none" title="Show FAQs">
         <i class='bx bx-help-circle'></i>
@@ -1340,12 +1349,18 @@ function closeProfessorModal() {
     ];
 
     // Basic front-end sanitizer to reduce junk / obvious attempt strings
-    function sanitize(input){
+    function sanitize(input, options){
       if(!input) return '';
+      const opts = options || {};
       let cleaned = input.replace(/\/\*.*?\*\//g,''); // remove /* */ comments
       cleaned = cleaned.replace(/--/g,' '); // collapse double dashes
       cleaned = cleaned.replace(/[;`'"<>]/g,' '); // strip risky punctuation
-      cleaned = cleaned.replace(/\s+/g,' ').trim(); // normalize whitespace
+      if(opts.preserveSpacing){
+        cleaned = cleaned.replace(/[\r\n\t\f\v]+/g,' '); // flatten control whitespace
+        cleaned = cleaned.replace(/\u00A0/g,' '); // normalize nbsp
+      }else{
+        cleaned = cleaned.replace(/\s+/g,' ').trim(); // normalize whitespace
+      }
       return cleaned.slice(0,250); // enforce hard limit
     }
 
@@ -1505,8 +1520,15 @@ function closeProfessorModal() {
       if(!chatForm || !chatInput) return;
       chatInput.addEventListener('input', () => {
         const raw = chatInput.value;
-        const cleaned = sanitize(raw);
-        if(cleaned !== raw) chatInput.value = cleaned;
+        const hadTrailingSpace = /\s$/.test(raw);
+        const cleaned = sanitize(raw, { preserveSpacing: true });
+        const lostTrailing = hadTrailingSpace && !cleaned.endsWith(' ');
+        const normalized = lostTrailing ? `${cleaned} ` : cleaned;
+        if(normalized !== raw){
+          const cursor = normalized.length;
+          chatInput.value = normalized;
+          try{ chatInput.setSelectionRange(cursor, cursor); }catch(_){ /* ignore unsupported */ }
+        }
       });
       function sendQuick(text){ if(!text) return; chatInput.value = text; chatForm.dispatchEvent(new Event('submit')); }
       quickReplies?.addEventListener('click',(e)=>{ const btn=e.target.closest('.quick-reply'); if(btn){ sendQuick(btn.dataset.message); } });
@@ -1514,9 +1536,9 @@ function closeProfessorModal() {
       chatForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const raw = chatInput.value;
-        const cleaned = sanitize(raw);
-        if(!cleaned){ chatInput.value=''; chatInput.focus(); return; }
-        chatInput.value = cleaned;
+  const cleaned = sanitize(raw, { preserveSpacing: true });
+  if(!cleaned.trim()){ chatInput.value=''; chatInput.focus(); return; }
+  chatInput.value = cleaned;
 
         if(quickReplies && quickReplies.style.display !== 'none'){
           quickReplies.style.display = 'none';
@@ -1524,11 +1546,12 @@ function closeProfessorModal() {
         }
 
         // Show user bubble
-        if(chatBody){ const um = document.createElement('div'); um.classList.add('message','user'); um.innerText = cleaned; chatBody.appendChild(um); chatBody.scrollTop = chatBody.scrollHeight; }
+  const displayMessage = cleaned.trimEnd();
+  if(chatBody){ const um = document.createElement('div'); um.classList.add('message','user'); um.innerText = displayMessage; chatBody.appendChild(um); chatBody.scrollTop = chatBody.scrollHeight; }
         chatInput.value = '';
 
         try{
-          const res = await fetch('/chat', { method:'POST', credentials:'same-origin', headers:{ 'Accept':'application/json','Content-Type':'application/json','X-CSRF-TOKEN':csrfToken }, body: JSON.stringify({ message: cleaned }) });
+          const res = await fetch('/chat', { method:'POST', credentials:'same-origin', headers:{ 'Accept':'application/json','Content-Type':'application/json','X-CSRF-TOKEN':csrfToken }, body: JSON.stringify({ message: displayMessage }) });
           let reply = 'Server error.';
           if(res.ok){ const data = await res.json(); reply = data.reply || reply; } else { try{ const err = await res.json(); reply = err.message || reply; }catch(_){} }
           if(chatBody){ const bm = document.createElement('div'); bm.classList.add('message','bot'); bm.innerText = reply; chatBody.appendChild(bm); chatBody.scrollTop = chatBody.scrollHeight; }
@@ -2022,15 +2045,18 @@ function profSyncOverlay(){
   profRebuildSubjectOptions();
   const tMain=document.getElementById('typeFilter');
   const sMain=document.getElementById('subjectFilter');
+  const termMain=document.getElementById('termFilter');
   const tMob=document.getElementById('typeFilterMobile');
   const sMob=document.getElementById('subjectFilterMobile');
+  const termMob=document.getElementById('termFilterMobile');
   if(tMain && tMob) tMob.value=tMain.value;
   if(sMain && sMob) sMob.value=sMain.value;
+  if(termMain && termMob) termMob.value=termMain.value;
 }
 function openFilters(){ const ov=document.getElementById('filtersOverlay'); if(!ov) return; profSyncOverlay(); ov.classList.add('open'); ov.setAttribute('aria-hidden','false'); document.body.style.overflow='hidden'; }
 function closeFilters(){ const ov=document.getElementById('filtersOverlay'); if(!ov) return; ov.classList.remove('open'); ov.setAttribute('aria-hidden','true'); document.body.style.overflow=''; }
-function applyFiltersFromOverlay(){ const tMain=document.getElementById('typeFilter'); const sMain=document.getElementById('subjectFilter'); const tMob=document.getElementById('typeFilterMobile'); const sMob=document.getElementById('subjectFilterMobile'); if(tMain&&tMob){ tMain.value=tMob.value; tMain.dispatchEvent(new Event('change')); } if(sMain&&sMob){ sMain.value=sMob.value; sMain.dispatchEvent(new Event('change')); } closeFilters(); }
-function resetFiltersOverlay(){ const tMob=document.getElementById('typeFilterMobile'); const sMob=document.getElementById('subjectFilterMobile'); if(tMob) tMob.value=''; if(sMob) sMob.value=''; }
+function applyFiltersFromOverlay(){ const tMain=document.getElementById('typeFilter'); const sMain=document.getElementById('subjectFilter'); const termMain=document.getElementById('termFilter'); const tMob=document.getElementById('typeFilterMobile'); const sMob=document.getElementById('subjectFilterMobile'); const termMob=document.getElementById('termFilterMobile'); if(tMain&&tMob){ tMain.value=tMob.value; tMain.dispatchEvent(new Event('change')); } if(sMain&&sMob){ sMain.value=sMob.value; sMain.dispatchEvent(new Event('change')); } if(termMain&&termMob){ termMain.value=termMob.value; termMain.dispatchEvent(new Event('change')); } closeFilters(); }
+function resetFiltersOverlay(){ const tMob=document.getElementById('typeFilterMobile'); const sMob=document.getElementById('subjectFilterMobile'); const termMob=document.getElementById('termFilterMobile'); if(tMob) tMob.value=''; if(sMob) sMob.value=''; if(termMob) termMob.value='all'; }
 document.getElementById('openFiltersBtn')?.addEventListener('click', openFilters);
 document.getElementById('closeFiltersBtn')?.addEventListener('click', closeFilters);
 document.getElementById('applyFiltersBtn')?.addEventListener('click', applyFiltersFromOverlay);

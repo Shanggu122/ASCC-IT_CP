@@ -28,24 +28,71 @@ body {
 
 /* Responsive adjustments */
 @media (max-width: 700px) {
-    body { overflow: auto; }
-    .messages-wrapper { flex-direction: column; }
-    .inbox { width: 100%; border-right: none; border-bottom: 1px solid #ccc; max-height: 40vh; }
-    .chat-panel { margin: 0; height: auto; border-radius: 0; }
-    .chat-header { position: sticky; top: 0; z-index: 10; }
-    #back-btn { display: inline-flex !important; align-items: center; justify-content: center; background: none; border: none; color: #fff; font-size: 1.4rem; margin-right: 8px; }
+    body {
+        overflow: auto;
+    }
+    .messages-wrapper {
+        flex-direction: column;
+    }
+    .inbox {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #ccc;
+        max-height: 40vh;
+    }
+    .chat-panel {
+        margin: 0;
+        height: auto;
+        border-radius: 0;
+    }
+    .chat-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    #back-btn {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        color: #fff;
+        font-size: 1.4rem;
+        margin-right: 8px;
+    }
 }
 
 @media (max-width: 600px) {
-    .messages-wrapper { flex-direction: column; }
-    .inbox { width: 100%; max-height: 100%; height: auto; }
-    .chat-panel { display: none; }
-    .chat-panel.active { display: flex; }
-    .inbox.hidden { display: none; }
-    .chat-header #chat-person { font-size: 0.95rem; }
-    .inbox-item { padding: 10px 6px; }
-    .inbox-avatar { width: 52px; height: 52px; }
-    .name { font-size: 16px; }
+    .messages-wrapper {
+        flex-direction: column;
+    }
+    .inbox {
+        width: 100%;
+        max-height: 100%;
+        height: auto;
+    }
+    .chat-panel {
+        display: none;
+    }
+    .chat-panel.active {
+        display: flex;
+    }
+    .inbox.hidden {
+        display: none;
+    }
+    .chat-header #chat-person {
+        font-size: 0.95rem;
+    }
+    .inbox-item {
+        padding: 10px 6px;
+    }
+    .inbox-avatar {
+        width: 52px;
+        height: 52px;
+    }
+    .name {
+        font-size: 16px;
+    }
 }
 
 /* Inbox */
@@ -57,11 +104,23 @@ body {
     padding: 0 1rem 1.6rem; /* TOP GAP REMOVED (flush to top) */
 }
 /* Scrollbar hidden unless hover */
-.inbox { scrollbar-width: none; }
-.inbox::-webkit-scrollbar { width: 8px; background: transparent; }
-.inbox::-webkit-scrollbar-thumb { background: transparent; }
-.inbox:hover { scrollbar-width: thin; }
-.inbox:hover::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.28); border-radius:4px; }
+.inbox {
+    scrollbar-width: none;
+}
+.inbox::-webkit-scrollbar {
+    width: 8px;
+    background: transparent;
+}
+.inbox::-webkit-scrollbar-thumb {
+    background: transparent;
+}
+.inbox:hover {
+    scrollbar-width: thin;
+}
+.inbox:hover::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.28);
+    border-radius: 4px;
+}
 
 .inbox-header-line {
     display: flex;
@@ -70,7 +129,9 @@ body {
     margin-bottom: 8px;
 }
 
-.search-wrapper { margin-bottom: 10px; }
+.search-wrapper {
+    margin-bottom: 10px;
+}
 .search-wrapper input {
     width: 100%;
     padding: 8px 12px;
@@ -81,7 +142,7 @@ body {
     background: #fff;
 }
 .search-wrapper input:focus {
-    box-shadow: 0 0 0 2px rgba(6,95,70,0.15);
+    box-shadow: 0 0 0 2px rgba(6, 95, 70, 0.15);
 }
 
 .dept-separator {
@@ -94,7 +155,9 @@ body {
     margin: 14px 0 4px;
     padding-left: 4px;
 }
-.dept-separator:first-of-type { margin-top: 2px; }
+.dept-separator:first-of-type {
+    margin-top: 2px;
+}
 
 .inbox h2 {
     margin-top: 0;
@@ -140,9 +203,13 @@ body {
 
 /* Removed avatar size change on large screens to keep it consistent */
 
-@media (max-width: 900px){
-    .inbox{ width:100%; }
-    .search-wrapper{ top:0; }
+@media (max-width: 900px) {
+    .inbox {
+        width: 100%;
+    }
+    .search-wrapper {
+        top: 0;
+    }
 }
 
 /* snippet inside inbox */
@@ -431,10 +498,10 @@ body {
         padding-bottom: 0.5rem;
         z-index: 1;
         padding-top: 70px; /* Adjust to navbar height */
-    height: calc(100vh - 70px); /* fill remaining space under navbar */
-    min-height: calc(100vh - 70px);
-    max-height: none; /* remove earlier 40vh limit so full list shows */
-    overflow-y: auto;
+        height: calc(100vh - 70px); /* fill remaining space under navbar */
+        min-height: calc(100vh - 70px);
+        max-height: none; /* remove earlier 40vh limit so full list shows */
+        overflow-y: auto;
     }
     .chat-panel {
         position: fixed;
@@ -454,6 +521,17 @@ body {
     }
     .chat-panel.active {
         display: flex;
+    }
+    .chat-panel.active::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 70px;
+        background: #fff;
+        z-index: 8;
+        pointer-events: none;
     }
     .chat-header {
         padding-left: 3rem; /* space for back button */
@@ -499,46 +577,109 @@ body {
 
 /* Mid-width (tablet) adjustments: widen chat vs inbox */
 @media (min-width: 701px) and (max-width: 950px) {
-    .messages-wrapper { flex-direction: row; }
+    .messages-wrapper {
+        flex-direction: row;
+    }
     /* Narrow inbox a bit more so chat gets extra space */
-    .inbox { width:300px; flex:0 0 300px; }
-    .messages-wrapper { width:100%; }
-    .chat-panel { margin:0; height:100vh; flex:1 1 auto; width:100%; }
-    body.messages-page { padding-right:0; }
+    .inbox {
+        width: 300px;
+        flex: 0 0 300px;
+    }
+    .messages-wrapper {
+        width: 100%;
+    }
+    .chat-panel {
+        margin: 0;
+        height: 100vh;
+        flex: 1 1 auto;
+        width: 100%;
+    }
+    body.messages-page {
+        padding-right: 0;
+    }
 }
 @media (min-width: 951px) and (max-width: 1100px) {
-    .messages-wrapper { flex-direction: row; }
-    .inbox { width:350px; flex:0 0 350px; }
-    .chat-panel { margin:0; height:100vh; flex:1 1 auto; width:auto; }
+    .messages-wrapper {
+        flex-direction: row;
+    }
+    .inbox {
+        width: 350px;
+        flex: 0 0 350px;
+    }
+    .chat-panel {
+        margin: 0;
+        height: 100vh;
+        flex: 1 1 auto;
+        width: auto;
+    }
 }
 
 /* Desktop >=1101px: give slight padding around but keep full usage */
 @media (min-width: 1101px) {
-    .inbox { width:390px; flex:0 0 390px; }
-    .chat-panel { margin:0; height:100vh; flex:1 1 auto; width:auto; }
+    .inbox {
+        width: 390px;
+        flex: 0 0 390px;
+    }
+    .chat-panel {
+        margin: 0;
+        height: 100vh;
+        flex: 1 1 auto;
+        width: auto;
+    }
 }
 
 /* Mid tablet widths: reduce font sizes to avoid overlap with hamburger/nav */
 @media (min-width: 701px) and (max-width: 950px) {
-    .inbox .name { font-size:14px; }
-    .inbox-item { padding:6px 8px; }
-    .chat-header { padding:0.65rem 0.9rem; position:static; } /* remove sticky in this range */
-    .chat-header #chat-person { font-size:0.95rem; }
-    .chat-body .message { font-size:13px; }
-    .video-btn { padding:6px 10px; font-size:12px; }
-    .inbox { padding-top:65px; } /* restore offset so heading not blocked by navbar in this width range */
+    .inbox .name {
+        font-size: 14px;
+    }
+    .inbox-item {
+        padding: 6px 8px;
+    }
+    .chat-header {
+        padding: 0.65rem 0.9rem;
+        position: static;
+    } /* remove sticky in this range */
+    .chat-header #chat-person {
+        font-size: 0.95rem;
+    }
+    .chat-body .message {
+        font-size: 13px;
+    }
+    .video-btn {
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+    .inbox {
+        padding-top: 65px;
+    } /* restore offset so heading not blocked by navbar in this width range */
     /* Preserve explicit calc width from earlier block for wider chat */
-    .messages-wrapper { width:100%; }
-    .inbox { z-index:3; position:relative; }
-    .chat-panel { z-index:1; position:relative; }
+    .messages-wrapper {
+        width: 100%;
+    }
+    .inbox {
+        z-index: 3;
+        position: relative;
+    }
+    .chat-panel {
+        z-index: 1;
+        position: relative;
+    }
 }
 /* Ensure adequate offset for larger widths so 'Professors' not hidden by navbar */
 @media (min-width: 951px) {
-    .inbox { padding-top:0; } /* removed desktop offset */
+    .inbox {
+        padding-top: 0;
+    } /* removed desktop offset */
 }
 /* If inbox is hidden (e.g., via JS adding .hidden), let chat take full width */
-.inbox.hidden { display:none !important; }
-.inbox.hidden + .chat-panel { width:100% !important; flex:1 1 100% !important; }
+.inbox.hidden {
+    display: none !important;
+}
+.inbox.hidden + .chat-panel {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+}
 
 @keyframes slideIn {
     from {
@@ -755,10 +896,10 @@ body {
 .toast {
     min-width: 280px;
     max-width: 360px;
-    background: #0F4947; /* deep theme green */
+    background: #0f4947; /* deep theme green */
     color: #ffffff;
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 10px 24px rgba(0,0,0,0.22);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
     border-radius: 12px;
     padding: 10px 14px;
     font-size: 14px;
@@ -771,17 +912,38 @@ body {
     animation: toast-in 180ms ease-out forwards;
     border-left: 4px solid #1e7f79; /* default accent */
 }
-.toast--error { border-left-color: #e57373; }
-.toast--ok    { border-left-color: #4caf50; }
+.toast--error {
+    border-left-color: #e57373;
+}
+.toast--ok {
+    border-left-color: #4caf50;
+}
 
-.toast__icon { font-size: 18px; opacity: 0.9; }
-.toast__text { line-height: 1.35; }
+.toast__icon {
+    font-size: 18px;
+    opacity: 0.9;
+}
+.toast__text {
+    line-height: 1.35;
+}
 
 @keyframes toast-in {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 @keyframes toast-out {
-    from { opacity: 1; transform: translateY(0); }
-    to   { opacity: 0; transform: translateY(8px); }
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(8px);
+    }
 }

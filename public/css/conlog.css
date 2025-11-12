@@ -1143,8 +1143,8 @@ body {
 .filter-group-horizontal {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    min-width: 220px;
+    gap: 0.3rem;
+    min-width: 180px;
 }
 
 .filter-label {

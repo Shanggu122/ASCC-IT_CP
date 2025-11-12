@@ -4,7 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="csrf-token" content="{{ csrf_token() }}" />
-  <title>Meeting — {{ $counterpartName ?? $channel ?? 'Room' }}</title>
+  @php
+    $callTitle = 'Online Consultation with ' . (($counterpartName ?? null) !== null && trim($counterpartName) !== '' ? $counterpartName : 'your professor');
+  @endphp
+  <title>{{ $callTitle }}</title>
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
   <link rel="stylesheet" href="/css/video-call.css" />
   <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
   <script src="https://download.agora.io/sdk/release/AgoraRTM.min.js"></script>
@@ -12,7 +16,7 @@
 <body>
   <div class="layout no-sidebar">
     <div class="topbar">
-      <div class="title">Meeting — {{ $counterpartName ?? ($channel ?? 'Room') }}</div>
+  <div class="title">{{ $callTitle }}</div>
       <div></div>
     </div>
     <div id="stage">
@@ -63,6 +67,7 @@
       <div class="tabs">
         <div class="tab active" data-tab="chat">Chat</div>
         <div class="tab" data-tab="people">People</div>
+        <button type="button" class="close-sidebar-btn" id="closeSidebar" aria-label="Close panel"><i class='bx bx-x'></i></button>
       </div>
       <div class="panel" id="panel-chat"><div class="messages" id="messages"></div></div>
       <div class="panel hidden" id="panel-people"><ul class="participants" id="participants"></ul></div>
@@ -173,6 +178,7 @@
     const participantsEl   = document.getElementById('participants');
     const messageBox       = document.getElementById('messageBox');
     const sendBtn          = document.getElementById('sendBtn');
+  const closeSidebarBtn  = document.getElementById('closeSidebar');
 
     const settingsModal    = document.getElementById('settingsModal');
     const cameraSelect     = document.getElementById('cameraSelect');
@@ -194,6 +200,81 @@
   const resQuickSelect   = document.getElementById('resQuickSelect');
   const openSettingsFromMic = document.getElementById('openSettingsFromMic');
   const openSettingsFromCam = document.getElementById('openSettingsFromCam');
+  let autoplayOverlayEl = null;
+  let autoplayResumeBtn = null;
+
+  function ensureAutoplayOverlay(){
+      if(autoplayOverlayEl){ return autoplayOverlayEl; }
+      const overlay = document.createElement('div');
+      overlay.className = 'autoplay-overlay';
+      overlay.setAttribute('aria-hidden', 'true');
+      overlay.innerHTML = `
+        <div class="autoplay-card">
+          <h3>Playback paused</h3>
+          <p>Tap resume to enable audio and video for this consultation.</p>
+          <button type="button" class="autoplay-resume-btn">Resume playback</button>
+        </div>`;
+      const btn = overlay.querySelector('.autoplay-resume-btn');
+      if(btn){
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            await attemptResumePlayback();
+          } finally {
+            btn.disabled = false;
+            hideAutoplayOverlay();
+          }
+        });
+      }
+      document.body.appendChild(overlay);
+      autoplayResumeBtn = btn;
+      autoplayOverlayEl = overlay;
+      return overlay;
+  }
+
+  function showAutoplayOverlay(){
+      const overlay = ensureAutoplayOverlay();
+      overlay.classList.add('visible');
+      overlay.setAttribute('aria-hidden', 'false');
+      if(autoplayResumeBtn){
+        autoplayResumeBtn.disabled = false;
+        try { autoplayResumeBtn.focus({ preventScroll: true }); } catch {}
+      }
+  }
+
+  function hideAutoplayOverlay(){
+      if(!autoplayOverlayEl){ return; }
+      autoplayOverlayEl.classList.remove('visible');
+      autoplayOverlayEl.setAttribute('aria-hidden', 'true');
+  }
+
+  async function attemptResumePlayback(){
+      try {
+        if(localVideoTrack){ localVideoTrack.play(localContainer); }
+      } catch {}
+      try {
+        if(screenVideoTrack){ screenVideoTrack.play(localContainer); }
+      } catch {}
+      const remotes = Array.isArray(client?.remoteUsers) ? client.remoteUsers : [];
+      remotes.forEach(user => {
+        if(!user){ return; }
+        const tile = remoteTiles.get(String(user.uid));
+        if(user.videoTrack && tile){
+          try { user.videoTrack.play(tile.videoHost); } catch {}
+        }
+        if(user.audioTrack){
+          try { user.audioTrack.play(); } catch {}
+        }
+      });
+  }
+
+  function setupAutoplayGuard(){
+      if(typeof AgoraRTC === 'undefined'){ return; }
+      AgoraRTC.onAutoplayFailed = () => {
+        showAutoplayOverlay();
+      };
+  }
+  setupAutoplayGuard();
   function showRetryChat(){ /* intentionally hidden from UI to avoid noise */ }
 
   const remoteTiles = new Map();
@@ -201,8 +282,61 @@
   const participantProfiles = new Map();
   const participantProfileFetches = new Map();
   const avatarColorAssignments = new Map();
+  const pendingLocalMessages = [];
+  const confirmedLocalMessages = [];
+  let sendCooldown = false;
     let layoutFrame = null;
     let lastLayoutSignature = '';
+
+    function registerLocalEcho(rawText, element){
+      if(!element) return;
+      const normalized = (rawText ?? '').trim();
+      const entry = { text: normalized, element };
+      pendingLocalMessages.push(entry);
+      if(pendingLocalMessages.length > 40){ pendingLocalMessages.shift(); }
+      element.dataset.origin = element.dataset.origin || 'local';
+    }
+
+    function stashConfirmed(entry){
+      if(!entry) return;
+      confirmedLocalMessages.push(entry);
+      if(confirmedLocalMessages.length > 60){ confirmedLocalMessages.shift(); }
+    }
+
+    function resolveLocalEcho(rawText, onResolve){
+      const normalized = (rawText ?? '').trim();
+      if(!normalized){ return false; }
+      const idx = pendingLocalMessages.findIndex(entry => entry.text === normalized);
+      if(idx !== -1){
+        const entry = pendingLocalMessages.splice(idx, 1)[0];
+        if(entry && entry.element){
+          entry.element.dataset.origin = 'confirmed';
+          if(typeof onResolve === 'function'){
+            try{ onResolve(entry.element); }catch(_err){}
+          }
+        }
+        stashConfirmed(entry);
+        return true;
+      }
+      const confirmedIndex = confirmedLocalMessages.findIndex(entry => entry.text === normalized);
+      if(confirmedIndex !== -1){
+        const confirmed = confirmedLocalMessages.splice(confirmedIndex, 1)[0];
+        if(confirmed && confirmed.element){
+          if(typeof onResolve === 'function'){
+            try{ onResolve(confirmed.element); }catch(_err){}
+          }
+        }
+        return true;
+      }
+      return false;
+    }
+
+    function scheduleSendReset(delay = 800){
+      setTimeout(()=>{
+        sendCooldown = false;
+        if(sendBtn){ sendBtn.disabled = false; }
+      }, delay);
+    }
 
     function parseMockList(raw){
       const spec = { indices: new Set(), names: new Set() };
@@ -616,18 +750,27 @@
         return;
       }
       const layout = computeLayout(activeCount);
-      remoteGrid.style.setProperty('--remote-columns', String(layout.cols));
-      remoteGrid.classList.toggle('single-row', layout.rows <= 1);
-      remoteGrid.classList.toggle('double-row', layout.rows === 2);
-    const isTripleWide = layout.cols === 3 && layout.rows === 2;
-    remoteGrid.classList.toggle('triple-wide', isTripleWide);
-      remoteGrid.classList.toggle('multi-row', layout.rows >= 3);
-    const shouldTighten = !isTripleWide && (layout.cols >= 4 || activeCount >= 6);
-    remoteGrid.classList.toggle('tight', shouldTighten);
-  remoteGrid.classList.toggle('two-up', layout.cols === 2 && activeCount === 2);
-      const signature = `${layout.cols}x${layout.rows}-${activeCount}`;
+      const isMobile = window.matchMedia('(max-width: 768px)').matches;
+      const shouldStackMobile = isMobile && activeCount <= 2;
+      const effectiveCols = shouldStackMobile ? 1 : layout.cols;
+      const effectiveRows = shouldStackMobile ? Math.max(1, activeCount) : layout.rows;
+      remoteGrid.style.setProperty('--remote-columns', String(effectiveCols));
+      remoteGrid.classList.toggle('mobile-stack', shouldStackMobile);
+      const isSingleRow = shouldStackMobile || layout.rows <= 1;
+      const isDoubleRow = !shouldStackMobile && layout.rows === 2;
+      const isTripleWide = !shouldStackMobile && layout.cols === 3 && layout.rows === 2;
+      const isMultiRow = !shouldStackMobile && layout.rows >= 3;
+      const shouldTighten = !shouldStackMobile && !isTripleWide && (layout.cols >= 4 || activeCount >= 6);
+      const isTwoUp = !shouldStackMobile && layout.cols === 2 && activeCount === 2;
+      remoteGrid.classList.toggle('single-row', isSingleRow);
+      remoteGrid.classList.toggle('double-row', isDoubleRow);
+      remoteGrid.classList.toggle('triple-wide', isTripleWide);
+      remoteGrid.classList.toggle('multi-row', isMultiRow);
+      remoteGrid.classList.toggle('tight', shouldTighten);
+      remoteGrid.classList.toggle('two-up', isTwoUp);
+      const signature = `${effectiveCols}x${effectiveRows}-${activeCount}-${shouldStackMobile ? 'stack' : 'grid'}`;
       if(signature !== lastLayoutSignature){
-        rebuildGrid(layout.cols, layout.rows);
+        rebuildGrid(effectiveCols, effectiveRows);
         lastLayoutSignature = signature;
       }
     }
@@ -803,12 +946,13 @@
     }
     function logMsg(content, isSystem=false, isSelf=false){
       // Always suppress system/debug messages from the visible chat UI
-      if(isSystem){ try{ console.debug(content); }catch{} return; }
+      if(isSystem){ try{ console.debug(content); }catch{} return null; }
       const div = document.createElement('div');
       div.className = 'msg ' + (isSelf ? 'me' : 'other');
       div.textContent = content;
       messagesEl.appendChild(div);
       messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
     }
 
     function refreshParticipants(){
@@ -841,10 +985,23 @@
     function renderFetched(list){
       for(const msg of list){
         const key = `${msg.Created_At}|${msg.Sender}|${msg.Message||''}|${msg.file_path||''}`;
-        if(seenKeys.has(key)) continue; seenKeys.add(key);
+        if(seenKeys.has(key)) continue;
+        const rawMessage = msg.Message ?? '';
+        const normalized = rawMessage.trim();
         const isSelf = (msg.Sender === SELF_ROLE);
-  const who = isSelf ? 'You' : (msg.Sender === 'professor' ? (COUNTERPART_NAME || 'Professor') : 'Student');
-        if((msg.Message||'').trim() !== ''){ logMsg(`${who}: ${msg.Message}`, false, isSelf); }
+        const who = isSelf ? 'You' : (msg.Sender === 'professor' ? (COUNTERPART_NAME || 'Professor') : 'Student');
+        if(normalized){
+          if(isSelf && resolveLocalEcho(normalized, element => { element.dataset.msgKey = key; })){
+            seenKeys.add(key);
+            continue;
+          }
+          const entry = logMsg(`${who}: ${normalized}`, false, isSelf);
+          if(entry){
+            entry.dataset.msgKey = key;
+            if(isSelf && entry.dataset.origin !== 'local'){ entry.dataset.origin = entry.dataset.origin || 'history'; }
+          }
+        }
+        seenKeys.add(key);
       }
     }
     async function pollOnce(){
@@ -948,6 +1105,9 @@
     }
     participantsBtn.addEventListener('click', ()=> toggleSidebarFor('people'));
     chatBtn.addEventListener('click', ()=> toggleSidebarFor('chat'));
+    closeSidebarBtn?.addEventListener('click', ()=>{
+      layoutEl.classList.remove('show-sidebar');
+    });
     // Mic/Video dropdowns
     function closeDrops(){ micDropdown.classList.remove('open'); videoDropdown.classList.remove('open'); }
     document.addEventListener('click', (e)=>{
@@ -1191,19 +1351,55 @@
     sendBtn.addEventListener('click', sendChat);
     messageBox.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); sendChat(); } });
     async function sendChat(){
-      const text = messageBox.value.trim(); if(!text) return;
+      const text = messageBox.value.trim();
+      if(!text || sendCooldown) return;
+      sendCooldown = true;
+      sendBtn.disabled = true;
       messageBox.value = '';
+      messageBox.focus();
+
+      const registerEcho = ()=>{
+        const entry = logMsg(`You: ${text}`, false, true);
+        registerLocalEcho(text, entry);
+      };
+
       if(rtmChannel){
-        try{ await rtmChannel.sendMessage({ text }); logMsg(`You: ${text}`, false, true); }catch{ logMsg('Failed to send message.', true); }
-      }else if (rtcDataStream){
-        try { await rtcDataStream.send(text); logMsg(`You: ${text}`, false, true); } catch { logMsg('Failed to send message (RTC).', true); }
-      } else {
-          const ok = await httpSendChat(text);
-          if(!ok) logMsg('Chat unavailable. RTM not connected.', true);
+        try{
+          await rtmChannel.sendMessage({ text });
+          registerEcho();
+        }catch{
+          logMsg('Failed to send message.', true);
+        } finally {
+          scheduleSendReset();
+        }
+        return;
+      }
+
+      if(rtcDataStream){
+        try {
+          await rtcDataStream.send(text);
+          registerEcho();
+        } catch {
+          logMsg('Failed to send message (RTC).', true);
+        } finally {
+          scheduleSendReset();
+        }
+        return;
+      }
+
+      try{
+        const ok = await httpSendChat(text);
+        if(ok){
+          registerEcho();
+        }else{
+          logMsg('Chat unavailable. RTM not connected.', true);
+        }
+      }finally{
+        scheduleSendReset();
       }
     }
 
-  leaveBtn.addEventListener('click', async () => {
+    leaveBtn.addEventListener('click', async () => {
       try{
         if (localAudioTrack) { localAudioTrack.close(); }
         if (localVideoTrack) { localVideoTrack.close(); }
@@ -1212,7 +1408,7 @@
         if (rtmClient) { await rtmClient.logout(); }
         await client.leave();
       } finally {
-    window.location.href = LEAVE_REDIRECT;
+        window.location.href = LEAVE_REDIRECT;
       }
     });
 
@@ -1231,593 +1427,6 @@
       queueRemoteLayout();
     }
 
-  function handleUserUnpublished(user, mediaType) {
-      if ((mediaType === 'video' || mediaType === undefined) && remoteTiles.has(String(user.uid))) {
-        const tile = remoteTiles.get(String(user.uid));
-        if (tile) { tile.videoHost.innerHTML = ''; }
-        markTrackState(user.uid, false);
-      }
-      if (mediaType === 'audio' && user.audioTrack) {
-        try { user.audioTrack.stop(); } catch {}
-      }
-      refreshParticipants();
-    }
-
-    // Receive RTC data stream messages (real-time fallback)
-    if (client && client.on) {
-      client.on('stream-message', ({uid, streamId, data}) => {
-        try {
-          const text = typeof data === 'string' ? data : (new TextDecoder()).decode(data);
-          const isSelf = String(uid) === String(localUid);
-          const tile = remoteTiles.get(String(uid));
-          const who = isSelf ? 'You' : (tile?.name?.textContent || getRemoteLabel(uid));
-          logMsg(`${who}: ${text}`, false, isSelf);
-        } catch {}
-      });
-    }
-  }
-  </script>
-
-</body>
-</html>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="csrf-token" content="{{ csrf_token() }}" />
-  <title>Meeting — {{ $counterpartName ?? $channel ?? 'Room' }}</title>
-
-  <link rel="stylesheet" href="/css/video-call.css" />
-  <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
-  <script src="https://download.agora.io/sdk/release/AgoraRTM.min.js"></script>
-    </aside>
-  </div>
-  <div class="layout no-sidebar">
-    <div class="topbar">
-      <div class="title">Meeting — {{ $counterpartName ?? ($channel ?? 'Room') }}</div>
-      <div></div>
-    </div>
-    <div id="stage">
-      <div id="local-player" class="video-player">
-        <div id="local-status" class="status-icon hidden"><i class='bx bxs-microphone-off'></i> Mic Off</div>
-      </div>
-      <div id="remote-player" class="video-player">
-        <div id="remote-placeholder" class="remote-placeholder">Waiting for others to join...</div>
-        <div id="remote-grid" class="remote-grid hidden"></div>
-      </div>
-      <div id="controls-panel">
-        <div></div>
-        <div class="controls-center">
-          <div class="ctrl">
-            <button id="toggle-mic" class="ctrl-btn"><i class='bx bxs-microphone'></i><span>Audio</span></button>
-            <button id="mic-caret" class="caret" title="More"><i class='bx bx-chevron-up'></i></button>
-            <div id="mic-dropdown" class="dropdown">
-              <label>Microphone</label>
-              <select id="micQuickSelect"></select>
-              <label style="margin-top:6px;">Speaker</label>
-              <select id="spkQuickSelect"></select>
-              <span class="link" id="openSettingsFromMic">Audio settings…</span>
-            </div>
-          </div>
-          <div class="ctrl">
-            <button id="toggle-cam" class="ctrl-btn"><i class='bx bxs-video'></i><span>Video</span></button>
-            <button id="video-caret" class="caret" title="More"><i class='bx bx-chevron-up'></i></button>
-            <div id="video-dropdown" class="dropdown">
-              <label>Camera</label>
-              <select id="camQuickSelect"></select>
-              <label style="margin-top:6px;">Resolution</label>
-              <select id="resQuickSelect">
-                <option value="default">Default</option>
-                <option value="hd">1280x720</option>
-                <option value="fhd">1920x1080</option>
-              </select>
-              <span class="link" id="openSettingsFromCam">Video settings…</span>
-            </div>
-          </div>
-          <button id="participantsBtn" class="icon-btn"><i class='bx bxs-user-detail'></i><span>Participants</span></button>
-          <button id="chatBtn" class="icon-btn"><i class='bx bx-chat'></i><span>Chat</span></button>
-          <button id="ctrl-share" class="icon-btn"><i class='bx bx-desktop'></i><span>Share</span></button>
-        </div>
-        <div class="controls-right"><button id="leave-btn"><i class='bx bx-phone-off'></i>End</button></div>
-      </div>
-    </div>
-    <aside class="sidebar" id="sidebar">
-      <div class="tabs">
-        <div class="tab active" data-tab="chat">Chat</div>
-        <div class="tab" data-tab="people">People</div>
-      </div>
-      <div class="panel" id="panel-chat"><div class="messages" id="messages"></div></div>
-      <div class="panel hidden" id="panel-people"><ul class="participants" id="participants"></ul></div>
-      <div class="msg-input" id="chat-input">
-        <input id="messageBox" type="text" placeholder="Type a message…" maxlength="5000" />
-        <button id="sendBtn"><i class='bx bx-send'></i></button>
-      </div>
-    </aside>
-  </div>
-
-  <!-- Settings Modal -->
-  <div class="modal" id="settingsModal" aria-hidden="true">
-    <div class="card">
-      <h3>Audio & Video Settings</h3>
-      <div class="grid">
-        <div>
-          <label>Camera</label>
-          <select id="cameraSelect"></select>
-        </div>
-        <div>
-          <label>Microphone</label>
-          <select id="micSelect"></select>
-        </div>
-        <div>
-          <label>Speaker (output)</label>
-          <select id="speakerSelect"></select>
-        </div>
-        <div>
-          <label>Resolution</label>
-          <select id="resolutionSelect">
-            <option value="default">Default</option>
-            <option value="hd">1280x720</option>
-            <option value="fhd">1920x1080</option>
-          </select>
-        </div>
-      </div>
-      <div style="display:flex; gap:8px; margin-top:12px;">
-        <button id="applySettings">Apply</button>
-        <button id="closeSettings">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-  if (window.__videoCallScriptLoaded) {
-    console.warn('Duplicate video call script execution skipped.');
-  } else {
-    window.__videoCallScriptLoaded = true;
-  // Basic configuration now fetched dynamically (no hardcoded tokens)
-  const APP_ID   = @json(config('app.agora_app_id'));
-  const CHANNEL  = @json($channel ?? 'room');
-  const IS_PROF  = @json(auth('professor')->check());
-  const COUNTERPART_NAME = @json($counterpartName ?? null);
-  const IS_DEBUG = @json(config('app.debug'));
-  let TOKEN     = null;
-  let RTM_TOKEN = null;
-  const LEAVE_REDIRECT = "{{ auth('professor')->check() ? route('messages.professor') : route('messages') }}";
-
-  let client, rtmClient, rtmChannel, localUid, rtcDataStream;
-    let localAudioTrack, localVideoTrack, screenVideoTrack;
-    let micMuted = false, camOff = false, isSharing = false;
-
-  const localContainer   = document.getElementById('local-player');
-  const remoteContainer  = document.getElementById('remote-player');
-  const remoteGrid       = document.getElementById('remote-grid');
-  const remotePlaceholder = document.getElementById('remote-placeholder');
-  const micBtn           = document.getElementById('toggle-mic');
-  const camBtn           = document.getElementById('toggle-cam');
-  const leaveBtn         = document.getElementById('leave-btn');
-  const shareBtn         = document.getElementById('ctrl-share') || document.getElementById('btn-share');
-  const sidebarBtn       = document.getElementById('ctrl-panel') || document.getElementById('btn-toggle-sidebar');
-  const settingsBtn      = document.getElementById('ctrl-settings') || document.getElementById('btn-settings');
-  const localStatus      = document.getElementById('local-status');
-
-  const sidebar          = document.getElementById('sidebar');
-  const layoutEl         = document.querySelector('.layout');
-    const tabEls           = document.querySelectorAll('.tab');
-    const panelChat        = document.getElementById('panel-chat');
-    const panelPeople      = document.getElementById('panel-people');
-  const messagesEl       = document.getElementById('messages');
-    const participantsEl   = document.getElementById('participants');
-    const messageBox       = document.getElementById('messageBox');
-    const sendBtn          = document.getElementById('sendBtn');
-
-    const settingsModal    = document.getElementById('settingsModal');
-    const cameraSelect     = document.getElementById('cameraSelect');
-    const micSelect        = document.getElementById('micSelect');
-    const speakerSelect    = document.getElementById('speakerSelect');
-    const resolutionSelect = document.getElementById('resolutionSelect');
-    const applySettingsBtn = document.getElementById('applySettings');
-    const closeSettingsBtn = document.getElementById('closeSettings');
-  // Bottom bar extras
-  const participantsBtn  = document.getElementById('participantsBtn');
-  const chatBtn          = document.getElementById('chatBtn');
-  const micCaret         = document.getElementById('mic-caret');
-  const videoCaret       = document.getElementById('video-caret');
-  const micDropdown      = document.getElementById('mic-dropdown');
-  const videoDropdown    = document.getElementById('video-dropdown');
-  const micQuickSelect   = document.getElementById('micQuickSelect');
-  const spkQuickSelect   = document.getElementById('spkQuickSelect');
-  const camQuickSelect   = document.getElementById('camQuickSelect');
-  const resQuickSelect   = document.getElementById('resQuickSelect');
-  const openSettingsFromMic = document.getElementById('openSettingsFromMic');
-  const openSettingsFromCam = document.getElementById('openSettingsFromCam');
-  function showRetryChat(){ /* intentionally hidden from UI to avoid noise */ }
-
-    function logMsg(content, isSystem=false, isSelf=false){
-      // Always suppress system/debug messages from the visible chat UI
-      if(isSystem){ try{ console.debug(content); }catch{} return; }
-      const div = document.createElement('div');
-      div.className = 'msg ' + (isSelf ? 'me' : 'other');
-      div.textContent = content;
-      messagesEl.appendChild(div);
-      messagesEl.scrollTop = messagesEl.scrollHeight;
-    }
-
-  function refreshParticipants(){
-      participantsEl.innerHTML = '';
-      const me = document.createElement('li');
-      me.innerHTML = `<i class='bx bxs-user'></i> You`;
-      participantsEl.appendChild(me);
-      updateRemoteLabels();
-      const remotes = Array.isArray(client?.remoteUsers) ? client.remoteUsers : [];
-      remotes.forEach(u => {
-        const li = document.createElement('li');
-        const vid = u.hasVideo ? '' : "<span class='pill'>Cam off</span>";
-        const mic = u.hasAudio ? '' : "<span class='pill'>Mic muted</span>";
-        const tile = remoteTiles.get(String(u.uid));
-        const name = tile?.name?.textContent || getRemoteLabel(u.uid);
-        li.innerHTML = `<i class='bx bxs-user'></i> ${name} ${vid} ${mic}`;
-        participantsEl.appendChild(li);
-      });
-    }
-
-    // --- Simple HTTP-polling chat fallback (works without RTM) ---
-    const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    let pollTimer = null; let seenKeys = new Set();
-    let studId = null, profId = null;
-    try{
-      const m = /^stud-([^]+)-prof-([^]+)$/.exec(CHANNEL);
-      if(m){ studId = m[1]; profId = m[2]; }
-    }catch{}
-    const SELF_ROLE = IS_PROF ? 'professor' : 'student';
-    function renderFetched(list){
-      for(const msg of list){
-        const key = `${msg.Created_At}|${msg.Sender}|${msg.Message||''}|${msg.file_path||''}`;
-        if(seenKeys.has(key)) continue; seenKeys.add(key);
-        const isSelf = (msg.Sender === SELF_ROLE);
-  const who = isSelf ? 'You' : (msg.Sender === 'professor' ? (COUNTERPART_NAME || 'Professor') : 'Student');
-        if((msg.Message||'').trim() !== ''){ logMsg(`${who}: ${msg.Message}`, false, isSelf); }
-      }
-    }
-    async function pollOnce(){
-      if(!studId || !profId) return;
-      try{
-        const res = await fetch(`/load-direct-messages/${encodeURIComponent(studId)}/${encodeURIComponent(profId)}`, { credentials: 'include' });
-        if(!res.ok) return;
-        const list = await res.json();
-        renderFetched(list);
-      }catch{}
-    }
-    function startPolling(){ if(pollTimer) return; pollTimer = setInterval(pollOnce, 2000); pollOnce(); }
-    async function httpSendChat(text){
-      if(!studId || !profId) return false;
-      try{
-        const res = await fetch(`/send-message`, {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-          body: JSON.stringify({ stud_id: studId, prof_id: profId, sender: SELF_ROLE, recipient: IS_PROF ? String(studId) : String(profId), message: text })
-        });
-        if(res.ok){ setTimeout(pollOnce, 200); return true; }
-      }catch{}
-      return false;
-    }
-
-    async function enumerateDevices(){
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cams = devices.filter(d=>d.kind==='videoinput');
-      const mics = devices.filter(d=>d.kind==='audioinput');
-      const outs = devices.filter(d=>d.kind==='audiooutput');
-      cameraSelect.innerHTML = cams.map(d=>`<option value="${d.deviceId}">${d.label||'Camera'}</option>`).join('');
-      micSelect.innerHTML = mics.map(d=>`<option value="${d.deviceId}">${d.label||'Microphone'}</option>`).join('');
-      speakerSelect.innerHTML = outs.map(d=>`<option value="${d.deviceId}">${d.label||'Speaker'}</option>`).join('');
-    }
-
-    async function switchCamera(deviceId){
-      const profile = resolutionSelect.value;
-      const encoderConfig = profile==='hd' ? '720p' : profile==='fhd' ? '1080p' : undefined;
-      const newVideo = await AgoraRTC.createCameraVideoTrack({ cameraId: deviceId, encoderConfig });
-      await client.unpublish(localVideoTrack);
-      localVideoTrack.stop(); localVideoTrack.close();
-      localVideoTrack = newVideo;
-      await client.publish(localVideoTrack);
-      localVideoTrack.play(localContainer);
-      camOff = false; camBtn.innerHTML = "<i class='bx bxs-video'></i>Video";
-    }
-
-    async function switchMic(deviceId){
-      const newAudio = await AgoraRTC.createMicrophoneAudioTrack({ microphoneId: deviceId });
-      await client.unpublish(localAudioTrack);
-      localAudioTrack.stop(); localAudioTrack.close();
-      localAudioTrack = newAudio;
-      await client.publish(localAudioTrack);
-      if(micMuted){ localAudioTrack.setEnabled(false); }
-    }
-
-    function openSettings(){ settingsModal.classList.add('open'); }
-    function closeSettings(){ settingsModal.classList.remove('open'); }
-
-    // Sidebar tabs
-    tabEls.forEach(t=>t.addEventListener('click', ()=>{
-      tabEls.forEach(el=>el.classList.remove('active'));
-      t.classList.add('active');
-      const tab = t.getAttribute('data-tab');
-      panelChat.classList.toggle('hidden', tab!=='chat');
-      panelPeople.classList.toggle('hidden', tab!=='people');
-      document.getElementById('chat-input').classList.toggle('hidden', tab!=='chat');
-    }));
-
-  if (sidebarBtn) sidebarBtn.addEventListener('click', ()=>{
-      const hidden = layoutEl.classList.toggle('no-sidebar');
-      if(hidden){
-        // Ensure chat tab is visible when reopened later
-        tabEls.forEach(el=>el.classList.remove('active'));
-        document.querySelector('.tab[data-tab="chat"]').classList.add('active');
-        panelChat.classList.remove('hidden');
-        panelPeople.classList.add('hidden');
-      }
-  });
-    function toggleSidebarFor(tab){
-      const isMobile = window.matchMedia('(max-width: 768px)').matches;
-      if(isMobile){
-        const open = layoutEl.classList.contains('show-sidebar');
-        const current = document.querySelector('.tab.active')?.getAttribute('data-tab');
-        if(open && current === tab){ layoutEl.classList.remove('show-sidebar'); }
-        else { layoutEl.classList.add('show-sidebar'); }
-      } else {
-        const isHidden = layoutEl.classList.contains('no-sidebar');
-        if(isHidden){ layoutEl.classList.remove('no-sidebar'); }
-        else {
-          const current = document.querySelector('.tab.active')?.getAttribute('data-tab');
-          if(current === tab){ layoutEl.classList.add('no-sidebar'); return; }
-        }
-      }
-      tabEls.forEach(el=>el.classList.remove('active'));
-      document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
-      panelChat.classList.toggle('hidden', tab!=='chat');
-      panelPeople.classList.toggle('hidden', tab!=='people');
-    }
-    participantsBtn.addEventListener('click', ()=> toggleSidebarFor('people'));
-    chatBtn.addEventListener('click', ()=> toggleSidebarFor('chat'));
-    // Mic/Video dropdowns
-    function closeDrops(){ micDropdown.classList.remove('open'); videoDropdown.classList.remove('open'); }
-    document.addEventListener('click', (e)=>{
-      if(!e.target.closest('.ctrl')) closeDrops();
-    });
-    micCaret.addEventListener('click', async (e)=>{ e.stopPropagation(); await enumerateDevices();
-      micQuickSelect.innerHTML = micSelect.innerHTML; spkQuickSelect.innerHTML = speakerSelect.innerHTML; micDropdown.classList.toggle('open'); videoDropdown.classList.remove('open');
-    });
-    videoCaret.addEventListener('click', async (e)=>{ e.stopPropagation(); await enumerateDevices();
-      camQuickSelect.innerHTML = cameraSelect.innerHTML; resQuickSelect.value = resolutionSelect.value; videoDropdown.classList.toggle('open'); micDropdown.classList.remove('open');
-    });
-    micQuickSelect.addEventListener('change', async ()=>{ if(micQuickSelect.value) await switchMic(micQuickSelect.value); });
-    spkQuickSelect?.addEventListener('change', async ()=>{
-      // Try to set sinkId for all media elements
-      try{
-        const vids = document.querySelectorAll('video, audio');
-        for(const v of vids){ if(v.setSinkId) await v.setSinkId(spkQuickSelect.value); }
-      }catch{}
-    });
-    camQuickSelect.addEventListener('change', async ()=>{ if(camQuickSelect.value){ resolutionSelect.value = resQuickSelect.value; await switchCamera(camQuickSelect.value); }});
-    resQuickSelect.addEventListener('change', async ()=>{ if(camQuickSelect.value){ resolutionSelect.value = resQuickSelect.value; await switchCamera(camQuickSelect.value); }});
-    openSettingsFromMic.addEventListener('click', ()=>{ enumerateDevices(); openSettings(); closeDrops(); });
-    openSettingsFromCam.addEventListener('click', ()=>{ enumerateDevices(); openSettings(); closeDrops(); });
-  if (settingsBtn) settingsBtn.addEventListener('click', ()=>{ enumerateDevices(); openSettings(); });
-    closeSettingsBtn.addEventListener('click', closeSettings);
-    applySettingsBtn.addEventListener('click', async ()=>{
-      if(cameraSelect.value) await switchCamera(cameraSelect.value);
-      if(micSelect.value) await switchMic(micSelect.value);
-      // Attempt set sinkId if supported
-      try{
-        const videos = remoteContainer.querySelectorAll('video');
-        videos.forEach(v=>v.setSinkId && v.setSinkId(speakerSelect.value));
-      }catch{}
-      closeSettings();
-    });
-
-    async function fetchRtcToken(channel){
-      const res = await fetch(`{{ route('agora.token.rtc') }}?channel=${encodeURIComponent(channel)}`, { credentials: 'include' });
-      if(!res.ok) throw new Error('Failed to fetch RTC token');
-      const data = await res.json();
-      if(!data.token || !data.appId) throw new Error('Invalid RTC token response');
-      return data;
-    }
-
-    async function fetchRtmToken(){
-      try{
-        const res = await fetch(`{{ route('agora.token.rtm') }}`, { credentials: 'include' });
-        if(!res.ok){
-          logMsg(`RTM token endpoint status: ${res.status}`, true);
-          return null;
-        }
-        const data = await res.json();
-        if(!data || !data.token) return null;
-        return data;
-      }catch{ return null; }
-    }
-
-    async function joinCall(){
-  const rtc = await fetchRtcToken(CHANNEL);
-  TOKEN = rtc.token;
-  const appIdFromServer = rtc.appId || APP_ID;
-  const uidFromServer = rtc.uid !== undefined && rtc.uid !== null ? Number(rtc.uid) : null;
-      client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-      client.on('user-published', handleUserPublished);
-      client.on('user-unpublished', handleUserUnpublished);
-      client.on('user-joined', user => {
-        ensureRemoteTile(user);
-        refreshParticipants();
-      });
-      client.on('user-left', user => {
-        removeRemoteTile(user.uid);
-        refreshParticipants();
-      });
-      client.on('token-privilege-will-expire', async ()=>{
-        try{
-          const fresh = await fetchRtcToken(CHANNEL);
-          TOKEN = fresh.token;
-          await client.renewToken(TOKEN);
-          logMsg('RTC token renewed', true);
-        }catch{ logMsg('RTC token renewal failed', true); }
-      });
-      client.on('token-privilege-did-expire', async ()=>{
-        try{
-          const fresh = await fetchRtcToken(CHANNEL);
-          TOKEN = fresh.token;
-          await client.renewToken(TOKEN);
-          logMsg('RTC token reloaded after expiry', true);
-        }catch{ logMsg('RTC token reload failed', true); }
-      });
-
-  localUid = await client.join(appIdFromServer, CHANNEL, TOKEN, uidFromServer);
-      [localAudioTrack, localVideoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-      localVideoTrack.play(localContainer);
-      await client.publish([localAudioTrack, localVideoTrack]);
-      // Create RTC data stream fallback for chat
-      try {
-        rtcDataStream = await client.createDataStream();
-        logMsg('Chat ready (RTC data stream).', true);
-      } catch (e) {
-        // ignore if not supported
-      }
-      refreshParticipants();
-
-      // Optional RTM (chat) with diagnostics and retry
-      async function connectRTM(){
-        if (typeof AgoraRTM === 'undefined') {
-          logMsg('Chat SDK (AgoraRTM) not loaded; skipping RTM.', true);
-          startPolling();
-          return;
-        }
-        try{
-          const rtm = await fetchRtmToken();
-          if(rtm && rtm.token){
-            RTM_TOKEN = rtm.token;
-            const rtmUid = String(rtm.uid ?? localUid);
-            logMsg(`RTM: attempting login as ${rtmUid}`, true);
-            logMsg(`RTM: appId ${appIdFromServer}, token length ${RTM_TOKEN?.length||0}`, true);
-            rtmClient = AgoraRTM.createInstance(appIdFromServer);
-            rtmClient.on('ConnectionStateChanged', (state, reason)=>{ logMsg(`RTM state: ${state} (${reason})`, true); });
-            await rtmClient.login({ uid: rtmUid, token: RTM_TOKEN });
-            rtmClient.on('TokenPrivilegeWillExpire', async ()=>{
-              try{ const fresh = await fetchRtmToken(); if(fresh){ await rtmClient.renewToken(fresh.token); logMsg('RTM token renewed', true);} }catch{}
-            });
-            rtmClient.on('TokenPrivilegeDidExpire', async ()=>{
-              try{ const fresh = await fetchRtmToken(); if(fresh){ await rtmClient.renewToken(fresh.token); logMsg('RTM token reloaded after expiry', true);} }catch{}
-            });
-            rtmChannel = await rtmClient.createChannel(CHANNEL);
-            await rtmChannel.join();
-            const otherRole = SELF_ROLE === 'professor' ? 'Student' : (COUNTERPART_NAME || 'Professor');
-            rtmChannel.on('ChannelMessage', ({text}, senderId)=>{ logMsg(`${otherRole}: ${text}`, false, false); });
-            logMsg('Chat connected', true);
-          } else {
-            logMsg('Chat not available (no RTM token).', true);
-          }
-        }catch(err){
-          console.error('RTM login error', err);
-          const code = err?.code ?? err?.message ?? 'unknown';
-          logMsg(`Chat not available (RTM login failed: ${code}).`, true);
-          showRetryChat();
-        }
-      }
-  await connectRTM();
-  // Always engage fallback polling as a safety net
-  startPolling();
-    }
-
-    window.addEventListener('DOMContentLoaded', async () => {
-      if(MOCK_MODE){
-        setupMockCall();
-        return;
-      }
-      try { await joinCall(); } catch (err) { alert('Connection failed. See logs or token endpoint.'); }
-    });
-
-    micBtn.addEventListener('click', () => {
-      if (!localAudioTrack) return;
-      micMuted = !micMuted;
-      localAudioTrack.setEnabled(!micMuted);
-      micBtn.innerHTML = micMuted ? "<i class='bx bxs-microphone-off'></i>Unmute" : "<i class='bx bxs-microphone'></i>Mute";
-      localStatus.classList.toggle('hidden', !micMuted);
-    });
-
-    camBtn.addEventListener('click', () => {
-      if (!localVideoTrack) return;
-      camOff = !camOff;
-      localVideoTrack.setEnabled(!camOff);
-      camBtn.innerHTML = camOff ? "<i class='bx bxs-video-off'></i>Show" : "<i class='bx bxs-video'></i>Video";
-    });
-
-    // Screen share
-    shareBtn.addEventListener('click', async ()=>{
-      if(!isSharing){
-        try{
-          screenVideoTrack = await AgoraRTC.createScreenVideoTrack({ withAudio: 'auto' });
-          await client.unpublish(localVideoTrack);
-          localVideoTrack.stop();
-          await client.publish(screenVideoTrack);
-          screenVideoTrack.play(localContainer);
-          isSharing = true; shareBtn.innerHTML = "<i class='bx bx-desktop'></i><span>Stop</span>";
-          // When user stops via browser UI
-          screenVideoTrack.on('track-ended', async ()=>{
-            if(isSharing) await stopShare();
-          });
-        }catch(e){ logMsg('Share screen failed.', true); }
-      }else{
-        await stopShare();
-      }
-    });
-
-    async function stopShare(){
-      if(!isSharing) return;
-      await client.unpublish(screenVideoTrack);
-      screenVideoTrack.stop(); screenVideoTrack.close();
-      await client.publish(localVideoTrack);
-      localVideoTrack.play(localContainer);
-      isSharing = false; shareBtn.innerHTML = "<i class='bx bx-desktop'></i><span>Share</span>";
-    }
-
-    // Chat send
-    sendBtn.addEventListener('click', sendChat);
-    messageBox.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); sendChat(); } });
-    async function sendChat(){
-      const text = messageBox.value.trim(); if(!text) return;
-      messageBox.value = '';
-      if(rtmChannel){
-        try{ await rtmChannel.sendMessage({ text }); logMsg(`You: ${text}`, false, true); }catch{ logMsg('Failed to send message.', true); }
-      }else if (rtcDataStream){
-        try { await rtcDataStream.send(text); logMsg(`You: ${text}`, false, true); } catch { logMsg('Failed to send message (RTC).', true); }
-      } else {
-          const ok = await httpSendChat(text);
-          if(!ok) logMsg('Chat unavailable. RTM not connected.', true);
-      }
-    }
-
-  leaveBtn.addEventListener('click', async () => {
-      try{
-        if (localAudioTrack) { localAudioTrack.close(); }
-        if (localVideoTrack) { localVideoTrack.close(); }
-        if (screenVideoTrack) { screenVideoTrack.close(); }
-        if (rtmChannel) { await rtmChannel.leave(); }
-        if (rtmClient) { await rtmClient.logout(); }
-        await client.leave();
-      } finally {
-    window.location.href = LEAVE_REDIRECT;
-      }
-    });
-
-    async function handleUserPublished(user, mediaType) {
-      const tile = ensureRemoteTile(user);
-      await client.subscribe(user, mediaType);
-      if (mediaType === 'video' && tile) {
-        tile.videoHost.innerHTML = '';
-        try { user.videoTrack.play(tile.videoHost); } catch {}
-        markTrackState(user.uid, true);
-      }
-      if (mediaType === 'audio') {
-        user.audioTrack.play();
-      }
-      refreshParticipants();
-    }
-
     function handleUserUnpublished(user, mediaType) {
       if ((mediaType === 'video' || mediaType === undefined) && remoteTiles.has(String(user.uid))) {
         const tile = remoteTiles.get(String(user.uid));
@@ -1834,11 +1443,17 @@
     if (client && client.on) {
       client.on('stream-message', ({uid, streamId, data}) => {
         try {
-          const text = typeof data === 'string' ? data : (new TextDecoder()).decode(data);
+          const raw = typeof data === 'string' ? data : (new TextDecoder()).decode(data);
+          const normalized = (raw ?? '').trim();
+          if(!normalized) return;
           const isSelf = String(uid) === String(localUid);
+          if(isSelf && resolveLocalEcho(normalized)){
+            return;
+          }
           const tile = remoteTiles.get(String(uid));
           const who = isSelf ? 'You' : (tile?.name?.textContent || getRemoteLabel(uid));
-          logMsg(`${who}: ${text}`, false, isSelf);
+          const entry = logMsg(`${who}: ${normalized}`, false, isSelf);
+          if(entry && isSelf && entry.dataset.origin !== 'local'){ entry.dataset.origin = entry.dataset.origin || 'history'; }
         } catch {}
       });
     }
