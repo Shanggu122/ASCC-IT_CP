@@ -89,10 +89,96 @@ class ChatBotController extends Controller
         $tz = "Asia/Manila";
         $now = Carbon::now($tz);
         $today = $now->copy()->startOfDay();
+        $mentionsStudents =
+            $this->containsWord($normalized, "student") ||
+            $this->containsWord($normalized, "students");
+        $mentionsImmediate =
+            $this->containsWord($normalized, "now") ||
+            $this->containsAny($normalized, [
+                "right now",
+                "ngayon",
+                "ngayon na",
+                "ngayon ba",
+                "sa ngayon",
+            ]);
 
         if (
-            ($this->containsWord($normalized, "student") ||
-                str_contains($normalized, "students")) &&
+            $mentionsStudents &&
+            $this->mentionsCompletedConsultations($normalized) &&
+            ($this->mentionsToday($normalized) || $mentionsImmediate)
+        ) {
+            $rows = $this->fetchProfessorBookingsForRange($profId, $today, $today);
+            return $this->formatProfessorStudentsByStatuses(
+                $rows,
+                $today,
+                ["completed"],
+                "Students you've already completed today (%s):",
+                "You have not completed any consultations yet today (%s).",
+            );
+        }
+
+        $needsToConsult = false;
+        if ($mentionsStudents) {
+            $needIndicators = [
+                "need to consult",
+                "need consult",
+                "need to see",
+                "need to meet",
+                "need to talk",
+                "need to handle",
+                "need to attend",
+                "need to entertain",
+                "need to assist",
+                "have to consult",
+                "have to meet",
+            ];
+            $needTagalog = [
+                "kailangan ko",
+                "kailangan kong",
+                "kailangan ko bang",
+                "kailangan ko kausapin",
+                "kailangan ko makausap",
+                "kailangan ko i-consult",
+                "kailangan ko i konsult",
+            ];
+            if ($this->containsAny($normalized, $needIndicators)) {
+                $needsToConsult = true;
+            } elseif (
+                $this->containsAny($normalized, $needTagalog) &&
+                $this->containsAny($normalized, ["consult", "konsulta", "kausapin", "meet", "usap"])
+            ) {
+                $needsToConsult = true;
+            } elseif (
+                str_contains($normalized, "who") &&
+                $this->containsAny($normalized, ["need to consult", "need to see", "need to meet"])
+            ) {
+                $needsToConsult = true;
+            }
+        }
+
+        if ($needsToConsult) {
+            $date = $this->extractDate($originalMessage) ?? $today->copy();
+            $date = $date->copy()->startOfDay();
+            $rows = $this->fetchProfessorBookingsForRange($profId, $date, $date);
+            $isTodayTarget = $date->equalTo($today);
+            $title = $isTodayTarget
+                ? "Students you still need to consult today (%s):"
+                : "Students you need to consult on %s:";
+            $empty = $isTodayTarget
+                ? "You have no consultations to handle today (%s)."
+                : "You have no consultations to handle on %s.";
+
+            return $this->formatProfessorStudentsByStatuses(
+                $rows,
+                $date,
+                ["approved", "accepted", "rescheduled", "pending", "completion_pending"],
+                $title,
+                $empty,
+            );
+        }
+
+        if (
+            $mentionsStudents &&
             $this->mentionsToday($normalized) &&
             $this->mentionsConsultations($normalized)
         ) {
@@ -252,6 +338,7 @@ class ChatBotController extends Controller
     {
         $legacy = [];
         $iso = [];
+        /** @var Carbon $day */
         foreach (CarbonPeriod::create($start, $end) as $day) {
             $legacy[] = $day->format("D M d Y");
             $iso[] = $day->format("Y-m-d");
@@ -347,6 +434,65 @@ class ChatBotController extends Controller
                 if ($subjectLabel) {
                     $line .= " - " . $subjectLabel;
                 }
+            }
+
+            $lines[] = $line;
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function formatProfessorStudentsByStatuses(
+        $rows,
+        Carbon $date,
+        array $statuses,
+        string $titlePattern,
+        string $emptyPattern,
+    ): string {
+        $label = $date->format("F j, Y (D)");
+        $allowed = array_values(array_unique(array_map("strtolower", $statuses)));
+
+        $list = $rows
+            ->filter(function ($row) use ($allowed) {
+                $status = $this->normalizeStatus($row->Status ?? "");
+                return in_array($status, $allowed, true);
+            })
+            ->values();
+
+        if ($list->isEmpty()) {
+            return sprintf($emptyPattern, $label);
+        }
+
+        $lines = [sprintf($titlePattern, $label)];
+        foreach ($list as $row) {
+            $time = $this->formatTime($row->Booking_Time ?? null);
+            $studentName = $this->formatStudentName($row);
+            $statusLabel = $this->friendlyStatus($row->Status ?? "");
+            $modeLabel =
+                isset($row->Mode) && $row->Mode !== null && $row->Mode !== ""
+                    ? ucfirst(strtolower((string) $row->Mode))
+                    : null;
+            $subjectLabel =
+                isset($row->subject_name) && $row->subject_name
+                    ? (string) $row->subject_name
+                    : null;
+
+            $parts = [];
+            if ($time) {
+                $parts[] = $time;
+            }
+            $parts[] = $studentName;
+            $line = "- " . implode(" - ", $parts);
+
+            $tags = [$statusLabel];
+            if ($modeLabel) {
+                $tags[] = $modeLabel;
+            }
+            if (!empty($tags)) {
+                $line .= " (" . implode(", ", $tags) . ")";
+            }
+            if ($subjectLabel) {
+                $line .= " - " . $subjectLabel;
             }
 
             $lines[] = $line;
@@ -883,7 +1029,7 @@ class ChatBotController extends Controller
 
     private function mentionsCompletedConsultations(string $m): bool
     {
-        if (!$this->containsAny($m, ["completed", "natapos", "tapos", "finished"])) {
+        if (!$this->containsAny($m, ["completed", "natapos", "tapos", "finished", "done"])) {
             return false;
         }
 
