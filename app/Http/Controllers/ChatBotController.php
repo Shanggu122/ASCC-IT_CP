@@ -147,17 +147,8 @@ class ChatBotController extends Controller
             !$mentionsMonth &&
             !$mentionsSemester
         ) {
-            $startOfWeek = $today->copy()->startOfWeek(Carbon::MONDAY);
-            $endOfWeek = $today->copy()->endOfWeek(Carbon::SUNDAY);
-            $rows = $this->fetchProfessorBookingsForRange($profId, $startOfWeek, $endOfWeek);
-
-            return $this->formatProfessorCompletedRangeSummary(
-                $rows,
-                $startOfWeek,
-                $endOfWeek,
-                "Students you've completed this week (%s):",
-                "You have not completed any consultations yet this week (%s).",
-            );
+            $rows = $this->fetchProfessorCompletedBookings($profId);
+            return $this->formatProfessorCompletedHistory($rows);
         }
 
         $needsToConsult = false;
@@ -604,6 +595,107 @@ class ChatBotController extends Controller
         }
 
         return implode("\n", $lines);
+    }
+
+    private function formatProfessorCompletedHistory($rows): string
+    {
+        $list = $rows
+            ->filter(function ($row) {
+                $status = $this->normalizeStatus($row->Status ?? "");
+                return $status === "completed";
+            })
+            ->values();
+
+        if ($list->isEmpty()) {
+            return "You have not completed any consultations yet.";
+        }
+
+        $lines = [sprintf("Students you've completed (%d total):", $list->count())];
+        foreach ($list as $row) {
+            $date = $this->parseBookingDate($row->Booking_Date ?? null);
+            $dateLabel = $date
+                ? $date->format("D, M j, Y")
+                : (string) ($row->Booking_Date ?? "Date TBA");
+            $time = $this->formatTime($row->Booking_Time ?? null);
+            $studentName = $this->formatStudentName($row);
+            $statusLabel = $this->friendlyStatus($row->Status ?? "");
+            $modeLabel =
+                isset($row->Mode) && $row->Mode !== null && $row->Mode !== ""
+                    ? ucfirst(strtolower((string) $row->Mode))
+                    : null;
+            $subjectLabel =
+                isset($row->subject_name) && $row->subject_name
+                    ? (string) $row->subject_name
+                    : null;
+
+            $parts = [$dateLabel];
+            if ($time) {
+                $parts[] = $time;
+            }
+            $parts[] = $studentName;
+            $line = "- " . implode(" - ", $parts);
+
+            $tags = [$statusLabel];
+            if ($modeLabel) {
+                $tags[] = $modeLabel;
+            }
+            if (!empty($tags)) {
+                $line .= " (" . implode(", ", $tags) . ")";
+            }
+            if ($subjectLabel) {
+                $line .= " - " . $subjectLabel;
+            }
+
+            $lines[] = $line;
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function fetchProfessorCompletedBookings($profId)
+    {
+        $query = DB::table("t_consultation_bookings as b")->where("b.Prof_ID", $profId);
+
+        $select = ["b.Booking_ID", "b.Booking_Date", "b.Status", "b.Stud_ID"];
+
+        if (Schema::hasColumn("t_consultation_bookings", "Booking_Time")) {
+            $select[] = "b.Booking_Time";
+        }
+        if (Schema::hasColumn("t_consultation_bookings", "Mode")) {
+            $select[] = "b.Mode";
+        }
+        if (Schema::hasColumn("t_consultation_bookings", "Subject_ID")) {
+            $select[] = "b.Subject_ID";
+        }
+        if (Schema::hasColumn("t_consultation_bookings", "Custom_Type")) {
+            $select[] = "b.Custom_Type";
+        }
+
+        if (Schema::hasTable("t_student")) {
+            $query->leftJoin("t_student as s", "s.Stud_ID", "=", "b.Stud_ID");
+            $select[] = "s.Name as student_name";
+        }
+
+        if (
+            Schema::hasTable("t_subject") &&
+            Schema::hasColumn("t_consultation_bookings", "Subject_ID") &&
+            Schema::hasColumn("t_subject", "Subject_Name")
+        ) {
+            $query->leftJoin("t_subject as subj", "subj.Subject_ID", "=", "b.Subject_ID");
+            $select[] = "subj.Subject_Name as subject_name";
+        }
+
+        $query->select($select);
+
+        $query->whereRaw("LOWER(b.Status) = ?", ["completed"]);
+
+        if (Schema::hasColumn("t_consultation_bookings", "Booking_Time")) {
+            $query->orderBy("b.Booking_Date", "asc")->orderBy("b.Booking_Time", "asc");
+        } else {
+            $query->orderBy("b.Booking_Date", "asc")->orderBy("b.Booking_ID", "asc");
+        }
+
+        return $query->get();
     }
 
     private function formatProfessorRangeSummary($rows, Carbon $start, Carbon $end): string
