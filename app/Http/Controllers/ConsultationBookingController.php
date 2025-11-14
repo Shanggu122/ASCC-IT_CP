@@ -294,18 +294,45 @@ class ConsultationBookingController extends Controller
         }
 
         // Insert into t_consultation_bookings
-        $bookingId = DB::table("t_consultation_bookings")->insertGetId([
-            "Stud_ID" => Auth::user()->Stud_ID ?? null,
-            "Prof_ID" => $data["prof_id"],
-            // For General Consultation, no specific consultation type is stored
-            "Consult_type_ID" => $isGeneralSubject ? null : $data["types"][0] ?? null,
-            "Custom_Type" => $isGeneralSubject ? null : $customType, // skip for general
-            "Subject_ID" => $data["subject_id"],
-            "Booking_Date" => $date, // normalized Manila weekday date
-            "Mode" => $data["mode"],
-            "Status" => "pending",
-            "Created_At" => now(),
-        ]);
+        try {
+            $bookingId = DB::table("t_consultation_bookings")->insertGetId([
+                "Stud_ID" => $studentId,
+                "Prof_ID" => $data["prof_id"],
+                // For General Consultation, no specific consultation type is stored
+                "Consult_type_ID" => $isGeneralSubject ? null : $data["types"][0] ?? null,
+                "Custom_Type" => $isGeneralSubject ? null : $customType,
+                "Subject_ID" => $data["subject_id"],
+                "Booking_Date" => $date,
+                "Mode" => $data["mode"],
+                "Status" => "pending",
+                "Created_At" => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("Consultation booking insert failed", [
+                "student_id" => $studentId,
+                "prof_id" => $data["prof_id"],
+                "subject_id" => $data["subject_id"],
+                "error" => $e->getMessage(),
+            ]);
+
+            $failMsg =
+                "We could not save your booking right now. Please try again or contact the support team.";
+
+            if ($request->wantsJson()) {
+                return response()->json(
+                    [
+                        "success" => false,
+                        "message" => $failMsg,
+                    ],
+                    500,
+                );
+            }
+
+            return redirect()
+                ->back()
+                ->withErrors(["booking" => $failMsg])
+                ->withInput();
+        }
 
         // Create notification for the professor
         if ($bookingId) {

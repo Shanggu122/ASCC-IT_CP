@@ -16,7 +16,7 @@ class ConsultationLogController extends Controller
             ->join("professors as p", "p.Prof_ID", "=", "b.Prof_ID") // student alias: stu
             ->join("t_student as stu", "stu.Stud_ID", "=", "b.Stud_ID") // student alias: stu
             ->join("t_subject as subj", "subj.Subject_ID", "=", "b.Subject_ID") // <-- use b.Subject_ID
-            ->join("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
+            ->leftJoin("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
             ->select([
                 "b.Booking_ID",
                 "p.Name as Professor", // student name
@@ -49,7 +49,7 @@ class ConsultationLogController extends Controller
     {
         $user = Auth::user();
         $query = DB::table("t_consultation_bookings as b")
-            ->join("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
+            ->leftJoin("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
             ->select([
                 "b.Booking_ID",
                 DB::raw("COALESCE(b.Custom_Type, ct.Consult_Type) as Type"),
@@ -81,7 +81,7 @@ class ConsultationLogController extends Controller
             ->join("professors as p", "p.Prof_ID", "=", "b.Prof_ID")
             ->join("t_student as stu", "stu.Stud_ID", "=", "b.Stud_ID")
             ->join("t_subject as subj", "subj.Subject_ID", "=", "b.Subject_ID")
-            ->join("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
+            ->leftJoin("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
             ->select([
                 "b.Booking_ID",
                 "p.Name as Professor",
@@ -119,7 +119,7 @@ class ConsultationLogController extends Controller
             ->join("professors as p", "p.Prof_ID", "=", "b.Prof_ID")
             ->join("t_student as stu", "stu.Stud_ID", "=", "b.Stud_ID")
             ->join("t_subject as subj", "subj.Subject_ID", "=", "b.Subject_ID")
-            ->join("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
+            ->leftJoin("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
             ->select([
                 "b.Booking_ID",
                 "stu.Name as student",
@@ -152,7 +152,7 @@ class ConsultationLogController extends Controller
             ->join("professors as p", "p.Prof_ID", "=", "b.Prof_ID")
             ->join("t_student as stu", "stu.Stud_ID", "=", "b.Stud_ID")
             ->join("t_subject as subj", "subj.Subject_ID", "=", "b.Subject_ID")
-            ->join("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
+            ->leftJoin("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
             ->select([
                 "b.Booking_ID as booking_id",
                 "stu.Name as student_name",

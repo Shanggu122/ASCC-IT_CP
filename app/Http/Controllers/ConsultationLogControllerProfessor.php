@@ -17,7 +17,7 @@ class ConsultationLogControllerProfessor extends Controller
         $bookings = DB::table("t_consultation_bookings as b")
             ->join("t_student as stu", "stu.Stud_ID", "=", "b.Stud_ID")
             ->join("t_subject as subj", "subj.Subject_ID", "=", "b.Subject_ID") // FIXED LINE
-            ->join("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
+            ->leftJoin("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
             ->leftJoin("terms as t", "t.id", "=", "b.term_id")
             ->select([
                 "b.Booking_ID",
@@ -57,7 +57,7 @@ class ConsultationLogControllerProfessor extends Controller
         $bookings = DB::table("t_consultation_bookings as b")
             ->join("t_student as stu", "stu.Stud_ID", "=", "b.Stud_ID")
             ->join("t_subject as subj", "subj.Subject_ID", "=", "b.Subject_ID")
-            ->join("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
+            ->leftJoin("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
             ->leftJoin("terms as t", "t.id", "=", "b.term_id")
             ->select([
                 "b.Booking_ID",
@@ -104,7 +104,7 @@ class ConsultationLogControllerProfessor extends Controller
         $bookings = DB::table("t_consultation_bookings as b")
             ->join("t_student as stu", "stu.Stud_ID", "=", "b.Stud_ID")
             ->join("t_subject as subj", "subj.Subject_ID", "=", "b.Subject_ID")
-            ->join("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
+            ->leftJoin("t_consultation_types as ct", "ct.Consult_type_ID", "=", "b.Consult_type_ID")
             ->leftJoin("terms as t", "t.id", "=", "b.term_id")
             ->select([
                 "b.Booking_ID",
