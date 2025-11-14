@@ -10,24 +10,34 @@
 }
 
 body {
-    height: 100vh;
+    min-height: 100vh;
     background-color: #e5f0ed;
-    overflow: hidden; /* Prevent unwanted scrollbars */
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 .main-content {
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
     padding: 0;
 }
 
 .messages-wrapper {
-    flex: 1;
+    flex: 1 1 auto;
     display: flex;
-    height: 100%;
+    min-height: 0;
     overflow: hidden;
     width: 100%; /* ensure spans full horizontal space */
+}
+
+@supports (height: 100dvh) {
+    body {
+        min-height: 100dvh;
+    }
+    .main-content {
+        min-height: 100dvh;
+    }
 }
 
 /* Responsive adjustments */
@@ -485,33 +495,22 @@ body {
 /* MOBILE MESSENGER STYLE (original breakpoint) */
 @media (max-width: 700px) {
     .main-content {
-        height: 100vh;
-        min-height: 100vh;
-    }
-    .messages-wrapper {
-        flex-direction: column;
-        position: relative;
-        height: 100vh;
-        min-height: 100vh;
-    }
-    body {
-        overflow: auto;
         min-height: 100vh;
     }
     @supports (height: 100dvh) {
-        body {
+        .main-content {
             min-height: 100dvh;
         }
     }
     .messages-wrapper {
         flex-direction: column;
         position: relative;
-        height: 100vh;
         min-height: 100vh;
+        height: auto;
+        overflow: visible;
     }
     @supports (height: 100dvh) {
         .messages-wrapper {
-            height: 100dvh;
             min-height: 100dvh;
         }
     }
@@ -523,23 +522,22 @@ body {
         padding-bottom: 0.5rem;
         z-index: 1;
         padding-top: var(--navbar-height);
-        height: calc(100vh - var(--navbar-height));
-        min-height: calc(100vh - var(--navbar-height));
+        height: auto;
         max-height: none;
         overflow-y: auto;
     }
     @supports (height: 100dvh) {
         .inbox {
-            height: calc(100dvh - var(--navbar-height));
-            min-height: calc(100dvh - var(--navbar-height));
+            max-height: calc(100dvh - var(--navbar-height));
         }
     }
     .chat-panel {
-        position: fixed;
+        position: absolute;
         top: var(--navbar-height);
         left: 0;
         width: 100vw;
-        height: calc(100vh - var(--navbar-height));
+        bottom: 0;
+        height: auto;
         background: #fff;
         z-index: 10;
         display: none;
@@ -552,7 +550,7 @@ body {
     }
     @supports (height: 100dvh) {
         .chat-panel {
-            height: calc(100dvh - var(--navbar-height));
+            min-height: calc(100dvh - var(--navbar-height));
         }
     }
     .chat-panel.active {
@@ -560,11 +558,11 @@ body {
     }
     .chat-panel.active::before {
         content: '';
-        position: fixed;
+        position: absolute;
         top: 0;
         left: 0;
         right: 0;
-        height: 70px;
+        height: var(--navbar-height);
         background: #fff;
         z-index: 8;
         pointer-events: none;
@@ -596,8 +594,7 @@ body {
         background: #fff;
         min-height: 0;
         border-radius: 0;
-        height: 100%;
-        max-height: 100%;
+        height: auto;
     }
     .chat-input {
         border-radius: 0;
