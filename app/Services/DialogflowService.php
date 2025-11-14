@@ -22,6 +22,7 @@ class DialogflowService
         $this->credentialsPath = $this->resolveCredentialsPath(
             $config["credentials_path"] ?? env("DIALOGFLOW_CREDENTIALS"),
             $config["key_b64"] ?? null,
+            $config["json_key"] ?? null,
         );
     }
 
@@ -92,12 +93,23 @@ class DialogflowService
         return $options;
     }
 
-    private function resolveCredentialsPath(?string $configuredPath, ?string $encodedKey): ?string
+    private function resolveCredentialsPath(
+        ?string $configuredPath,
+        ?string $encodedKey,
+        ?string $jsonKey,
+    ): ?string
     {
         if (!empty($configuredPath)) {
             $absolutePath = $this->normalizePath($configuredPath);
             if ($absolutePath !== null && file_exists($absolutePath)) {
                 return $absolutePath;
+            }
+        }
+
+        if (!empty($jsonKey)) {
+            $persisted = $this->persistJsonCredentials($jsonKey);
+            if ($persisted !== null) {
+                return $persisted;
             }
         }
 
@@ -107,11 +119,9 @@ class DialogflowService
             if ($decoded === false) {
                 Log::error("Dialogflow: failed to decode base64 credentials.");
             } else {
-                $target = storage_path("app/dialogflow-runtime-key.json");
-                if (file_put_contents($target, $decoded) === false) {
-                    Log::error("Dialogflow: unable to write decoded credential file.");
-                } else {
-                    return $target;
+                $persisted = $this->persistJsonCredentials($decoded);
+                if ($persisted !== null) {
+                    return $persisted;
                 }
             }
         }
@@ -122,6 +132,32 @@ class DialogflowService
         }
 
         return null;
+    }
+
+    private function persistJsonCredentials(string $jsonPayload): ?string
+    {
+        $trimmed = trim($jsonPayload);
+        if ($trimmed === "") {
+            return null;
+        }
+
+        json_decode($trimmed, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            Log::error("Dialogflow: provided JSON credentials are invalid.", [
+                "error" => json_last_error_msg(),
+            ]);
+            return null;
+        }
+
+        $target = storage_path("app/dialogflow-runtime-key.json");
+        if (file_put_contents($target, $trimmed) === false) {
+            Log::error("Dialogflow: unable to persist JSON credentials to file.");
+            return null;
+        }
+
+        @chmod($target, 0600);
+
+        return $target;
     }
 
     private function normalizePath(string $path): ?string

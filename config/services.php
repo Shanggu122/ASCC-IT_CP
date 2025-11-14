@@ -72,5 +72,6 @@ return [
         "credentials_path" => env("DIALOGFLOW_CREDENTIALS"),
         "transport" => env("DIALOGFLOW_TRANSPORT", "rest"),
         "key_b64" => env("DIALOGFLOW_KEY_B64"),
+        "json_key" => env("DIALOGFLOW_KEY_JSON", env("GCP_CREDS_JSON")),
     ],
 ];
