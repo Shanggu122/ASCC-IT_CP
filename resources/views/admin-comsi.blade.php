@@ -28,7 +28,7 @@
                         @php
                             $photoUrl = isset($prof->profile_photo_url)
                                     ? $prof->profile_photo_url
-                                    : ($prof->profile_picture ? asset('storage/' . $prof->profile_picture) : asset('images/dprof.jpg'));
+                                    : \App\Support\ProfilePhotoPath::url($prof->profile_picture ?? null);
                         @endphp
                         <div class="profile-card"
                                  data-name="{{ $prof->Name }}"

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\ProfilePhotoPath;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -47,14 +48,7 @@ class RepairProfilePictures extends Command
 
     private function toRelative(string $path): string
     {
-        // Strip common absolute prefixes
-        $path = str_replace('\\', '/', $path);
-        if (preg_match('#/storage/(?:app/)?public/(.+)$#', $path, $m)) {
-            return $m[1];
-        }
-        if (preg_match('#^(?:[A-Za-z]:)?/.*/profile_pictures/(.+)$#', $path, $m)) {
-            return 'profile_pictures/'.$m[1];
-        }
-        return $path; // assume already relative
+        $normalized = ProfilePhotoPath::normalize($path);
+        return $normalized ?? $path;
     }
 }

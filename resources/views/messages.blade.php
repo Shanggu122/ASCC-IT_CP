@@ -37,14 +37,7 @@
             }
           @endphp
           @php
-            // Accept possible field name variations
-            $pic = null;
-            if (is_object($professor)) {
-                if (property_exists($professor,'profile_picture')) { $pic = $professor->profile_picture; }
-                elseif (property_exists($professor,'Profile_Picture')) { $pic = $professor->Profile_Picture; }
-                elseif (property_exists($professor,'photo')) { $pic = $professor->photo; }
-            }
-            $picUrl = $pic ? asset('storage/'.$pic) : asset('images/dprof.jpg');
+            $picUrl = $professor->profile_photo_url ?? asset('images/dprof.jpg');
             $lastMessage = $professor->last_message ?? 'No messages yet';
             $youPrefix = isset($professor->last_sender) && $professor->last_sender === 'student' ? 'You: ' : '';
             $displayMessage = $youPrefix . $lastMessage;

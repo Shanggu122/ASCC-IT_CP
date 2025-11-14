@@ -5,14 +5,15 @@ namespace App\Http\Controllers;
 use Illuminate\Support\Facades\Auth;
 
 use App\Events\MessageSent;
-use Illuminate\Http\Request;
-use App\Models\ChatMessage;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use App\Events\PresencePing;
-use Illuminate\Support\Facades\Validator;
+use App\Models\ChatMessage;
+use App\Support\ProfilePhotoPath;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Validator;
 
 class MessageController extends Controller
 {
@@ -287,6 +288,9 @@ class MessageController extends Controller
             ->get();
 
         $professors = $professors->map(function ($professor) {
+            $normalizedPhoto = ProfilePhotoPath::normalize($professor->profile_picture ?? null);
+            $professor->profile_picture = $normalizedPhoto;
+            $professor->profile_photo_url = ProfilePhotoPath::url($normalizedPhoto);
             if (
                 config("app.debug") &&
                 (int) ($professor->prof_id ?? 0) === 3001 &&
@@ -387,6 +391,9 @@ class MessageController extends Controller
             ->get();
 
         $students = $students->map(function ($student) use ($user) {
+            $normalizedPhoto = ProfilePhotoPath::normalize($student->profile_picture ?? null);
+            $student->profile_picture = $normalizedPhoto;
+            $student->profile_photo_url = ProfilePhotoPath::url($normalizedPhoto);
             $channel = $this->buildScheduleChannel(
                 (int) ($user->Prof_ID ?? 0),
                 $student->meeting_link ?? "",
@@ -741,6 +748,11 @@ class MessageController extends Controller
         if (!$row) {
             return response()->json(["error" => "not_found"], 404);
         }
+
+        $normalizedPhoto = ProfilePhotoPath::normalize($row->profile_picture ?? null);
+        $row->profile_picture = $normalizedPhoto;
+        $row->profile_photo_url = ProfilePhotoPath::url($normalizedPhoto);
+
         return response()->json($row);
     }
 

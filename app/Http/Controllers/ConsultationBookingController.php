@@ -481,6 +481,7 @@ class ConsultationBookingController extends Controller
                 "Dept_ID" => (int) $student->Dept_ID,
                 "Email" => $student->Email,
                 "profile_picture" => $student->profile_picture,
+                "profile_photo_url" => $student->profile_photo_url,
             ];
 
             // Send welcome email to student

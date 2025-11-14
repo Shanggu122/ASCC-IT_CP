@@ -1811,6 +1811,7 @@ chatForm.addEventListener("submit", async function (e) {
   (function(){
     const pusher = new Pusher('{{ config('broadcasting.connections.pusher.key') }}', {cluster: '{{ config('broadcasting.connections.pusher.options.cluster') }}'});
     const channel = pusher.subscribe('professors.dept.2'); // Dept_ID 2 for ComSci
+    const fallbackAvatar = @json(asset('images/dprof.jpg'));
 
     function buildCard(data){
       const grid = document.querySelector('.profile-cards-grid');
@@ -1821,13 +1822,13 @@ chatForm.addEventListener("submit", async function (e) {
       div.className='profile-card';
       div.setAttribute('onclick','openModal(this)');
       div.dataset.name = data.Name;
-  const imgPath = data.profile_photo_url || (data.profile_picture ? ('{{ url('/storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}');
+        const imgPath = data.profile_photo_url || (data.profile_picture ? `/storage/${data.profile_picture}` : fallbackAvatar);
       div.dataset.img = imgPath;
       div.dataset.profId = data.Prof_ID;
       div.dataset.profId = data.Prof_ID;
       div.setAttribute('data-prof-id', data.Prof_ID);
       div.dataset.schedule = data.Schedule || 'No schedule set';
-  /* Width managed by responsive CSS grid */
+      /* Width managed by responsive CSS grid */
       div.innerHTML = `<img src="${imgPath}" alt="Profile Picture"><div class="profile-name">${data.Name}</div>`;
       grid.prepend(div); // put newest first
     }
@@ -1838,7 +1839,7 @@ chatForm.addEventListener("submit", async function (e) {
       if(card){
         card.dataset.name = data.Name;
         card.dataset.schedule = data.Schedule || 'No schedule set';
-  const imgPath = data.profile_photo_url || (data.profile_picture ? ('{{ url('/storage') }}/'+data.profile_picture) : '{{ asset('images/dprof.jpg') }}');
+      const imgPath = data.profile_photo_url || (data.profile_picture ? `/storage/${data.profile_picture}` : fallbackAvatar);
         card.dataset.img = imgPath;
         card.querySelector('.profile-name').textContent = data.Name;
         const imgEl = card.querySelector('img'); if(imgEl) imgEl.src = imgPath;

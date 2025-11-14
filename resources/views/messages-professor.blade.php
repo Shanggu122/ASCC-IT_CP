@@ -27,11 +27,7 @@
   </div>
       @foreach($students as $student)
         @php
-          $pic = null;
-          if (is_object($student)) {
-            if (property_exists($student,'profile_picture')) { $pic = $student->profile_picture; }
-          }
-          $picUrl = $pic ? asset('storage/'.$pic) : asset('images/dprof.jpg');
+          $picUrl = $student->profile_photo_url ?? asset('images/dprof.jpg');
           $rawLast = $student->last_message ?? '';
           $isFileOnly = $rawLast === '' && $student->last_message_time;
             $lastMessage = $isFileOnly ? '[File]' : ($rawLast ?: 'No messages yet');
@@ -272,7 +268,7 @@
           .then(r=>r.ok?r.json():null)
           .then(info=>{
             if(!info) return;
-            const avatar = info.profile_picture ? `/storage/${info.profile_picture}` : `{{ asset('images/dprof.jpg') }}`;
+            const avatar = info.profile_photo_url || `{{ asset('images/dprof.jpg') }}`;
             const wrapper = document.querySelector('.inbox');
             const el = document.createElement('div');
             el.className='inbox-item';

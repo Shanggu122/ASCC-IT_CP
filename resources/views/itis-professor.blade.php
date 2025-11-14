@@ -30,7 +30,7 @@
       @if($colleagues->count() > 0)
         @foreach($colleagues as $colleague)
           <div class="profile-card" data-name="{{ $colleague->Name }}">
-            <img src="{{ $colleague->profile_picture ? asset('storage/' . $colleague->profile_picture) : asset('images/dprof.jpg') }}" alt="Profile Picture">
+            <img src="{{ $colleague->profile_photo_url ?? asset('images/dprof.jpg') }}" alt="Profile Picture">
             <div class="profile-name">{{ $colleague->Name }}</div>
           </div>
         @endforeach
