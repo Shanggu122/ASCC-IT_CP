@@ -764,8 +764,7 @@
       if (isMobile()) {
         document.getElementById('chat-panel').classList.add('active');
         document.getElementById('back-btn').style.display = 'block';
-        // Avoid locking body scroll so mobile keyboards can appear reliably
-        document.body.style.overflow = '';
+        document.body.style.overflow = 'hidden';
       }
     }
 
