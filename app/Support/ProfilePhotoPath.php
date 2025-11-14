@@ -16,15 +16,15 @@ class ProfilePhotoPath
         }
 
         $clean = trim($path);
-        if ($clean === '') {
+        if ($clean === "") {
             return null;
         }
 
         // Strip query strings to avoid cache-busting suffixes blocking detection.
-        $clean = explode('?', $clean, 2)[0];
+        $clean = explode("?", $clean, 2)[0];
 
         // Normalise directory separators for easier pattern checks.
-        $clean = str_replace('\\', '/', $clean);
+        $clean = str_replace("\\", "/", $clean);
 
         // If an absolute URL is provided, strip the scheme + host portion.
         if (preg_match('#^https?://[^/]+/(.+)$#i', $clean, $matches)) {
@@ -47,10 +47,10 @@ class ProfilePhotoPath
         }
 
         // Ensure consistent forward slashes.
-        $clean = str_replace('\\', '/', $clean);
-        $clean = ltrim($clean, '/');
+        $clean = str_replace("\\", "/", $clean);
+        $clean = ltrim($clean, "/");
 
-        return $clean !== '' ? $clean : null;
+        return $clean !== "" ? $clean : null;
     }
 
     /**
@@ -60,14 +60,14 @@ class ProfilePhotoPath
     {
         $normalized = self::normalize($path);
         if (!$normalized) {
-            return asset('images/dprof.jpg');
+            return asset("images/dprof.jpg");
         }
 
-        $disk = config('filesystems.profile_photos_disk', 'public');
+        $disk = config("filesystems.profile_photos_disk", "public");
         /** @var \Illuminate\Filesystem\FilesystemAdapter $storage */
         $storage = Storage::disk($disk);
 
-        $relativeUrl = url('/storage/' . ltrim($normalized, '/'));
+        $relativeUrl = url("/storage/" . ltrim($normalized, "/"));
 
         if ($storage->exists($normalized)) {
             $generated = $storage->url($normalized);
@@ -86,13 +86,13 @@ class ProfilePhotoPath
         }
 
         $host = strtolower($host);
-        if (in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
+        if (in_array($host, ["127.0.0.1", "localhost", "::1"], true)) {
             return true;
         }
 
-        if (app()->bound('request')) {
+        if (app()->bound("request")) {
             $requestHost = strtolower((string) request()->getHost());
-            if ($requestHost !== '' && $requestHost !== $host) {
+            if ($requestHost !== "" && $requestHost !== $host) {
                 return true;
             }
         }
