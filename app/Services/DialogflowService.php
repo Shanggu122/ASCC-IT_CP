@@ -97,8 +97,7 @@ class DialogflowService
         ?string $configuredPath,
         ?string $encodedKey,
         ?string $jsonKey,
-    ): ?string
-    {
+    ): ?string {
         if (!empty($configuredPath)) {
             $absolutePath = $this->normalizePath($configuredPath);
             if ($absolutePath !== null && file_exists($absolutePath)) {
