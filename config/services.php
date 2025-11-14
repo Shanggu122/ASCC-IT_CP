@@ -65,4 +65,12 @@ return [
         "timeout" => env("OPENAI_INTENT_TIMEOUT", 5),
         "confidence_threshold" => env("OPENAI_INTENT_CONFIDENCE_THRESHOLD", 0.6),
     ],
+
+    "dialogflow" => [
+        "project_id" => env("DIALOGFLOW_PROJECT_ID"),
+        "language" => env("DIALOGFLOW_LANGUAGE", "en-US"),
+        "credentials_path" => env("DIALOGFLOW_CREDENTIALS"),
+        "transport" => env("DIALOGFLOW_TRANSPORT", "rest"),
+        "key_b64" => env("DIALOGFLOW_KEY_B64"),
+    ],
 ];

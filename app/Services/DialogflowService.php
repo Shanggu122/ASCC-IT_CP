@@ -1,74 +1,152 @@
 <?php
+
 namespace App\Services;
 
+use Google\Cloud\Dialogflow\V2\QueryInput;
 use Google\Cloud\Dialogflow\V2\SessionsClient;
 use Google\Cloud\Dialogflow\V2\TextInput;
-use Google\Cloud\Dialogflow\V2\QueryInput;
-use RuntimeException;
+use Illuminate\Support\Facades\Log;
 
 class DialogflowService
 {
-    private SessionsClient $client;
-    private string $projectId;
-    private string $languageCode = "en-US";
+    private ?string $projectId;
+    private string $languageCode;
+    private ?string $credentialsPath;
 
     public function __construct()
     {
-        $this->projectId = env("DIALOGFLOW_PROJECT_ID", "ascc-itbot-dpkw");
+        $config = (array) config("services.dialogflow");
 
-        $credentialPath = null;
-        $encoded = env("DIALOGFLOW_KEY_B64");
-        if ($encoded) {
-            $decoded = base64_decode($encoded, true);
-            if ($decoded === false) {
-                throw new RuntimeException("Invalid Dialogflow key payload.");
-            }
-            $target = storage_path("app/dialogflow-runtime-key.json");
-            if (file_put_contents($target, $decoded) === false) {
-                throw new RuntimeException("Unable to persist Dialogflow key to storage.");
-            }
-            $credentialPath = $target;
-        }
-
-        if (!$credentialPath) {
-            $configuredPath = env("DIALOGFLOW_KEY_PATH");
-            if ($configuredPath && file_exists($configuredPath)) {
-                $credentialPath = $configuredPath;
-            }
-        }
-
-        if (!$credentialPath) {
-            $defaultPath = storage_path("app/ascc-itbot-dpkw-c4c081008227.json");
-            if (file_exists($defaultPath)) {
-                $credentialPath = $defaultPath;
-            }
-        }
-
-        if (!$credentialPath || !file_exists($credentialPath)) {
-            throw new RuntimeException(
-                "Dialogflow credentials missing. Provide key file or set DIALOGFLOW_KEY_B64 environment variable.",
-            );
-        }
-
-        $this->client = new SessionsClient([
-            "credentials" => $credentialPath,
-        ]);
+        $this->projectId = $config["project_id"] ?? env("DIALOGFLOW_PROJECT_ID");
+        $this->languageCode = $config["language"] ?? env("DIALOGFLOW_LANGUAGE", "en-US");
+        $this->credentialsPath = $this->resolveCredentialsPath(
+            $config["credentials_path"] ?? env("DIALOGFLOW_CREDENTIALS"),
+            $config["key_b64"] ?? null,
+        );
     }
 
     public function detectIntent(string $text, string $sessionId): string
     {
-        // 4) Build session path
-        $session = $this->client->sessionName($this->projectId, $sessionId);
+        if (empty($this->projectId)) {
+            throw new \RuntimeException("Dialogflow project id is not configured.");
+        }
 
-        // 5) Prepare the text input
-        $queryInput = new QueryInput()->setText(
-            new TextInput()->setText($text)->setLanguageCode($this->languageCode),
-        );
+        if (empty($this->credentialsPath) || !is_readable($this->credentialsPath)) {
+            throw new \RuntimeException(
+                "Dialogflow credentials file is missing: " . (string) $this->credentialsPath,
+            );
+        }
 
-        // 6) Call Dialogflow
-        $response = $this->client->detectIntent($session, $queryInput);
+        $client = null;
 
-        // 7) Return only the fulfillment text
-        return $response->getQueryResult()->getFulfillmentText();
+        try {
+            $client = new SessionsClient($this->clientOptions());
+            $session = $client->sessionName($this->projectId, $sessionId);
+
+            $textInput = new TextInput();
+            $textInput->setText($text);
+            $textInput->setLanguageCode($this->languageCode);
+
+            $queryInput = new QueryInput();
+            $queryInput->setText($textInput);
+
+            $response = $client->detectIntent($session, $queryInput);
+            $fulfillment = trim((string) $response->getQueryResult()->getFulfillmentText());
+
+            if ($fulfillment === "") {
+                Log::warning("Dialogflow returned an empty fulfillment text.");
+                return "Sorry, I could not find an answer right now.";
+            }
+
+            return $fulfillment;
+        } catch (\Throwable $e) {
+            Log::error("Dialogflow detectIntent failed", [
+                "error" => $e->getMessage(),
+            ]);
+
+            throw new \RuntimeException("Dialogflow request failed.", 0, $e);
+        } finally {
+            if ($client !== null) {
+                try {
+                    $client->close();
+                } catch (\Throwable $closeError) {
+                    Log::warning("Dialogflow client close failed", [
+                        "error" => $closeError->getMessage(),
+                    ]);
+                }
+            }
+        }
+    }
+
+    private function clientOptions(): array
+    {
+        $options = [
+            "credentials" => $this->credentialsPath,
+        ];
+
+        $transport = config("services.dialogflow.transport") ?? env("DIALOGFLOW_TRANSPORT", "rest");
+        if ($transport === "rest") {
+            $options["transport"] = "rest";
+        }
+
+        return $options;
+    }
+
+    private function resolveCredentialsPath(?string $configuredPath, ?string $encodedKey): ?string
+    {
+        if (!empty($configuredPath)) {
+            $absolutePath = $this->normalizePath($configuredPath);
+            if ($absolutePath !== null && file_exists($absolutePath)) {
+                return $absolutePath;
+            }
+        }
+
+        $encoded = $encodedKey ?? env("DIALOGFLOW_KEY_B64");
+        if (!empty($encoded)) {
+            $decoded = base64_decode($encoded, true);
+            if ($decoded === false) {
+                Log::error("Dialogflow: failed to decode base64 credentials.");
+            } else {
+                $target = storage_path("app/dialogflow-runtime-key.json");
+                if (file_put_contents($target, $decoded) === false) {
+                    Log::error("Dialogflow: unable to write decoded credential file.");
+                } else {
+                    return $target;
+                }
+            }
+        }
+
+        $defaultPath = storage_path("app/ascc-itbot-dpkw-c4c081008227.json");
+        if (file_exists($defaultPath)) {
+            return $defaultPath;
+        }
+
+        return null;
+    }
+
+    private function normalizePath(string $path): ?string
+    {
+        $trimmed = trim($path);
+        if ($trimmed === "") {
+            return null;
+        }
+
+        if ($trimmed[0] === "~") {
+            $home = rtrim((string) getenv("HOME"), DIRECTORY_SEPARATOR);
+            if ($home !== "") {
+                return $home .
+                    DIRECTORY_SEPARATOR .
+                    ltrim(substr($trimmed, 1), DIRECTORY_SEPARATOR);
+            }
+        }
+
+        if (
+            !str_starts_with($trimmed, DIRECTORY_SEPARATOR) &&
+            !preg_match("/^[A-Za-z]:\\\\/", $trimmed)
+        ) {
+            return base_path($trimmed);
+        }
+
+        return $trimmed;
     }
 }

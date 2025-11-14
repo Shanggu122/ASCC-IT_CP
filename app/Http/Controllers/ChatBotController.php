@@ -56,7 +56,11 @@ class ChatBotController extends Controller
                 "Sorry, the chatbot is currently unavailable. You can try again later.\n" .
                 "Examples I can answer:\n- " .
                 implode("\n- ", $examples);
-            return response()->json(["reply" => $help], 500);
+            // Fall back to a friendly message but keep the request successful so the UI stays responsive
+            return response()->json([
+                "reply" => $help,
+                "dialogflow_unavailable" => true,
+            ]);
         }
     }
 
