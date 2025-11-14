@@ -116,7 +116,7 @@ class DialogflowService
             }
         }
 
-        $defaultPath = storage_path("app/ascc-itbot-dpkw-c4c081008227.json");
+        $defaultPath = storage_path("app/ascc-itbot-dpkw-4d5a4dbcae6c.json");
         if (file_exists($defaultPath)) {
             return $defaultPath;
         }
