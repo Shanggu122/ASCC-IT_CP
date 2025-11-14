@@ -68,7 +68,10 @@ return [
 
     "dialogflow" => [
         "project_id" => env("DIALOGFLOW_PROJECT_ID"),
-        "credentials_path" => env("DIALOGFLOW_KEY_PATH", null),
+        "credentials_path" => env(
+            "DIALOGFLOW_KEY_PATH",
+            storage_path("app/ascc-itbot-dpkw-c4c081008227.json"),
+        ),
         "language" => env("DIALOGFLOW_LANGUAGE", "en-US"),
         "transport" => env("DIALOGFLOW_TRANSPORT", "rest"),
     ],
