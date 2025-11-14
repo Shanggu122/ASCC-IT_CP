@@ -5,6 +5,10 @@
     font-family: 'Poppins', sans-serif;
 }
 
+:root {
+    --navbar-height: 70px;
+}
+
 body {
     height: 100vh;
     background-color: #e5f0ed;
@@ -475,15 +479,36 @@ body {
 
 /* MOBILE MESSENGER STYLE (<=700px) */
 @media (max-width: 700px) {
+    body {
+        overflow: auto;
+        min-height: 100vh;
+    }
+    @supports (height: 100dvh) {
+        body {
+            min-height: 100dvh;
+        }
+    }
     .main-content {
         height: 100vh;
         min-height: 100vh;
+    }
+    @supports (height: 100dvh) {
+        .main-content {
+            height: 100dvh;
+            min-height: 100dvh;
+        }
     }
     .messages-wrapper {
         flex-direction: column;
         position: relative;
         height: 100vh;
         min-height: 100vh;
+    }
+    @supports (height: 100dvh) {
+        .messages-wrapper {
+            height: 100dvh;
+            min-height: 100dvh;
+        }
     }
     .inbox-header-line {
         flex-wrap: wrap;
@@ -514,18 +539,24 @@ body {
         border-bottom: 1px solid #ccc;
         padding-bottom: 0.5rem;
         z-index: 1;
-        padding-top: 70px; /* navbar height */
-        height: calc(100vh - 70px);
-        min-height: calc(100vh - 70px);
+        padding-top: var(--navbar-height);
+        height: calc(100vh - var(--navbar-height));
+        min-height: calc(100vh - var(--navbar-height));
         max-height: none;
         overflow-y: auto;
     }
+    @supports (height: 100dvh) {
+        .inbox {
+            height: calc(100dvh - var(--navbar-height));
+            min-height: calc(100dvh - var(--navbar-height));
+        }
+    }
     .chat-panel {
         position: fixed;
-        top: 70px; /* navbar */
+        top: var(--navbar-height);
         left: 0;
         width: 100vw;
-        height: calc(100vh - 70px);
+        height: calc(100vh - var(--navbar-height));
         background: #fff;
         z-index: 10;
         display: none;
@@ -535,6 +566,11 @@ body {
         margin: 0;
         border-radius: 0;
         min-width: 0;
+    }
+    @supports (height: 100dvh) {
+        .chat-panel {
+            height: calc(100dvh - var(--navbar-height));
+        }
     }
     .chat-panel.active {
         display: flex;
@@ -570,6 +606,7 @@ body {
     .chat-body {
         flex: 1 1 auto;
         padding: 1rem;
+        padding-bottom: calc(7rem + env(safe-area-inset-bottom));
         overflow-y: auto;
         display: flex;
         flex-direction: column;
@@ -581,14 +618,16 @@ body {
     }
     .chat-input {
         border-radius: 0;
-        padding: 10px;
-        position: fixed;
+        padding: 12px 14px calc(12px + env(safe-area-inset-bottom));
+        position: sticky;
         bottom: 0;
         left: 0;
         right: 0;
         z-index: 11;
         background: #fff;
         border-top: 1px solid #ccc;
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.06);
+        gap: 10px;
     }
 }
 
