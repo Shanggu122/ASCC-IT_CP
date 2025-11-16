@@ -81,13 +81,15 @@
                     @endif
                 </div>
                 <div class="chat-input" id="chat-input">
-                    <div id="file-preview-container" class="file-preview-container"></div>
+                  <div id="file-preview-container" class="file-preview-container"></div>
+                  <div class="chat-input-main">
                     <label for="file-input" class="attach-btn" title="Upload file">
-                        <i class='bx bx-paperclip'></i>
+                      <i class='bx bx-paperclip'></i>
                     </label>
-                    <input type="file" id="file-input" multiple style="display:none;" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" />
                     <textarea id="message-input" placeholder="Type a message..." rows="1" maxlength="5000"></textarea>
                     <button id="send-btn" onclick="sendMessage()">Send</button>
+                  </div>
+                  <input type="file" id="file-input" multiple style="display:none;" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" />
                   <input type="hidden" id="last-send-ts" value="0" />
                 </div>
             </div>

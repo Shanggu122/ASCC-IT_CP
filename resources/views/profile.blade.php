@@ -150,7 +150,7 @@
         <div class="message bot">Hi! How can I help you today?</div>
         <div id="chatBox"></div>
       </div>
-      <div id="quickReplies" class="quick-replies">
+      <div id="quickReplies" class="quick-replies" role="group" aria-label="Common questions">
         <button type="button" class="quick-reply" data-message="How do I book a consultation?">How do I book?</button>
         <button type="button" class="quick-reply" data-message="What are the consultation statuses?">Statuses?</button>
         <button type="button" class="quick-reply" data-message="How can I reschedule my consultation?">Reschedule</button>
@@ -164,8 +164,8 @@
         <i class='bx bx-help-circle'></i>
       </button>
 
-      <form id="chatForm">
-        <input type="text" id="message" placeholder="Type your message" required>
+      <form id="chatForm" novalidate>
+        <input type="text" id="message" placeholder="Type your message" autocomplete="off" spellcheck="false" required>
         <button type="submit">Send</button>
       </form>
     </div>

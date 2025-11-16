@@ -388,22 +388,22 @@
         <div class="message bot">Hi! How can I help you today?</div>
         <div id="chatBox"></div>
       </div>
-      <div id="quickReplies" class="quick-replies">
+      <div id="quickReplies" class="quick-replies" role="group" aria-label="Common questions">
         <button type="button" class="quick-reply" data-message="How do I book a consultation?">How do I book?</button>
         <button type="button" class="quick-reply" data-message="What are the consultation statuses?">Statuses?</button>
         <button type="button" class="quick-reply" data-message="How can I reschedule my consultation?">Reschedule</button>
         <button type="button" class="quick-reply" data-message="Can I cancel my booking?">Cancel booking</button>
         <button type="button" class="quick-reply" data-message="How do I contact my professor after booking?">Contact professor</button>
-  <button type="button" class="quick-reply" data-message="Are there available slots?">Check availability</button>
-  <button type="button" class="quick-reply" data-message="Do I have a schedule this week?">This week’s schedule</button>
-  <button type="button" class="quick-reply" data-message="my pending schedules this week">My pending this week</button>
+        <button type="button" class="quick-reply" data-message="Are there available slots?">Check availability</button>
+        <button type="button" class="quick-reply" data-message="Do I have a schedule this week?">This week’s schedule</button>
+        <button type="button" class="quick-reply" data-message="my pending schedules this week">My pending this week</button>
       </div>
       <button type="button" id="quickRepliesToggle" class="quick-replies-toggle" style="display:none" title="Show FAQs">
         <i class='bx bx-help-circle'></i>
       </button>
 
-      <form id="chatForm">
-        <input type="text" id="message" placeholder="Type your message" required>
+      <form id="chatForm" novalidate>
+        <input type="text" id="message" placeholder="Type your message" autocomplete="off" spellcheck="false" required>
         <button type="submit">Send</button>
       </form>
     </div>

@@ -68,8 +68,11 @@ body {
     display: flex;
     flex-direction: column;
     z-index: 2147483647 !important;
-    transition: right 0.3s ease;
+    transition:
+        right 0.3s ease,
+        transform 0.3s ease;
     border-left: 3px solid #12372a;
+    transform: translateX(0);
 }
 .chat-overlay.open {
     right: 0;
@@ -164,6 +167,7 @@ body.legend-open .chat-overlay {
     padding: 1rem;
     border-top: 1px solid #ccc;
     background-color: #ffffff;
+    gap: 0.5rem;
 }
 
 #chatForm input[type='text'] {
@@ -172,7 +176,6 @@ body.legend-open .chat-overlay {
     border: 1px solid #ccc;
     border-radius: 8px;
     font-size: 14px;
-    margin-right: 0.5rem;
     outline: none;
 }
 
@@ -185,6 +188,7 @@ body.legend-open .chat-overlay {
     font-size: 14px;
     cursor: pointer;
     transition: background-color 0.3s ease;
+    flex-shrink: 0;
 }
 
 #chatForm button:hover {
@@ -554,6 +558,49 @@ body:not(.chat-open) #mobileNotificationBell {
     .pika-table th abbr {
         font-size: 0.9rem !important;
         letter-spacing: 0.5px;
+    }
+}
+
+/* Handset chat widget optimisation (Pixel 8A and similar widths) */
+@media (max-width: 450px) {
+    .chat-overlay {
+        width: 92vw;
+        max-width: 360px;
+        right: 0;
+        transform: translateX(104%);
+        border-left-width: 0;
+        border-radius: 18px 0 0 18px;
+    }
+
+    .chat-overlay.open {
+        transform: translateX(0);
+    }
+
+    #chatForm {
+        padding: 0.75rem 0.75rem 0.85rem;
+        gap: 0.45rem;
+    }
+
+    #chatForm input[type='text'] {
+        margin-right: 0;
+        padding: 0.55rem 0.65rem;
+        font-size: 13px;
+    }
+
+    #chatForm button {
+        padding: 0.55rem 0.75rem;
+        font-size: 13px;
+        min-width: 64px;
+    }
+
+    .quick-replies {
+        padding: 6px 8px;
+        gap: 4px;
+    }
+
+    .quick-reply {
+        font-size: 11px;
+        padding: 5px 9px;
     }
 }
 
