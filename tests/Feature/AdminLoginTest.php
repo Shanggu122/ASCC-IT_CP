@@ -17,27 +17,16 @@ class AdminLoginTest extends TestCase
     {
         parent::setUp();
 
-        // Ensure admin table exists (minimal schema)
-        if (!Schema::hasTable('admin')) {
-            Schema::create('admin', function (Blueprint $table) {
-                $table->string('Admin_ID', 9)->primary();
-                $table->string('Name', 100)->nullable();
-                $table->string('Email', 150)->nullable();
-                $table->string('Password', 255);
-                $table->string('remember_token', 100)->nullable();
-                $table->string('profile_picture', 255)->nullable();
-                $table->boolean('is_active')->default(1);
-            });
-        } else {
-            Schema::table('admin', function (Blueprint $table) {
-                if (!Schema::hasColumn('admin', 'remember_token')) {
-                    $table->string('remember_token', 100)->nullable();
-                }
-                if (!Schema::hasColumn('admin', 'is_active')) {
-                    $table->boolean('is_active')->default(1);
-                }
-            });
-        }
+        Schema::dropIfExists('admin');
+        Schema::create('admin', function (Blueprint $table) {
+            $table->string('Admin_ID', 12)->primary();
+            $table->string('Name', 100)->nullable();
+            $table->string('Email', 150)->nullable();
+            $table->string('Password', 255);
+            $table->string('remember_token', 100)->nullable();
+            $table->string('profile_picture', 255)->nullable();
+            $table->boolean('is_active')->default(1);
+        });
 
         // Ensure audit table exists and supports admin ids
         if (!Schema::hasTable('login_attempts')) {

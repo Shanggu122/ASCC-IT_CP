@@ -30,7 +30,7 @@ class VideoCallDemoTest extends TestCase
         $response = $this->get("/dev/video-call-demo?mock=2&mockNames=Alpha|Bravo");
 
         $response->assertStatus(200);
-        $response->assertSee("Meeting —", false);
+        $response->assertSee("Online Consultation with Demo Professor", false);
         $response->assertSee("Waiting for others to join", false);
     }
 }

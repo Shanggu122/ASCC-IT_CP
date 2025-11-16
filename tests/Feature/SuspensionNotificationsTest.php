@@ -88,25 +88,23 @@ class SuspensionNotificationsTest extends TestCase
             DB::table("t_consultation_bookings")->truncate();
         }
 
-        if (!Schema::hasTable("admin")) {
-            Schema::create("admin", function (Blueprint $table) {
-                $table->integer("Admin_ID")->primary();
-                $table->string("Name")->nullable();
-                $table->string("Email")->nullable();
-                $table->string("Password")->nullable();
-                $table->string("profile_picture")->nullable();
-            });
-        } else {
-            DB::table("admin")->truncate();
-        }
+        Schema::dropIfExists('admin');
+        Schema::create('admin', function (Blueprint $table) {
+            $table->string('Admin_ID', 12)->primary();
+            $table->string('Name')->nullable();
+            $table->string('Email')->nullable();
+            $table->string('Password')->nullable();
+            $table->string('profile_picture')->nullable();
+            $table->boolean('is_active')->default(1);
+        });
     }
 
     public function test_applies_suspension_and_creates_notifications_for_all_users()
     {
         // Seed professors and students
         DB::table("professors")->insert([
-            ["Prof_ID" => 1, "Name" => "Prof A"],
-            ["Prof_ID" => 2, "Name" => "Prof B"],
+            ["Prof_ID" => 1, "Name" => "Prof A", "Password" => bcrypt("secret")],
+            ["Prof_ID" => 2, "Name" => "Prof B", "Password" => bcrypt("secret")],
         ]);
         DB::table("t_student")->insert([
             ["Stud_ID" => 101, "Name" => "Student One"],

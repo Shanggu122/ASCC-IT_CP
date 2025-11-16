@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Tests\TestCase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Storage;
@@ -27,6 +28,8 @@ class ProfessorProfilePhotoTest extends TestCase
                 $table->rememberToken();
             });
         }
+
+        DB::table("professors")->truncate();
     }
 
     private function createTinyPngUploadedFile(string $name = "avatar.png"): UploadedFile

@@ -14,11 +14,16 @@ class Professor extends Authenticatable
     protected $table = 'professors'; // Updated table name
     protected $primaryKey = 'Prof_ID';
     public $incrementing = false;
-    protected $keyType = 'int';
+    protected $keyType = 'string';
     public $timestamps = false;
 
     protected $fillable = [
         'Prof_ID', 'Password', 'Name', 'Email', 'Dept_ID', 'Schedule', 'profile_picture', 'remember_token', 'is_active'
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'Prof_ID' => 'string',
     ];
 
     protected $hidden = [

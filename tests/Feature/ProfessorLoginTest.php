@@ -62,6 +62,9 @@ class ProfessorLoginTest extends TestCase
                 }
             });
         }
+
+        DB::table("professors")->truncate();
+        DB::table("login_attempts")->truncate();
     }
 
     protected function createProfessor(array $overrides = []): Professor

@@ -2,21 +2,43 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use Tests\TestCase;
 
 class MessageAttachmentValidationTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         parent::setUp();
+
+        if (!Schema::hasTable("t_chat_messages")) {
+            Schema::create("t_chat_messages", function (Blueprint $table) {
+                $table->bigIncrements("id");
+                $table->unsignedBigInteger("Booking_ID")->nullable();
+                $table->string("Stud_ID", 12)->nullable();
+                $table->string("Prof_ID", 12)->nullable();
+                $table->string("Sender", 50)->nullable();
+                $table->string("Recipient", 50)->nullable();
+                $table->text("Message")->nullable();
+                $table->timestamp("Created_At")->nullable();
+                $table->string("status", 32)->nullable();
+                $table->boolean("is_read")->default(false);
+                $table->string("file_path", 255)->nullable();
+                $table->string("file_type", 64)->nullable();
+                $table->string("original_name", 255)->nullable();
+            });
+        }
+
+        DB::table("t_chat_messages")->truncate();
+        DB::table("t_student")->truncate();
+
         // Use fake storage to avoid real file writes
         Storage::fake("public");
         // Silence broadcasts in tests

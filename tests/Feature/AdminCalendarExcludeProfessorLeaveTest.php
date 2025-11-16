@@ -15,14 +15,15 @@ class AdminCalendarExcludeProfessorLeaveTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        if (!Schema::hasTable("admin")) {
-            Schema::create("admin", function (Blueprint $table) {
-                $table->integer("Admin_ID")->primary();
-                $table->string("Name")->nullable();
-                $table->string("Email")->nullable();
-                $table->string("Password");
-            });
-        }
+        Schema::dropIfExists('admin');
+        Schema::create('admin', function (Blueprint $table) {
+            $table->string('Admin_ID', 12)->primary();
+            $table->string('Name', 100)->nullable();
+            $table->string('Email', 150)->nullable();
+            $table->string('Password', 255);
+            $table->string('remember_token', 100)->nullable();
+            $table->boolean('is_active')->default(1);
+        });
         if (!Schema::hasTable("calendar_overrides")) {
             Schema::create("calendar_overrides", function (Blueprint $table) {
                 $table->bigIncrements("id");

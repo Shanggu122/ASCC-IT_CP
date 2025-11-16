@@ -198,6 +198,14 @@ class ChatBotController extends Controller
             return $this->professorSubjectsSummary($profId);
         }
 
+        if ($this->isLikelyTagalog($normalized)) {
+            return $this->englishOnlyFallback();
+        }
+
+        if ($this->isOutOfScopeSmallTalk($normalized) || $this->outOfScopeDetector->isOutOfScope($normalized)) {
+            return $this->outOfScopeResponse();
+        }
+
         return null;
     }
 

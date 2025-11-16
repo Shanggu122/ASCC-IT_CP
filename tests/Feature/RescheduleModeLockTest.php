@@ -2,19 +2,15 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class RescheduleModeLockTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         parent::setUp();
-        // Migrate default Laravel tables and any project-specific ones
-        $this->artisan("migrate");
+        DB::table("t_consultation_bookings")->truncate();
     }
 
     /**

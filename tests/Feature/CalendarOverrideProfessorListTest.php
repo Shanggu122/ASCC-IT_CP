@@ -81,7 +81,7 @@ class CalendarOverrideProfessorListTest extends TestCase
             "allowed_mode" => null,
             "reason_key" => "others",
             "reason_text" => "Campus maintenance",
-            "created_by" => "TEST",
+            "created_by" => 9001,
             "created_at" => now(),
             "updated_at" => now(),
         ]);
@@ -96,7 +96,7 @@ class CalendarOverrideProfessorListTest extends TestCase
             "allowed_mode" => "online",
             "reason_key" => "online_day",
             "reason_text" => null,
-            "created_by" => "TEST",
+            "created_by" => 9001,
             "created_at" => now(),
             "updated_at" => now(),
         ]);

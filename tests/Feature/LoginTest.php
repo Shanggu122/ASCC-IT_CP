@@ -42,6 +42,9 @@ class LoginTest extends TestCase
 				$table->timestamps();
 			});
 		}
+
+		DB::table('t_student')->truncate();
+		DB::table('login_attempts')->truncate();
 	}
 
 	protected function createStudent(array $overrides = []): User

@@ -3,8 +3,9 @@
 namespace Tests\Feature\Admin;
 
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Admin;
 
 /**
@@ -16,7 +17,12 @@ use App\Models\Admin;
  */
 class ItisUpdateFacultyDepartmentGuardTest extends TestCase
 {
-    use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->ensureProfessorsTable();
+    }
 
     private function actingAsAdmin(): void
     {
@@ -57,5 +63,34 @@ class ItisUpdateFacultyDepartmentGuardTest extends TestCase
             "Prof_ID" => "C2001",
             "Name" => "ComSci Prof",
         ]);
+    }
+
+    private function ensureProfessorsTable(): void
+    {
+        if (Schema::hasTable('professors')) {
+            $needsReset = !Schema::hasColumn('professors', 'Dept_ID') ||
+                !Schema::hasColumn('professors', 'is_active') ||
+                !Schema::hasColumn('professors', 'profile_picture');
+
+            if ($needsReset) {
+                Schema::drop('professors');
+            }
+        }
+
+        if (!Schema::hasTable('professors')) {
+            Schema::create('professors', function (Blueprint $table) {
+                $table->string('Prof_ID', 12)->primary();
+                $table->string('Name')->nullable();
+                $table->string('Dept_ID', 50)->nullable();
+                $table->string('Email')->nullable();
+                $table->string('Password')->nullable();
+                $table->string('profile_picture')->nullable();
+                $table->text('Schedule')->nullable();
+                $table->string('remember_token', 100)->nullable();
+                $table->boolean('is_active')->default(1);
+            });
+        }
+
+        DB::statement('DELETE FROM professors');
     }
 }

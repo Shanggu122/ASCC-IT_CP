@@ -6,19 +6,37 @@ use App\Events\TermActivated;
 use App\Models\AcademicYear;
 use App\Models\Term;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class AcademicTermService
 {
     public function getActiveTerm(): ?Term
     {
-        return Term::query()->active()->with("academicYear")->orderByDesc("activated_at")->first();
+        if (!Schema::hasTable('terms')) {
+            return null;
+        }
+
+        try {
+            return Term::query()->active()->with('academicYear')->orderByDesc('activated_at')->first();
+        } catch (QueryException $e) {
+            return null;
+        }
     }
 
     public function getActiveYear(): ?AcademicYear
     {
-        return AcademicYear::query()->active()->with("terms")->orderByDesc("activated_at")->first();
+        if (!Schema::hasTable('academic_years')) {
+            return null;
+        }
+
+        try {
+            return AcademicYear::query()->active()->with('terms')->orderByDesc('activated_at')->first();
+        } catch (QueryException $e) {
+            return null;
+        }
     }
 
     public function createYearWithTerm(array $yearData, array $termData, int $adminId): Term

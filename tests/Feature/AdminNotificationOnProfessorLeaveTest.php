@@ -14,42 +14,9 @@ class AdminNotificationOnProfessorLeaveTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        if (!Schema::hasTable("professors")) {
-            Schema::create("professors", function (Blueprint $table) {
-                $table->integer("Prof_ID")->primary();
-                $table->string("Name", 100)->nullable();
-                $table->string("Email", 150)->nullable();
-                $table->string("Password", 255);
-            });
-        }
-        if (!Schema::hasTable("calendar_overrides")) {
-            Schema::create("calendar_overrides", function (Blueprint $table) {
-                $table->bigIncrements("id");
-                $table->date("start_date");
-                $table->date("end_date");
-                $table->string("scope_type", 32)->default("all");
-                $table->string("scope_id", 64)->nullable();
-                $table->string("effect", 16);
-                $table->string("allowed_mode", 16)->nullable();
-                $table->string("reason_key", 64)->nullable();
-                $table->string("reason_text", 255)->nullable();
-                $table->string("created_by", 64)->nullable();
-                $table->timestamps();
-            });
-        }
-        if (!Schema::hasTable("notifications")) {
-            Schema::create("notifications", function (Blueprint $table) {
-                $table->id();
-                $table->integer("user_id");
-                $table->integer("booking_id");
-                $table->string("type");
-                $table->string("title");
-                $table->text("message");
-                $table->boolean("is_read")->default(false);
-                $table->timestamp("created_at")->useCurrent();
-                $table->timestamp("updated_at")->useCurrent()->useCurrentOnUpdate();
-            });
-        }
+        $this->ensureProfessorsTable();
+        $this->ensureCalendarOverridesTable();
+        $this->ensureNotificationsTable();
     }
 
     protected function createProfessor(array $overrides = []): Professor
@@ -82,4 +49,58 @@ class AdminNotificationOnProfessorLeaveTest extends TestCase
         $this->assertStringContainsString($prof->Name, $notif->message);
         $this->assertStringContainsString($date, $notif->message);
     }
+
+        private function ensureProfessorsTable(): void
+        {
+            Schema::disableForeignKeyConstraints();
+            Schema::dropIfExists('professors');
+            Schema::create('professors', function (Blueprint $table) {
+                $table->string('Prof_ID', 12)->primary();
+                $table->string('Name')->nullable();
+                $table->string('Dept_ID', 50)->nullable();
+                $table->string('Email')->nullable();
+                $table->string('Password')->nullable();
+                $table->string('profile_picture')->nullable();
+                $table->text('Schedule')->nullable();
+                $table->string('remember_token', 100)->nullable();
+                $table->boolean('is_active')->default(1);
+            });
+            Schema::enableForeignKeyConstraints();
+        }
+
+        private function ensureCalendarOverridesTable(): void
+        {
+            Schema::dropIfExists('calendar_overrides');
+            Schema::create('calendar_overrides', function (Blueprint $table) {
+                $table->id();
+                $table->date('start_date');
+                $table->date('end_date');
+                $table->enum('scope_type', ['all', 'department', 'subject', 'professor'])->default('all');
+                $table->unsignedBigInteger('scope_id')->nullable();
+                $table->foreignId('term_id')->nullable();
+                $table->enum('effect', ['force_mode', 'block_all', 'holiday']);
+                $table->enum('allowed_mode', ['online', 'onsite'])->nullable();
+                $table->string('reason_key')->nullable();
+                $table->text('reason_text')->nullable();
+                $table->unsignedBigInteger('created_by')->nullable();
+                $table->timestamps();
+            });
+        }
+
+        private function ensureNotificationsTable(): void
+        {
+            Schema::dropIfExists('notifications');
+            Schema::create('notifications', function (Blueprint $table) {
+                $table->id();
+                $table->integer('user_id');
+                $table->integer('booking_id');
+                $table->foreignId('term_id')->nullable();
+                $table->string('type');
+                $table->string('title');
+                $table->text('message');
+                $table->boolean('is_read')->default(false);
+                $table->timestamp('created_at')->useCurrent();
+                $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
+            });
+        }
 }

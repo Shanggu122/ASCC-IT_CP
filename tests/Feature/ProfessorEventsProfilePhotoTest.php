@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Tests\TestCase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use App\Models\Professor;
@@ -29,6 +30,8 @@ class ProfessorEventsProfilePhotoTest extends TestCase
                 $table->rememberToken();
             });
         }
+
+        DB::table("professors")->truncate();
     }
 
     protected function makeProfessor(array $overrides = []): Professor

@@ -83,7 +83,7 @@ class ChatBotRescheduleGuidanceTest extends TestCase
         $res->assertStatus(200);
         $text = strtolower($res->json("reply"));
 
-        $this->assertStringContainsString("to reschedule your consultation", $text);
+        $this->assertStringContainsString("reschedule a booking", $text);
         $this->assertStringNotContainsString("i could not find that professor", $text);
     }
 }

@@ -11,18 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasTable('professors') || !Schema::hasTable('t_subject')) {
-            return; // skip in minimal test schema
-        }
-        if (!Schema::hasTable('professor_subject')) {
-            Schema::create('professor_subject', function (Blueprint $table) {
-                $table->id();
-                $table->unsignedBigInteger('Prof_ID');
-                $table->unsignedBigInteger('Subject_ID');
-                $table->foreign('Prof_ID')->references('Prof_ID')->on('professors')->onDelete('cascade');
-                $table->foreign('Subject_ID')->references('Subject_ID')->on('t_subject')->onDelete('cascade');
-            });
-        }
+        Schema::create('professor_subject', function (Blueprint $table) {
+            $table->id();
+            $table->string('Prof_ID', 12);
+            $table->unsignedInteger('Subject_ID');
+            $table->foreign('Prof_ID')->references('Prof_ID')->on('professors')->cascadeOnDelete();
+            $table->foreign('Subject_ID')->references('Subject_ID')->on('t_subject')->cascadeOnDelete();
+        });
     }
 
     /**
@@ -30,8 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        if (Schema::hasTable('professor_subject')) {
-            Schema::drop('professor_subject');
-        }
+        Schema::dropIfExists('professor_subject');
     }
 };

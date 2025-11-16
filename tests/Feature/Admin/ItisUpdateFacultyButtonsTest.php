@@ -3,7 +3,6 @@
 namespace Tests\Feature\Admin;
 
 use Tests\TestCase;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
@@ -11,7 +10,41 @@ use App\Models\Admin;
 
 class ItisUpdateFacultyButtonsTest extends TestCase
 {
-    use RefreshDatabase;
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->ensureProfessorsTable();
+    }
+
+    private function ensureProfessorsTable(): void
+    {
+        if (Schema::hasTable('professors')) {
+            $needsReset = !Schema::hasColumn('professors', 'Dept_ID') ||
+                !Schema::hasColumn('professors', 'is_active') ||
+                !Schema::hasColumn('professors', 'profile_picture');
+
+            if ($needsReset) {
+                Schema::drop('professors');
+            }
+        }
+
+        if (!Schema::hasTable('professors')) {
+            Schema::create('professors', function (Blueprint $table) {
+                $table->string('Prof_ID', 12)->primary();
+                $table->string('Name')->nullable();
+                $table->string('Dept_ID', 50)->nullable();
+                $table->string('Email')->nullable();
+                $table->string('Password')->nullable();
+                $table->string('profile_picture')->nullable();
+                $table->text('Schedule')->nullable();
+                $table->string('remember_token', 100)->nullable();
+                $table->boolean('is_active')->default(1);
+            });
+        }
+
+        DB::statement('DELETE FROM professors');
+    }
 
     private function actingAsAdmin(): Admin
     {
@@ -35,13 +68,7 @@ class ItisUpdateFacultyButtonsTest extends TestCase
     {
         $this->actingAsAdmin();
 
-        // Minimal schema for subjects table expected by the page
-        if (!Schema::hasTable("t_subject")) {
-            Schema::create("t_subject", function (Blueprint $table) {
-                $table->increments("Subject_ID");
-                $table->string("Subject_Name")->nullable();
-            });
-        }
+        $this->ensureSubjectTables();
 
         $resp = $this->get("/admin-itis");
         $resp->assertStatus(200);
@@ -207,5 +234,26 @@ class ItisUpdateFacultyButtonsTest extends TestCase
             "Name" => "Prof Delta",
             "Schedule" => null,
         ]);
+    }
+
+    private function ensureSubjectTables(): void
+    {
+        if (!Schema::hasTable('t_subject')) {
+            Schema::create('t_subject', function (Blueprint $table) {
+                $table->increments('Subject_ID');
+                $table->string('Subject_Name')->nullable();
+            });
+        }
+
+        if (!Schema::hasTable('professor_subject')) {
+            Schema::create('professor_subject', function (Blueprint $table) {
+                $table->id();
+                $table->string('Prof_ID', 12);
+                $table->unsignedInteger('Subject_ID');
+            });
+        }
+
+        DB::statement('DELETE FROM t_subject');
+        DB::statement('DELETE FROM professor_subject');
     }
 }

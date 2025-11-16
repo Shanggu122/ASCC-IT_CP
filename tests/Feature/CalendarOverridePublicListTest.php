@@ -43,7 +43,7 @@ class CalendarOverridePublicListTest extends TestCase
             "allowed_mode" => null,
             "reason_key" => "holiday",
             "reason_text" => "Christmas",
-            "created_by" => "TEST",
+            "created_by" => 9001,
             "created_at" => now(),
             "updated_at" => now(),
         ]);
