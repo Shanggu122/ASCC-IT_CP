@@ -125,7 +125,7 @@
   const STUDENT_LABEL = COUNTERPART_NAME || 'Student';
   let TOKEN     = null;
   let RTM_TOKEN = null;
-  const LEAVE_REDIRECT = "{{ auth('professor')->check() ? route('messages.professor') : route('landing') }}";
+  const LEAVE_REDIRECT = "{{ auth('professor')->check() ? route('messages.professor') : route('login') }}";
 
   let client, rtmClient, rtmChannel, localUid, rtcDataStream;
     let localAudioTrack, localVideoTrack, screenVideoTrack;

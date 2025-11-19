@@ -14,10 +14,7 @@
                 <li><a class="{{ str_contains($current,'admin-itis') ? 'active' : '' }}" href="{{ url('/admin-itis') }}">IT & IS</a></li>
                 <li><a class="{{ str_contains($current,'admin-analytics') ? 'active' : '' }}" href="{{ url('/admin-analytics') }}">Analytics</a></li>
                 <li style="margin:0;padding:0;">
-                        <form action="{{ route('logout.admin') }}" method="POST" style="margin:0;padding:0;">
-                                @csrf
-                                <button type="submit" class="logout-btn sidebar-link" style="background:none;border:none;padding:1rem 0 1rem 2rem;width:100%;color:inherit;text-align:left;font-family:inherit;font-size:inherit;cursor:pointer;">Sign Out</button>
-                        </form>
+                        <x-logout-link guard="admin" label="Sign Out" class="logout-btn sidebar-link" style="background:none;border:none;padding:1rem 0 1rem 2rem;width:100%;color:inherit;text-align:left;font-family:inherit;font-size:inherit;cursor:pointer;" />
                 </li>
         </ul>
 </div>

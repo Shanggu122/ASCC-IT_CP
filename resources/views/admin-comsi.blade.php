@@ -10,6 +10,8 @@
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/admin-comsci.css') }}">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
+    <link rel="stylesheet" href="{{ asset('css/logout-confirm.css') }}">
+    <script src="{{ asset('js/logout-confirm.js') }}" defer></script>
 </head>
 <body>
   @include('components.navbar-admin')

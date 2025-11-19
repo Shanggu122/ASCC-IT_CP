@@ -17,7 +17,7 @@ use App\Http\Controllers\ConsultationBookingControllerProfessor;
 use App\Http\Controllers\AdminAcademicTermController;
 use App\Http\Controllers\AdminAnalyticsController;
 use App\Http\Controllers\AdminDashboardController;
-use App\Http\Controllers\LandingController;
+use App\Http\Controllers\UnifiedAuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\itisController;
 use App\Http\Controllers\ProfessorController;
@@ -40,7 +40,7 @@ use Carbon\CarbonPeriod;
 use Database\Seeders\DemoMeetingSeeder;
 use Database\Seeders\DemoStudentSeeder;
 
-Route::get("/", [LandingController::class, "index"])->name("landing");
+Route::get("/", [UnifiedAuthController::class, "showLoginForm"])->name("login");
 
 // OTP password reset routes
 use App\Http\Controllers\PasswordOtpController;
@@ -62,13 +62,11 @@ Route::post("/reset-password", [PasswordOtpController::class, "updatePassword"])
     "password.update",
 );
 
-// Show login page (assuming this is your login view)
-Route::get("/login", function () {
-    return view("login"); // or whatever your login blade file is
-})->name("login");
+// Unified login page
+Route::get("/login", [UnifiedAuthController::class, "showLoginForm"]);
 
-// Single student login POST route
-Route::post("/login", [AuthController::class, "login"])->name("login.submit");
+// Unified login POST route
+Route::post("/login", [UnifiedAuthController::class, "login"])->name("login.submit");
 // Protected student routes (require authentication)
 Route::get("/dashboard", function () {
     return view("dashboard"); // student dashboard
@@ -225,12 +223,6 @@ Route::middleware(["web", \App\Http\Middleware\EnsureProfessorAuthenticated::cla
 
 Route::get("/prof-call/{channel}", [ProfVideoCallController::class, "show"]);
 
-// Professor-specific routes
-Route::get("/login-professor", function () {
-    return view("login-professor");
-})->name("login.professor");
-
-Route::post("/login-professor", [AuthControllerProfessor::class, "login"]);
 Route::get("/dashboard-professor", function () {
     return view("dashboard-professor");
 })
@@ -1466,9 +1458,6 @@ Route::delete("/admin-itis/delete-professor/{prof}", [
     ->name("admin.itis.professor.delete")
     ->middleware(["auth:admin", "throttle:3,1"]);
 
-// Admin login routes
-Route::get("/login/admin", [AdminAuthController::class, "showLoginForm"])->name("login.admin");
-Route::post("/login/admin", [AdminAuthController::class, "login"])->name("login.admin.submit");
 Route::post("/admin/logout", [AdminAuthController::class, "logout"])->name("logout.admin");
 
 // Example admin dashboard route (create this view/controller as needed)

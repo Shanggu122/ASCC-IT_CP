@@ -13,6 +13,8 @@
   <link rel="stylesheet" href="{{ asset('css/dashboard-admin.css') }}">
   <link rel="stylesheet" href="{{ asset('css/notifications.css') }}">
   <link rel="stylesheet" href="{{ asset('css/legend.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/logout-confirm.css') }}">
+  <script src="{{ asset('js/logout-confirm.js') }}" defer></script>
 </head>
 <body>
   @include('components.navbar-admin')
