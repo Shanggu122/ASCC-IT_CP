@@ -9,498 +9,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/admin-navbar.css') }}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
   <link rel="stylesheet" href="{{ asset('css/dashboard-admin.css') }}">
   <link rel="stylesheet" href="{{ asset('css/notifications.css') }}">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
-  <style>
-    #calendar {
-      visibility: visible;
-      display: none; /* Hide the input field completely */
-    }
-    /* Unified arrow styling */
-    .pika-prev, .pika-next {
-      background-color: #0d2b20; /* dark fill */
-      border-radius: 50%;
-      color: #ffffff;
-      border: 2px solid #071a13; /* darker rim */
-      font-size: 18px;
-      padding: 10px;
-      width: 38px !important;
-      height: 38px;
-      display:flex; align-items:center; justify-content:center;
-      opacity:1;
-      text-indent:-9999px;
-      position:relative;
-      overflow:hidden;
-      background-image:none !important;
-      box-shadow:none;
-    }
-    .pika-prev:after, .pika-next:after {
-      content:'';
-      position:absolute;
-      top:46%; left:50%;
-      transform:translate(-50%, -50%);
-      font-size:24px; line-height:1; font-weight:700; color:#ffffff; text-indent:0; z-index:2;
-    }
-    .pika-prev:after { content:'\2039'; }
-    .pika-next:after { content:'\203A'; }
-    .pika-table th:has([title="Saturday"]),
-    .pika-table th:has([title="Tuesday"]),
-    .pika-table th:has([title="Wednesday"]),
-    .pika-table th:has([title="Thursday"]),
-    .pika-table th:has([title="Friday"]) {
-      background-color: #12372a;
-      color: #fff;
-      border-radius: 4px;
-      padding: 5px;
-      height: 60px !important;
-    }
-    .pika-table th:has([title="Monday"]),
-    .pika-table th:has([title="Sunday"]) {
-      background-color: #01703c;
-      color: #fff;
-      border-radius: 4px;
-      padding: 10px;
-    }
-    .pika-single {
-      display: block !important;
-      border: none;
-      min-height: 500px;
-      height: 500px;
-      max-height: 1000px;
-      box-sizing: border-box;
-    }
-    .pika-table {
-      border-radius: 3px;
-      width: 100%;
-      height: 100%;
-      border-collapse: separate;
-      border-spacing: 8px;
-    }
-    .pika-label {
-      color: #12372a;
-      font-size: 25px;
-    }
-    .pika-day {
-      text-align: center;
-    }
-    .pika-lendar {
-      height: 100%;
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-    }
-    .pika-button {
-      background-color: #cac7c7;
-      border-radius: 4px;
-      color: #ffffff !important;
-      padding: 10px;
-      height: 50px;
-      margin: 5px 0;
-      pointer-events: auto; /* Keep auto for hover tooltips to work */
-      cursor: default; /* Change cursor to default - no pointer cursor */
-      user-select: none; /* Prevent text selection */
-    }
-    .pika-button:hover, .pika-row.pick-whole-week:hover .pika-button {
-      color: #fff !important;
-      background: #cac7c7;
-      box-shadow: none;
-      border-radius: 3px;
-    }
-    
-    /* Force white text on ALL calendar buttons regardless of status */
-    .pika-button.status-pending,
-    .pika-button.status-approved, 
-    .pika-button.status-completed,
-    .pika-button.status-rescheduled,
-    .pika-button.has-booking {
-      color: #ffffff !important;
-    }
-    
-    /* Enhanced hover states for consultation cells */
-    .pika-button.has-booking {
-      cursor: pointer !important;
-    }
-    
-    .pika-button.has-booking:hover {
-      transform: scale(1.05);
-      transition: transform 0.2s ease;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-    .is-selected .pika-button, .has-event .pika-button {
-      color: #ffffff !important;
-      background-color: #12372a !important;
-      box-shadow: none;
-    }
-    .is-today .pika-button {
-      color: #fff !important;
-      background-color: #5fb9d4;
-      font-weight: bold;
-    }
-
-    .has-booking {
-      border-radius: 4px;
-      position: relative;
-      color: #fff !important;
-      font-weight: bold
-    }
-
-    .calendar-box{
-      height: 100%;
-      width: 100%;
-      max-width: 1000px;
-    }
-
-    /* Mobile responsive styles */
-    @media (max-width: 768px) {
-      .pika-button {
-        pointer-events: auto !important; /* Keep for hover tooltips */
-        cursor: default;
-        user-select: none;
-      }
-      
-      /* Disable hover effects on mobile to prevent sticky hover states */
-      .pika-button:hover {
-        background: #cac7c7 !important;
-        transform: none !important;
-      }
-    }
-
-    /* Consultation Tooltip Styles */
-    #consultationTooltip {
-      font-family: 'Poppins', sans-serif;
-      background: #fff;
-      border: 1px solid #e1e5e9;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      z-index: 10000;
-      max-width: 320px;
-      max-height: 400px;
-      overflow-y: auto;
-      line-height: 1.4;
-      scrollbar-width: thin;
-      scrollbar-color: #ccc #f9f9f9;
-    }
-
-  /* Override badges (holiday/suspended/force) */
-    .pika-button .ov-badge {
-      position: absolute;
-      left: 6px;
-      bottom: 6px;
-      font-size: 10px;
-      line-height: 1;
-      padding: 3px 6px;
-      border-radius: 8px;
-      color: #ffffff;
-      pointer-events: none;
-      white-space: nowrap;
-      max-width: calc(100% - 12px);
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  /* Override badge colors (admin) */
-  .ov-holiday { background: #9B59B6; } /* Holiday → Violet */
-  .ov-blocked { background: #374151; } /* Suspended → Dark Gray (unchanged) */
-  .ov-force   { background: #2563eb; } /* Forced Online → Blue (reverted) */
-  .ov-online  { background: #FF69B4; } /* Online Day → Pink */
-  .ov-endyear { background: #6366f1; } /* End of School Year → Indigo */
-  /* Whole-cell background for overrides */
-  .day-holiday  { background-color: rgba(155,89,182,0.55) !important; } /* Violet */
-  .day-blocked  { background-color: rgba(55,65,81,0.75) !important; }  /* Suspended */
-  .day-force    { background-color: rgba(37,99,235,0.6) !important; }   /* Blue (reverted) */
-  .day-online   { background-color: rgba(255,105,180,0.45) !important; }/* Pink */
-  .day-endyear  { background-color: rgba(99,102,241,0.6) !important; }   /* Indigo */
-
-    /* Custom scrollbar for webkit browsers */
-    #consultationTooltip::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    #consultationTooltip::-webkit-scrollbar-track {
-      background: #f9f9f9;
-      border-radius: 3px;
-    }
-
-    #consultationTooltip::-webkit-scrollbar-thumb {
-      background: #ccc;
-      border-radius: 3px;
-    }
-
-    #consultationTooltip::-webkit-scrollbar-thumb:hover {
-      background: #999;
-    }
-
-    #consultationTooltip .consultation-entry {
-      margin-bottom: 8px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid #eee;
-    }
-
-    #consultationTooltip .consultation-entry:last-child {
-      margin-bottom: 0;
-      padding-bottom: 0;
-      border-bottom: none;
-    }
-
-    #consultationTooltip .student-name {
-      font-weight: 600;
-      color: #2c5f4f;
-      margin-bottom: 4px;
-      font-size: 14px;
-    }
-
-    #consultationTooltip .detail-row {
-      font-size: 12px;
-      color: #666;
-      margin-bottom: 2px;
-    }
-
-    #consultationTooltip .status-row {
-      font-size: 12px;
-      font-weight: 600;
-      margin-bottom: 2px;
-    }
-
-    #consultationTooltip .booking-time {
-      font-size: 11px;
-      color: #999;
-      font-style: italic;
-    }
-
-    #consultationTooltip .professor-info {
-      font-size: 11px;
-      color: #2c5f4f;
-      font-weight: 500;
-    }
-
-    /* Modal Styles */
-    .modal {
-      position: fixed;
-      z-index: 999999;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.5);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .modal-content {
-      background-color: white;
-      border-radius: 12px;
-      padding: 0;
-      max-width: 600px;
-      width: 90%;
-      max-height: 80vh;
-      overflow-y: auto;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-      font-family: 'Poppins', sans-serif;
-    }
-
-    .modal-header {
-      background: #12372a;
-      color: white;
-      padding: 20px 25px;
-      border-radius: 12px 12px 0 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .modal-header h3 {
-      margin: 0;
-      font-size: 20px;
-      font-weight: 600;
-    }
-
-    .modal-close {
-      font-size: 28px;
-      font-weight: bold;
-      cursor: pointer;
-      line-height: 1;
-      opacity: 0.8;
-      transition: opacity 0.2s;
-    }
-
-    .modal-close:hover {
-      opacity: 1;
-    }
-
-    .modal-body {
-      padding: 25px;
-    }
-
-    .consultation-detail-card {
-      background: #f8f9fa;
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 15px;
-      border-left: 4px solid #12372a;
-    }
-
-    .consultation-detail-card h4 {
-      color: #12372a;
-      margin: 0 0 15px 0;
-      font-size: 18px;
-      font-weight: 600;
-    }
-
-    .detail-row {
-      display: flex;
-      margin-bottom: 10px;
-      padding: 5px 0;
-      border-bottom: 1px solid #e9ecef;
-    }
-
-    .detail-row:last-child {
-      border-bottom: none;
-      margin-bottom: 0;
-    }
-
-    .detail-label {
-      font-weight: 600;
-      color: #495057;
-      width: 150px;
-      flex-shrink: 0;
-    }
-
-    .detail-value {
-      color: #343a40;
-      flex: 1;
-    }
-
-    .status-badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-
-    /* Tooltip overrides: remove borders & extra spacing for Subject/Type/Mode/Status inside admin tooltip */
-    #consultationTooltip .detail-row,
-    #consultationTooltip .status-row {
-      display: block; /* stack nicely */
-      border: none !important;
-      padding: 0 !important;
-      margin: 0 0 4px 0 !important;
-    }
-    #consultationTooltip .detail-row:last-child { margin-bottom: 4px !important; }
-
-  /* Updated: make pending badge text white for consistency */
-  /* Match legend colors exactly for status badges */
-  .status-pending { background: #ffa600; color: #ffffff !important; }
-    .status-approved { background: #0f9657; color: #ffffff !important; }
-    .status-completed { background: #093b2f; color: #ffffff !important; }
-    .status-rescheduled { background: #c50000; color: #ffffff !important; }
-
-    /* Legend toggle + panel (collapsible) */
-    .calendar-box { position: relative; }
-    .legend-toggle {
-      position: fixed; /* stay visible while scrolling */
-      left: 20px;
-      bottom: 20px; /* docked in the bottom-left corner */
-      z-index: 12000;
-      background: #14b8a6; /* teal */
-      color: #fff;
-      border: none;
-      width: 48px; height: 48px; /* consistent FAB size */
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.25);
-      transition: transform .15s ease, background-color .15s ease, box-shadow .2s ease;
-    }
-    .legend-toggle:hover { background:#0d9488; transform: scale(1.05); }
-    .legend-toggle:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,.35), 0 10px 20px rgba(0,0,0,0.25); }
-    /* Chatbot FAB: bottom-right corner, same look as legend */
-    .chat-button {
-      position: fixed;
-      right: 20px;
-      bottom: 20px;
-      z-index: 12000;
-      background: #14b8a6; /* teal */
-      color: #fff;
-      border: none;
-      width: 48px; height: 48px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.25);
-      transition: transform .15s ease, background-color .15s ease, box-shadow .2s ease;
-    }
-    .chat-button:hover { background:#0d9488; transform: scale(1.05); }
-    .chat-button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,.35), 0 10px 20px rgba(0,0,0,0.25); }
-
-    .legend-backdrop {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.2);
-      z-index: 11000;
-      opacity: 0; visibility: hidden;
-      transition: opacity .2s ease, visibility .2s ease;
-    }
-    .legend-backdrop.open { opacity: 1; visibility: visible; }
-
-    .legend-panel {
-      position: fixed;
-      left: 24px; bottom: 80px; /* float above the bottom-left FAB on desktop */
-      width: 420px; max-width: calc(100vw - 32px);
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-      transform: translateY(10px);
-      transition: transform .25s ease, opacity .25s ease;
-      opacity: 0;
-    }
-    .legend-backdrop.open .legend-panel { transform: translateY(0); opacity: 1; }
-    .legend-header { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid #e5e7eb; }
-    .legend-header h3 { margin:0; font-size:16px; color:#12372a; }
-    .legend-close { background:none; border:none; font-size:22px; line-height:1; cursor:pointer; color:#334155; }
-    .legend-content { padding:12px 14px 14px; }
-    .legend-section { margin-bottom: 12px; }
-    .legend-section-title { font-weight:600; color:#0f172a; margin: 0 0 8px 0; font-size:14px; }
-  .legend-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
-  .legend-item { display:flex; align-items:center; font-size: 13px; color:#111827; }
-    .legend-swatch { width:16px; height:16px; border-radius:3px; margin-right:8px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06); }
-  .legend-icon { font-size:16px; color:#6b7280; margin-left:6px; }
-    /* Swatch colors (match calendar colors) */
-    .swatch-pending { background:#ffa600; }
-    .swatch-approved { background:#0f9657; }
-    .swatch-completed { background:#093b2f; }
-    .swatch-rescheduled { background:#c50000; }
-  .swatch-suspended { background:#374151; }
-  .swatch-online { background:#FF69B4; }   /* Online Day → Pink */
-  .swatch-forced { background:#2563eb; }   /* Forced Online → Blue (reverted) */
-  .swatch-holiday { background:#9B59B6; }  /* Holiday → Violet */
-  .swatch-endyear { background:#6366f1; }  /* End of School Year → Indigo */
-  .swatch-today { background:#5fb9d4; }    /* Today highlight */
-  .swatch-multiple { background:#FF4500; } /* Multiple Bookings → Orangey-Red */
-
-    .header-bar { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
-
-    /* Drawer behavior on small screens */
-    @media (max-width: 768px) {
-      .legend-panel {
-        left: 0; right: 0; bottom: 0; width: auto; max-width: none;
-        border-radius: 12px 12px 0 0;
-        transform: translateY(100%);
-        padding-bottom: 84px; /* avoid overlap with corner FABs on mobile */
-      }
-      .legend-backdrop.open .legend-panel { transform: translateY(0); }
-      .legend-grid { grid-template-columns: 1fr; }
-      .legend-toggle { left: 12px; bottom: 12px; }
-      .chat-button { right: 12px; bottom: 12px; }
-    }
-
-    /* Position the legend button just to the right of the left sidebar (desktop only) */
-    @media (min-width: 951px) {
-      .legend-toggle { left: calc(220px + 20px) !important; }
-      .legend-panel { left: calc(220px + 24px) !important; }
-    }
-  </style>
+  <link rel="stylesheet" href="{{ asset('css/legend.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/logout-confirm.css') }}">
+  <script src="{{ asset('js/logout-confirm.js') }}" defer></script>
 </head>
 <body>
   @include('components.navbar-admin')
@@ -592,15 +106,7 @@
               <label for="termEndInput">Term ends</label>
               <input type="date" id="termEndInput">
             </div>
-            <div class="term-form-field">
-              <label for="termEnrollInput">Enrollment deadline (optional)</label>
-              <input type="date" id="termEnrollInput">
-            </div>
-            <div class="term-form-field">
-              <label for="termGradeInput">Grade submission deadline (optional)</label>
-              <input type="date" id="termGradeInput">
-            </div>
-            <div class="term-error" id="termModalError" style="display:none;"></div>
+            <div class="term-error" id="termModalError" role="alert"></div>
           </div>
         </div>
         <footer>
@@ -633,15 +139,7 @@
             <label for="termEditEnd">Term ends</label>
             <input type="date" id="termEditEnd">
           </div>
-          <div class="term-form-field">
-            <label for="termEditEnroll">Enrollment deadline (optional)</label>
-            <input type="date" id="termEditEnroll">
-          </div>
-          <div class="term-form-field">
-            <label for="termEditGrade">Grade submission deadline (optional)</label>
-            <input type="date" id="termEditGrade">
-          </div>
-          <div class="term-error" id="termEditError" style="display:none;"></div>
+          <div class="term-error" id="termEditError" role="alert"></div>
         </div>
         <footer>
           <button type="button" class="btn-secondary" id="termEditCancel">Cancel</button>
@@ -658,7 +156,7 @@
         </header>
         <div class="term-modal-body">
           <p id="termConfirmMessage">Are you sure you want to activate this term?</p>
-          <p style="margin:0; font-size:13px; color:#475569;">Activating a term will close the current one, archive consultation records, and reset schedules for the new semester.</p>
+          <p class="term-confirm-note">Activating a term will close the current one, archive consultation records, and reset schedules for the new semester.</p>
         </div>
         <footer>
           <button type="button" class="btn-secondary" id="termConfirmCancel">Cancel</button>
@@ -674,7 +172,7 @@
         </div>
         <!-- Collapsible legend: toggle button + panel -->
         <button id="legendToggle" class="legend-toggle" aria-haspopup="dialog" aria-controls="legendBackdrop" aria-label="View Legend" title="View Legend">
-          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="color:#fff">
+          <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <path fill="currentColor" d="M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20zm0 7a1.25 1.25 0 1 1 0-2.5a1.25 1.25 0 0 1 0 2.5zM11 11h2v6h-2z"/>
           </svg>
         </button>
@@ -755,10 +253,10 @@
   </div> --}}
 
   <!-- Consultation Tooltip (Admin version shows ALL consultations) -->
-  <div id="consultationTooltip" style="display:none; position:absolute; z-index:9999; background:#fff; border:1px solid #ccc; border-radius:8px; padding:12px; max-width:320px; box-shadow:0 4px 12px rgba(0,0,0,0.15); font-family:'Poppins',sans-serif; font-size:13px;"></div>
+  <div id="consultationTooltip"></div>
 
   <!-- Consultation Details Modal -->
-  <div id="consultationModal" class="modal" style="display:none;">
+  <div id="consultationModal" class="modal hidden">
     <div class="modal-content">
       <div class="modal-header">
         <h3>Consultation Details</h3>
@@ -842,8 +340,6 @@
       const yearInput = document.getElementById('termYearInput');
       const startInput = document.getElementById('termStartInput');
       const endInput = document.getElementById('termEndInput');
-      const enrollmentInput = document.getElementById('termEnrollInput');
-      const gradeInput = document.getElementById('termGradeInput');
       const modalError = document.getElementById('termModalError');
 
       const confirmMessage = document.getElementById('termConfirmMessage');
@@ -855,8 +351,6 @@
       const editYearInput = document.getElementById('termEditYear');
       const editStartInput = document.getElementById('termEditStart');
       const editEndInput = document.getElementById('termEditEnd');
-      const editEnrollInput = document.getElementById('termEditEnroll');
-      const editGradeInput = document.getElementById('termEditGrade');
       const editError = document.getElementById('termEditError');
       const editSave = document.getElementById('termEditSave');
       const editCancel = document.getElementById('termEditCancel');
@@ -875,8 +369,11 @@
         state.selectedTermName = null;
         modal.classList.add('open');
         modal.setAttribute('aria-hidden', 'false');
-        modalError.style.display = 'none';
-        [yearInput, startInput, endInput, enrollmentInput, gradeInput].forEach((input) => {
+        if (modalError) {
+          modalError.classList.remove('is-visible');
+          modalError.textContent = '';
+        }
+        [yearInput, startInput, endInput].forEach((input) => {
           input.value = '';
         });
         modalChoices.forEach((choice) => choice.classList.remove('active'));
@@ -886,15 +383,13 @@
       };
 
       const clearEditForm = () => {
-        [editYearInput, editStartInput, editEndInput, editEnrollInput, editGradeInput].forEach(
-          (input) => {
-            if (input) {
-              input.value = '';
-            }
-          },
-        );
+        [editYearInput, editStartInput, editEndInput].forEach((input) => {
+          if (input) {
+            input.value = '';
+          }
+        });
         if (editError) {
-          editError.style.display = 'none';
+          editError.classList.remove('is-visible');
           editError.textContent = '';
         }
       };
@@ -932,10 +427,8 @@
         if (editYearInput) editYearInput.value = term.year_label || '';
         if (editStartInput) editStartInput.value = term.start_at || '';
         if (editEndInput) editEndInput.value = term.end_at || '';
-        if (editEnrollInput) editEnrollInput.value = term.enrollment_deadline || '';
-        if (editGradeInput) editGradeInput.value = term.grade_submission_deadline || '';
         if (editError) {
-          editError.style.display = 'none';
+          editError.classList.remove('is-visible');
           editError.textContent = '';
         }
       };
@@ -955,7 +448,7 @@
           if (editSave) editSave.disabled = true;
           if (editError) {
             editError.textContent = 'No existing terms to edit.';
-            editError.style.display = 'block';
+            editError.classList.add('is-visible');
           }
           return;
         }
@@ -992,7 +485,7 @@
         editModal.setAttribute('aria-hidden', 'false');
         if (editSave) editSave.disabled = false;
         if (editError) {
-          editError.style.display = 'none';
+          editError.classList.remove('is-visible');
           editError.textContent = '';
         }
         // Ensure we have the latest term list before populating options
@@ -1011,7 +504,7 @@
         if (!state.editingTermId) {
           if (editError) {
             editError.textContent = 'Select a term before saving changes.';
-            editError.style.display = 'block';
+            editError.classList.add('is-visible');
           }
           return;
         }
@@ -1021,20 +514,20 @@
         if (!start || !end) {
           if (editError) {
             editError.textContent = 'Start and end dates are required.';
-            editError.style.display = 'block';
+            editError.classList.add('is-visible');
           }
           return;
         }
         if (end < start) {
           if (editError) {
             editError.textContent = 'End date must be after the start date.';
-            editError.style.display = 'block';
+            editError.classList.add('is-visible');
           }
           return;
         }
 
         if (editError) {
-          editError.style.display = 'none';
+          editError.classList.remove('is-visible');
           editError.textContent = '';
         }
 
@@ -1043,8 +536,6 @@
           const payload = {
             start_at: start,
             end_at: end,
-            enrollment_deadline: editEnrollInput?.value || null,
-            grade_submission_deadline: editGradeInput?.value || null,
           };
           const label = editYearInput?.value ? editYearInput.value.trim() : '';
           if (label) {
@@ -1079,7 +570,7 @@
         } catch (error) {
           if (editError) {
             editError.textContent = error.message;
-            editError.style.display = 'block';
+            editError.classList.add('is-visible');
           }
         } finally {
           if (editSave) editSave.disabled = false;
@@ -1187,26 +678,35 @@
       };
 
       const submitTerm = async () => {
-        modalError.style.display = 'none';
+        if (modalError) {
+          modalError.classList.remove('is-visible');
+          modalError.textContent = '';
+        }
         const label = yearInput.value.trim();
         const start = startInput.value;
         const end = endInput.value;
 
         if (!state.selectedTermName) {
-          modalError.textContent = 'Choose which semester to configure.';
-          modalError.style.display = 'block';
+          if (modalError) {
+            modalError.textContent = 'Choose which semester to configure.';
+            modalError.classList.add('is-visible');
+          }
           state.step = 1;
           updateStepDisplay();
           return;
         }
         if (!label || !start || !end) {
-          modalError.textContent = 'Academic year, start date, and end date are required.';
-          modalError.style.display = 'block';
+          if (modalError) {
+            modalError.textContent = 'Academic year, start date, and end date are required.';
+            modalError.classList.add('is-visible');
+          }
           return;
         }
         if (end < start) {
-          modalError.textContent = 'End date must be after start date.';
-          modalError.style.display = 'block';
+          if (modalError) {
+            modalError.textContent = 'End date must be after start date.';
+            modalError.classList.add('is-visible');
+          }
           return;
         }
 
@@ -1223,8 +723,6 @@
               sequence: sequenceForName(state.selectedTermName),
               start_at: start,
               end_at: end,
-              enrollment_deadline: enrollmentInput.value || null,
-              grade_submission_deadline: gradeInput.value || null,
             },
           };
 
@@ -1249,8 +747,10 @@
           closeModal();
           await refreshTerms();
         } catch (error) {
-          modalError.textContent = error.message;
-          modalError.style.display = 'block';
+          if (modalError) {
+            modalError.textContent = error.message;
+            modalError.classList.add('is-visible');
+          }
         } finally {
           modalNext.disabled = false;
           modalNext.textContent = 'Save Term';
@@ -1278,11 +778,16 @@
       modalNext.addEventListener('click', () => {
         if (state.step === 1) {
           if (!state.selectedTermName) {
-            modalError.textContent = 'Select a semester first.';
-            modalError.style.display = 'block';
+            if (modalError) {
+              modalError.textContent = 'Select a semester first.';
+              modalError.classList.add('is-visible');
+            }
             return;
           }
-          modalError.style.display = 'none';
+          if (modalError) {
+            modalError.classList.remove('is-visible');
+            modalError.textContent = '';
+          }
           state.step = 2;
           modalBack.disabled = false;
           modalNext.textContent = 'Save Term';
@@ -1298,7 +803,10 @@
           modalChoices.forEach((item) => item.classList.remove('active'));
           choice.classList.add('active');
           state.selectedTermName = choice.dataset.value;
-          modalError.style.display = 'none';
+          if (modalError) {
+            modalError.classList.remove('is-visible');
+            modalError.textContent = '';
+          }
         });
         choice.addEventListener('keydown', (event) => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -2018,11 +1526,11 @@
           }
           
           let html = '';
-          
+
           // Add header with consultation count
           const countText = consultations.length === 1 ? '1 Consultation' : `${consultations.length} Consultations`;
-          html += `<div style="font-weight: bold; margin-bottom: 8px; color: #12372a; border-bottom: 1px solid #ddd; padding-bottom: 4px;">${countText}</div>`;
-          
+          html += `<div class="tooltip-header">${countText}</div>`;
+
           // Helper to convert 'YYYY-MM-DD HH:MM:SS' to 'YYYY-MM-DD hh:MM:SS AM/PM'
           function formatTo12Hour(ts) {
             if (!ts) return '';
@@ -2042,15 +1550,32 @@
             return `${datePart} ${hourStr}:${minute}:${second} ${suffix}`;
           }
 
+          // Determine earliest booking by Created_At for this day
+          let firstIdx = -1;
+          let minTs = Number.POSITIVE_INFINITY;
+          try {
+            consultations.forEach((entry, idx) => {
+              const ts = new Date(entry.Created_At).getTime();
+              if (!isNaN(ts) && ts < minTs) {
+                minTs = ts;
+                firstIdx = idx;
+              }
+            });
+          } catch (_) {
+            firstIdx = -1;
+          }
+
           // Build each consultation entry (no actions)
           consultations.forEach((entry, index) => {
+            const isFirst = index === firstIdx;
+            const statusClass = getStatusClassName(entry.Status);
             html += `
-              <div class="consultation-entry">
-                <div class="student-name">${entry.student} have consultation with ${entry.professor}</div>
+              <div class="consultation-entry${isFirst ? ' is-first-booking' : ''}">
+                <div class="student-name">${entry.student} have consultation with ${entry.professor}${isFirst ? '<span class="first-book-badge" title="First to book for this date">First</span>' : ''}</div>
                 <div class="detail-row">Subject: ${entry.subject}</div>
                 <div class="detail-row">Type: ${entry.type}</div>
                 <div class="detail-row">Mode: ${entry.Mode}</div>
-                <div class="status-row" style="color:${getStatusColor(entry.Status)};">Status: ${entry.Status}</div>
+                <div class="status-row ${statusClass}">Status: ${entry.Status}</div>
                 <div class="booking-time">Booked: ${formatTo12Hour(entry.Created_At)}</div>
               </div>
             `;
@@ -2199,32 +1724,32 @@
     // --- Admin Date Edit Modal ---
     // Modal template
     const modalHtml = `
-      <div id="adminOverrideBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:9998;"></div>
-      <div id="adminOverrideModal" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9999;background:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.2);width:560px;max-width:92vw;">
-        <div style="padding:14px 18px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;background:#12372a;color:#fff;border-top-left-radius:10px;border-top-right-radius:10px;">
-          <div style="font-weight:600">Edit Day</div>
-          <button id="adminOverrideClose" style="background:transparent;border:none;color:#fff;font-size:18px;cursor:pointer">×</button>
+      <div id="adminOverrideBackdrop" class="admin-override-backdrop hidden"></div>
+      <div id="adminOverrideModal" class="admin-override-modal hidden" role="dialog" aria-modal="true" aria-labelledby="adminOverrideTitle">
+        <div class="admin-override-header">
+          <div id="adminOverrideTitle" class="admin-override-title">Edit Day</div>
+          <button id="adminOverrideClose" type="button" class="admin-override-close" aria-label="Close">×</button>
         </div>
-        <div style="padding:16px 18px;color:#12372a;">
-          <div style="margin-bottom:10px;font-size:14px">Date: <span id="adminOverrideDate" style="font-weight:600"></span></div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:10px">
-            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="online_day"> Online Day</label>
-            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="force_online"> Forced Online</label>
-            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="block_all"> Suspension</label>
-            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="holiday"> Holiday</label>
-            <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="ov_effect" value="end_year"> End of School Year</label>
+        <div class="admin-override-body">
+          <div class="admin-override-date">Date: <span id="adminOverrideDate" class="admin-override-date-value"></span></div>
+          <div class="admin-override-options">
+            <label class="admin-override-option"><input type="radio" name="ov_effect" value="online_day"> Online Day</label>
+            <label class="admin-override-option"><input type="radio" name="ov_effect" value="force_online"> Forced Online</label>
+            <label class="admin-override-option"><input type="radio" name="ov_effect" value="block_all"> Suspension</label>
+            <label class="admin-override-option"><input type="radio" name="ov_effect" value="holiday"> Holiday</label>
+            <label class="admin-override-option"><input type="radio" name="ov_effect" value="end_year"> End of School Year</label>
           </div>
-          <div id="forceModeRow" style="margin-bottom:10px; display:none">
-            <label>Allowed Mode:
-              <select id="ov_allowed_mode" style="margin-left:8px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px">
+          <div id="forceModeRow" class="admin-override-row admin-override-row--flex hidden">
+            <label class="admin-override-label">Allowed Mode:
+              <select id="ov_allowed_mode" class="admin-override-select">
                 <option value="online">Online</option>
                 <option value="onsite">Onsite</option>
               </select>
             </label>
           </div>
-          <div id="reasonRow" style="display:flex;gap:12px;flex-wrap:wrap;margin:10px 0">
-            <label>Reason
-              <select id="ov_reason_key" style="margin-left:8px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px">
+          <div id="reasonRow" class="admin-override-row admin-override-row--flex hidden">
+            <label class="admin-override-label">Reason
+              <select id="ov_reason_key" class="admin-override-select">
                 <option value="">—</option>
                 <option value="weather">Weather</option>
                 <option value="power_outage">Power outage</option>
@@ -2234,35 +1759,31 @@
                 <option value="others">Others</option>
               </select>
             </label>
-            <input id="ov_reason_text" placeholder="Enter reason" style="display:none;flex:1;min-width:200px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px"></input>
+            <input id="ov_reason_text" class="admin-override-input admin-override-input--wide hidden" placeholder="Enter reason">
           </div>
-          <div id="holidayRow" style="display:none;margin:10px 0">
-            <label>Holiday Name
-              <input id="ov_holiday_name" placeholder="e.g., Christmas Day" style="margin-left:8px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;width:calc(100% - 8px)">
-              </input>
+          <div id="holidayRow" class="admin-override-row hidden">
+            <label class="admin-override-label">Holiday Name
+              <input id="ov_holiday_name" class="admin-override-input admin-override-input--wide" placeholder="e.g., Christmas Day">
             </label>
           </div>
-          <div id="endYearRow" style="display:none;margin:10px 0">
-            <div style="display:flex;flex-direction:column;gap:8px">
-              <div><strong>Start day:</strong> <span id="ov_start_label">—</span></div>
-              <label><strong>End day:</strong>
-                <input id="ov_end_date" type="date" style="margin-left:8px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px">
-                </input>
-              </label>
-              <div style="font-size:12px;color:#64748b">All days from Start to End will be disabled (no classes).</div>
-            </div>
+          <div id="endYearRow" class="admin-override-row admin-override-row--end hidden">
+            <div><strong>Start day:</strong> <span id="ov_start_label">—</span></div>
+            <label class="admin-override-label"><strong>End day:</strong>
+              <input id="ov_end_date" type="date" class="admin-override-input">
+            </label>
+            <div class="admin-override-helper">All days from Start to End will be disabled (no classes).</div>
           </div>
-          <div id="autoReschedRow" style="display:none;margin:4px 0 12px 0">
-            <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ov_auto_reschedule"> Auto‑reschedule affected bookings</label>
-            <div style="font-size:12px;color:#64748b;margin-top:6px">All affected bookings will be rescheduled. Exam/Quiz bookings will be placed first into onsite slots. Others will follow mode rules.</div>
+          <div id="autoReschedRow" class="admin-override-row admin-override-row--auto hidden">
+            <label class="admin-override-option"><input type="checkbox" id="ov_auto_reschedule"> Auto‑reschedule affected bookings</label>
+            <div class="admin-override-helper">All affected bookings will be rescheduled. Exam/Quiz bookings will be placed first into onsite slots. Others will follow mode rules.</div>
           </div>
-          <div id="ov_preview" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-top:6px;display:none"></div>
+          <div id="ov_preview" class="admin-override-preview hidden"></div>
         </div>
-        <div style="padding:12px 18px;border-top:1px solid #e5e7eb;display:flex;gap:10px;justify-content:space-between;align-items:center">
-          <button id="ovRemoveBtn" style="padding:8px 12px;border:1px solid #ef4444;border-radius:8px;background:#fff;color:#b91c1c;cursor:pointer">Remove</button>
-          <div style="display:flex;gap:10px">
-            <button id="ovPreviewBtn" style="padding:8px 12px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#12372a;cursor:pointer">Preview</button>
-            <button id="ovApplyBtn" style="padding:8px 12px;border:none;border-radius:8px;background:#12372a;color:#fff;cursor:pointer">Apply</button>
+        <div class="admin-override-footer">
+          <button id="ovRemoveBtn" type="button" class="admin-override-btn admin-override-btn--danger">Remove</button>
+          <div class="admin-override-footer-actions">
+            <button id="ovPreviewBtn" type="button" class="admin-override-btn admin-override-btn--muted">Preview</button>
+            <button id="ovApplyBtn" type="button" class="admin-override-btn admin-override-btn--primary">Apply</button>
           </div>
         </div>
       </div>`;
@@ -2308,9 +1829,16 @@
     function openOverrideModal(dateStr) {
       const modal = document.getElementById('adminOverrideModal');
       const backdrop = document.getElementById('adminOverrideBackdrop');
-      document.getElementById('adminOverrideDate').textContent = dateStr;
-      modal.style.display = 'block';
-      backdrop.style.display = 'block';
+      const dateLabel = document.getElementById('adminOverrideDate');
+      if (dateLabel) {
+        dateLabel.textContent = dateStr;
+      }
+      if (modal) {
+        modal.classList.remove('hidden');
+      }
+      if (backdrop) {
+        backdrop.classList.remove('hidden');
+      }
       // Clear previous selection/state each time the modal opens
       try {
         document.querySelectorAll('input[name="ov_effect"]').forEach(r => r.checked = false);
@@ -2320,7 +1848,7 @@
         const ed = document.getElementById('ov_end_date');
         const sl = document.getElementById('ov_start_label');
   if (rk) rk.value = '';
-  if (rt) { rt.value = ''; rt.disabled = true; rt.style.display = 'none'; rt.placeholder = 'Enter reason'; }
+  if (rt) { rt.value = ''; rt.disabled = true; rt.classList.add('hidden'); rt.placeholder = 'Enter reason'; }
         if (hn) hn.value = '';
         if (ed) {
           ed.value = '';
@@ -2336,6 +1864,11 @@
         if (sl) sl.textContent = dateStr || '—';
         const ar = document.getElementById('ov_auto_reschedule');
         if (ar) ar.checked = false;
+        const previewBox = document.getElementById('ov_preview');
+        if (previewBox) {
+          previewBox.classList.add('hidden');
+          previewBox.innerHTML = '';
+        }
       } catch(_) {}
       // Toggle Remove button availability based on whether an override exists on that date
       const removeBtn = document.getElementById('ovRemoveBtn');
@@ -2344,9 +1877,6 @@
         removeBtn.disabled = !exists;
         removeBtn.setAttribute('aria-disabled', String(!exists));
         removeBtn.title = exists ? 'Remove existing override' : 'No override on this date';
-        // visual state
-        removeBtn.style.opacity = exists ? '1' : '0.5';
-        removeBtn.style.cursor = exists ? 'pointer' : 'not-allowed';
       }
       // Ensure rows reflect the currently selected option (none by default)
       if (typeof updateOverrideRows === 'function') updateOverrideRows();
@@ -2354,10 +1884,14 @@
     function closeOverrideModal() {
       const modal = document.getElementById('adminOverrideModal');
       const backdrop = document.getElementById('adminOverrideBackdrop');
-      modal.style.display = 'none';
-      backdrop.style.display = 'none';
+      if (modal) {
+        modal.classList.add('hidden');
+      }
+      if (backdrop) {
+        backdrop.classList.add('hidden');
+      }
       const preview = document.getElementById('ov_preview');
-      if (preview) { preview.style.display = 'none'; preview.innerHTML=''; }
+      if (preview) { preview.classList.add('hidden'); preview.innerHTML=''; }
     }
     (function(){
       const closeBtn = document.getElementById('adminOverrideClose');
@@ -2373,62 +1907,80 @@
       const autoRow = document.getElementById('autoReschedRow');
       const reasonRow = document.getElementById('reasonRow');
       const holidayRow = document.getElementById('holidayRow');
-  const endYearRow = document.getElementById('endYearRow');
+      const endYearRow = document.getElementById('endYearRow');
       const reasonKeyEl = document.getElementById('ov_reason_key');
       const reasonTextEl = document.getElementById('ov_reason_text');
 
-      // When nothing is selected, hide all conditional rows and disable inputs
       if (!effect) {
-        if (forceRow) forceRow.style.display = 'none';
-        if (autoRow) autoRow.style.display = 'none';
-        if (reasonRow) reasonRow.style.display = 'none';
-        if (holidayRow) holidayRow.style.display = 'none';
-        if (endYearRow) endYearRow.style.display = 'none';
-        if (reasonKeyEl) { reasonKeyEl.disabled = true; reasonKeyEl.value = ''; }
-        if (reasonTextEl) { reasonTextEl.disabled = true; reasonTextEl.value = ''; reasonTextEl.placeholder = 'Notes (optional)'; }
+        if (forceRow) forceRow.classList.add('hidden');
+        if (autoRow) autoRow.classList.add('hidden');
+        if (reasonRow) reasonRow.classList.add('hidden');
+        if (holidayRow) holidayRow.classList.add('hidden');
+        if (endYearRow) endYearRow.classList.add('hidden');
+        if (reasonKeyEl) {
+          reasonKeyEl.disabled = true;
+          reasonKeyEl.value = '';
+        }
+        if (reasonTextEl) {
+          reasonTextEl.disabled = true;
+          reasonTextEl.value = '';
+          reasonTextEl.placeholder = 'Notes (optional)';
+          reasonTextEl.classList.add('hidden');
+        }
         return;
       }
 
-      if (forceRow) forceRow.style.display = 'none';
-      // Show auto-reschedule for Suspended and Forced Online
-  if (autoRow) autoRow.style.display = (effect === 'block_all' || effect === 'force_online') ? 'block' : 'none';
-
-  // End Year uses its own row; hide other conditional inputs
-  if (endYearRow) {
-    endYearRow.style.display = (effect === 'end_year') ? 'block' : 'none';
-    // Update the min selectable date for end day: cannot be in the past, and cannot be before start day
-    try {
-      const ed = document.getElementById('ov_end_date');
-      const startLabel = document.getElementById('ov_start_label')?.textContent || '';
-      const start = new Date(startLabel);
-      const today = new Date();
-      const base = (!isNaN(start) && start > today) ? start : today;
-      const iso = `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
-      if (ed) {
-        ed.min = iso;
-        if (ed.value && ed.value < iso) ed.value = '';
+      if (forceRow) {
+        const showForce = effect === 'force_online';
+        forceRow.classList.toggle('hidden', !showForce);
       }
-    } catch(_) {}
-  }
-  const hideReasons = (effect === 'online_day' || effect === 'holiday' || effect === 'end_year');
-      if (reasonRow) reasonRow.style.display = hideReasons ? 'none' : 'flex';
-  if (holidayRow) holidayRow.style.display = (effect === 'holiday') ? 'block' : 'none';
 
-      // Disable and clear reason inputs when hidden
+      if (autoRow) {
+        autoRow.classList.toggle('hidden', !(effect === 'block_all' || effect === 'force_online'));
+      }
+
+      if (endYearRow) {
+        endYearRow.classList.toggle('hidden', effect !== 'end_year');
+        try {
+          const ed = document.getElementById('ov_end_date');
+          const startLabel = document.getElementById('ov_start_label')?.textContent || '';
+          const start = new Date(startLabel);
+          const today = new Date();
+          const base = (!isNaN(start) && start > today) ? start : today;
+          const iso = `${base.getFullYear()}-${String(base.getMonth()+1).padStart(2,'0')}-${String(base.getDate()).padStart(2,'0')}`;
+          if (ed) {
+            ed.min = iso;
+            if (ed.value && ed.value < iso) ed.value = '';
+          }
+        } catch (_) {}
+      }
+
+      const hideReasons = effect === 'online_day' || effect === 'holiday' || effect === 'end_year';
+      if (reasonRow) {
+        reasonRow.classList.toggle('hidden', hideReasons);
+      }
+      if (holidayRow) {
+        holidayRow.classList.toggle('hidden', effect !== 'holiday');
+      }
+
       if (reasonKeyEl) {
         reasonKeyEl.disabled = hideReasons;
-        if (hideReasons) reasonKeyEl.value = '';
+        if (hideReasons) {
+          reasonKeyEl.value = '';
+        }
       }
       if (reasonTextEl) {
         reasonTextEl.disabled = hideReasons;
         if (hideReasons) {
           reasonTextEl.value = '';
-          reasonTextEl.style.display = 'none';
+          reasonTextEl.classList.add('hidden');
         } else {
           const rkVal = reasonKeyEl ? reasonKeyEl.value : '';
           const showText = rkVal === 'others';
-          reasonTextEl.style.display = showText ? 'inline-block' : 'none';
-          if (!showText) reasonTextEl.value = '';
+          reasonTextEl.classList.toggle('hidden', !showText);
+          if (!showText) {
+            reasonTextEl.value = '';
+          }
           reasonTextEl.placeholder = 'Enter reason';
         }
       }
@@ -2440,7 +1992,7 @@
         const val = e.target.value;
         if (reasonTextEl) {
           const showText = (val === 'others');
-          reasonTextEl.style.display = showText ? 'inline-block' : 'none';
+          reasonTextEl.classList.toggle('hidden', !showText);
           reasonTextEl.disabled = !showText;
           if (!showText) reasonTextEl.value = '';
           reasonTextEl.placeholder = 'Enter reason';
@@ -2607,7 +2159,8 @@
       };
       postJson('/api/admin/calendar/overrides/preview', payload).then(data => {
         const box = document.getElementById('ov_preview');
-        box.style.display = 'block';
+        if (!box) return;
+        box.classList.remove('hidden');
         if (data && data.success) {
           let html = `<div><strong>Preview</strong></div>`;
           if (payload.end_date) {
@@ -2619,12 +2172,13 @@
           }
           box.innerHTML = html;
         } else {
-          box.innerHTML = `<div style="color:#b91c1c">Failed to preview.</div>`;
+          box.innerHTML = `<div class="text-error">Failed to preview.</div>`;
         }
       }).catch(()=>{
         const box = document.getElementById('ov_preview');
-        box.style.display = 'block';
-        box.innerHTML = `<div style="color:#b91c1c">Failed to preview.</div>`;
+        if (!box) return;
+        box.classList.remove('hidden');
+        box.innerHTML = `<div class="text-error">Failed to preview.</div>`;
       });
     });
 
@@ -3276,14 +2830,15 @@
       }
     }
 
-    function getStatusColor(status) {
-      const colors = {
-        'Pending': '#f39c12',
-        'Approved': '#27ae60',
-        'Completed': '#2c5f4f',
-        'Rescheduled': '#e74c3c'
+    function getStatusClassName(status) {
+      const classes = {
+        pending: 'tooltip-status--pending',
+        approved: 'tooltip-status--approved',
+        completed: 'tooltip-status--completed',
+        rescheduled: 'tooltip-status--rescheduled',
       };
-      return colors[status] || '#666';
+      const key = (status || '').toString().toLowerCase();
+      return classes[key] || 'tooltip-status--default';
     }
 
     // Live timeago handled by public/js/timeago.js
@@ -3296,8 +2851,10 @@
       // Show modal
       const modal = document.getElementById('consultationModal');
       const modalBody = document.getElementById('modalConsultationDetails');
-      
-      modal.style.display = 'flex';
+
+      if (modal) {
+        modal.classList.remove('hidden');
+      }
       modalBody.innerHTML = '<div class="loading">Loading consultation details...</div>';
       
       // Fetch consultation details
@@ -3309,7 +2866,10 @@
     }
 
     function closeConsultationModal() {
-      document.getElementById('consultationModal').style.display = 'none';
+      const modal = document.getElementById('consultationModal');
+      if (modal) {
+        modal.classList.add('hidden');
+      }
     }
 
     function fetchConsultationDetails(bookingId) {

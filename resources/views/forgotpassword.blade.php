@@ -20,8 +20,8 @@
 
     <!-- Right Panel -->
     <div class="right-panel">
-      <div class="fp-header">
-  <a href="{{ request('role') === 'professor' ? route('login.professor') : (request('role') === 'admin' ? route('login.admin') : route('login')) }}" class="back-btn">
+        <div class="fp-header">
+      <a href="{{ route('login') }}" class="back-btn">
           <i class='bx bx-chevron-left'></i>
         </a>
         <span class="fp-title">Forgot Password</span>

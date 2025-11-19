@@ -13,11 +13,15 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pikaday/css/pikaday.css">
 
   <style>
-  /* Grey-out helper for disabled consultation types section */
-  #consultTypeSection.is-disabled { opacity: 0.5; filter: grayscale(1); cursor: not-allowed; }
-  #consultTypeSection.is-disabled label { cursor: not-allowed; }
-  #consultTypeSection.is-disabled input[type="checkbox"],
-  #consultTypeSection.is-disabled input[type="text"] { pointer-events: none; }
+  /* Grey-out helper for disabled consultation types */
+  #consultTypeSection label.type-disabled {
+    opacity: 0.45;
+    filter: grayscale(1);
+    cursor: not-allowed;
+  }
+  #consultTypeSection label.type-disabled input[type="checkbox"] {
+    pointer-events: none;
+  }
 
   #calendar {
     /* Calendar input field styling */
@@ -1243,22 +1247,47 @@ async function openModal(card) {
       const section = document.getElementById('consultTypeSection');
       const otherTxt = document.getElementById('otherTypeText');
       const otherCb = document.getElementById('otherTypeCheckbox');
+      const typeInputs = Array.from(document.querySelectorAll('#bookingForm input[name="types[]"]'));
       const general = isGeneralSelected();
-      if(section){
-        // Keep section visible; just grey it out and disable
-        section.classList.toggle('is-disabled', !!general);
-        section.setAttribute('aria-disabled', general ? 'true':'false');
-        // Disable/enable inner inputs defensively
-        section.querySelectorAll('input[name="types[]"], #otherTypeText').forEach(el=>{
-          if(general){ el.setAttribute('disabled','disabled'); }
-          else { el.removeAttribute('disabled'); }
-        });
-      }
       if(general){
-        // Clear any selected types and Others text
-        document.querySelectorAll('#bookingForm input[name="types[]"]').forEach(cb=> cb.checked=false);
-        if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
-        if(otherCb){ otherCb.checked=false; }
+        typeInputs.forEach(cb=>{
+          const isOthers = cb.id === 'otherTypeCheckbox';
+          if(isOthers){
+            cb.removeAttribute('disabled');
+            cb.dataset.locked = '1';
+            cb.checked = true;
+            const lbl = cb.closest('label');
+            if(lbl){ lbl.classList.remove('type-disabled'); }
+          } else {
+            cb.checked = false;
+            cb.setAttribute('disabled','disabled');
+            if(cb.dataset){ cb.dataset.locked = '0'; }
+            const lbl = cb.closest('label');
+            if(lbl){ lbl.classList.add('type-disabled'); }
+          }
+        });
+        if(otherCb && otherTxt){
+          otherCb.checked = true;
+          otherTxt.style.display = 'inline-block';
+          otherTxt.setAttribute('required','required');
+        }
+      } else {
+        typeInputs.forEach(cb=>{
+          cb.removeAttribute('disabled');
+          if(cb.dataset){ cb.dataset.locked = '0'; }
+          const lbl = cb.closest('label');
+          if(lbl){ lbl.classList.remove('type-disabled'); }
+        });
+        if(otherCb){
+          otherCb.dataset.locked = '0';
+          otherCb.checked = false;
+        }
+        if(otherTxt){
+          const show = !!(otherCb && otherCb.checked);
+          otherTxt.style.display = show ? 'inline-block' : 'none';
+          if(show){ otherTxt.setAttribute('required','required'); }
+          else { otherTxt.removeAttribute('required'); otherTxt.value=''; }
+        }
       }
     }
     nativeSel.addEventListener('change', toggleTypesForSubject);
@@ -1368,32 +1397,68 @@ function initCustomSubjectDropdown(){
   }
 }
 
-// Close modal function
-function closeModal() {
-    document.getElementById("consultationModal").style.display = "none";
-    document.body.classList.remove("modal-open");
-    // Reset form state so reopening is clean
+function resetBookingFormState(){
+  try{
+    const form = document.getElementById('bookingForm');
+    if(form) form.reset();
+    const input = document.getElementById('calendar');
+    if(input) input.value='';
+    try { if(window.picker){ window.picker.setDate(null); } } catch(_){ }
+    document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
+    document.getElementById('modalSubjectSelect')?.classList.remove('input-error');
+    document.getElementById('consultTypeSection')?.classList.remove('field-error');
+    document.querySelector('.mode-choices')?.classList.remove('field-error');
+    document.querySelector('.calendar-choices')?.classList.remove('field-error');
+    document.getElementById('otherTypeText')?.classList.remove('input-error');
+    const section = document.getElementById('consultTypeSection');
+    document.querySelectorAll('#bookingForm input[name="types[]"]').forEach(cb=>{
+      cb.removeAttribute('disabled');
+      if(cb.dataset){ cb.dataset.locked = '0'; }
+      const lbl = cb.closest('label');
+      if(lbl){ lbl.classList.remove('type-disabled'); }
+    });
+    const otherTxt = document.getElementById('otherTypeText');
+    if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
+    const radios = document.querySelectorAll('#bookingForm input[name="mode"]');
+    radios.forEach(r=>{ r.checked=false; r.disabled=false; });
+    const cont = document.querySelector('.mode-selection');
+    cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
+    try{ delete window.__userSelectedMode; }catch(_){ window.__userSelectedMode = undefined; }
+  }catch(_){ }
+}
+
+function isBookingFormDirty(){
+  try{
+    const form = document.getElementById('bookingForm');
+    if(!form) return false;
+    const subject = form.querySelector('#modalSubjectSelect');
+    if(subject && subject.value) return true;
+    if(form.querySelector('input[name="types[]"]:checked')) return true;
+    const otherTxt = document.getElementById('otherTypeText');
+    if(otherTxt && otherTxt.value.trim()) return true;
+    if(form.querySelector('input[name="mode"]:checked')) return true;
+    const dateInput = document.getElementById('calendar');
+    if(dateInput && dateInput.value.trim()) return true;
+  }catch(_){ }
+  return false;
+}
+
+async function closeModal(force){
+  const modal = document.getElementById('consultationModal');
+  if(!modal) return;
+  const shouldForce = force === true;
+  if(!shouldForce && isBookingFormDirty()){
     try{
-      const form = document.getElementById('bookingForm');
-      if(form) form.reset();
-      const input = document.getElementById('calendar');
-      if(input) input.value='';
-      try { if(window.picker){ window.picker.setDate(null); } } catch(_){ }
-      document.querySelectorAll('.pika-table td.is-selected').forEach(td=>td.classList.remove('is-selected'));
-      // Clear any error highlights
-      document.getElementById('modalSubjectSelect')?.classList.remove('input-error');
-      document.getElementById('consultTypeSection')?.classList.remove('field-error');
-      document.querySelector('.mode-choices')?.classList.remove('field-error');
-      document.querySelector('.calendar-choices')?.classList.remove('field-error');
-      document.getElementById('otherTypeText')?.classList.remove('input-error');
-      const otherTxt = document.getElementById('otherTypeText');
-      if(otherTxt){ otherTxt.style.display='none'; otherTxt.removeAttribute('required'); otherTxt.value=''; }
-      const radios = document.querySelectorAll('#bookingForm input[name="mode"]');
-      radios.forEach(r=>{ r.checked=false; r.disabled=false; });
-      const cont = document.querySelector('.mode-selection');
-      cont && cont.querySelectorAll('label').forEach(l=>l.classList.remove('disabled'));
-      try{ delete window.__userSelectedMode; }catch(_){ window.__userSelectedMode = undefined; }
-    }catch(_){ }
+      const confirmLeave = await studentConfirm(
+        'Discard booking?',
+        "You're about to leave this booking form. Any details you've entered will be cleared. Do you want to continue?"
+      );
+      if(!confirmLeave) return;
+    }catch(_){ return; }
+  }
+  modal.style.display = 'none';
+  document.body.classList.remove('modal-open');
+  resetBookingFormState();
 }
 
 // Optional: Close modal when clicking outside modal-content
@@ -1419,19 +1484,36 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Ensure only one consultation type is selected at a time
+    // Ensure only one consultation type is selected at a time (with general consultation override)
     try{
-      const typeInputs = document.querySelectorAll('#bookingForm input[name="types[]"]');
+      const typeInputs = Array.from(document.querySelectorAll('#bookingForm input[name="types[]"]'));
       function onTypeChange(e){
-        typeInputs.forEach(cb => { if(cb !== e.target) cb.checked = false; });
-        // Sync Others text visibility
+        const target = e.target;
+        if(target.name !== 'types[]') return;
+        if(target.dataset && target.dataset.locked === '1'){
+          target.checked = true;
+        }
+        typeInputs.forEach(cb => {
+          if(cb === target) return;
+          if(cb.dataset && cb.dataset.locked === '1'){
+            cb.checked = true;
+            return;
+          }
+          cb.checked = false;
+        });
         const otherCb = document.getElementById('otherTypeCheckbox');
         const otherTxt = document.getElementById('otherTypeText');
-        if (otherCb && otherTxt) {
-          const show = !!otherCb.checked;
+        const nativeSel = document.getElementById('modalSubjectSelect');
+        const sel = nativeSel && nativeSel.options[nativeSel.selectedIndex];
+        const general = !!(sel && String(sel.textContent||'').trim().toLowerCase() === 'general consultation');
+        if(otherTxt){
+          const show = general || (otherCb && otherCb.checked);
           otherTxt.style.display = show ? 'inline-block' : 'none';
-          if (show) { otherTxt.setAttribute('required','required'); }
+          if(show){ otherTxt.setAttribute('required','required'); }
           else { otherTxt.removeAttribute('required'); otherTxt.value=''; }
+        }
+        if(general && otherCb){
+          otherCb.checked = true;
         }
       }
       typeInputs.forEach(cb => cb.addEventListener('change', onTypeChange));
@@ -1472,7 +1554,12 @@ if(bookingForm){
     }
   const otherCb = document.getElementById('otherTypeCheckbox');
   const otherTxt = document.getElementById('otherTypeText');
-  if(!isGeneral && otherCb && otherCb.checked && !otherTxt.value.trim()){ errs.push('Please specify the consultation type in the Others field.'); otherTxt?.classList.add('input-error'); }
+  if(isGeneral){
+    if(!otherTxt || !otherTxt.value.trim()){ errs.push('Please describe your concern in the Others field.'); otherTxt?.classList.add('input-error'); }
+  } else if(otherCb && otherCb.checked && !otherTxt.value.trim()){
+    errs.push('Please specify the consultation type in the Others field.');
+    otherTxt?.classList.add('input-error');
+  }
     if(window.__availabilityCache){
       const key = dateInput.value.replace(/,/g,'');
       const rec = window.__availabilityCache[key];
@@ -1537,14 +1624,14 @@ if(bookingForm){
         const data = await res.json();
         if(data.success){
           showNotification(data.message || 'Consultation booked successfully.', false);
-          closeModal();
+          await closeModal(true);
           bookingForm.reset();
         } else {
           showNotification(data.message || 'Unexpected response.', true);
         }
       } else {
         showNotification('Consultation booked successfully.', false);
-        closeModal();
+        await closeModal(true);
         bookingForm.reset();
       }
     } catch(ex){

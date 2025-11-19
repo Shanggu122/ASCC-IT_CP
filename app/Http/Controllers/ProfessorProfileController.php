@@ -109,7 +109,7 @@ class ProfessorProfileController extends Controller
     {
         $user = Auth::guard("professor")->user();
         if (!$user) {
-            return redirect()->route("login.professor");
+            return redirect()->route("login");
         }
 
         $validated = $request->validate(

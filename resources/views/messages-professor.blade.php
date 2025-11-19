@@ -8,6 +8,8 @@
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <link rel="stylesheet" href="{{ asset('css/messages-professor.css') }}">
   <link rel="stylesheet" href="{{ asset('css/chat-shared.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/logout-confirm.css') }}">
+  <script src="{{ asset('js/logout-confirm.js') }}" defer></script>
 </head>
 <body class="messages-page">
   @include('components.navbarprof')

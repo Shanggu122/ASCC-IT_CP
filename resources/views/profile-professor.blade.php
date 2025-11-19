@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="{{ asset('css/profile-professor.css') }}">
     <link rel="stylesheet" href="{{ asset('css/profile-shared.css') }}">
   <link rel="stylesheet" href="{{ asset('css/confirm-modal.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/logout-confirm.css') }}">
+    <script src="{{ asset('js/logout-confirm.js') }}" defer></script>
 </head>
 <body>
   @include('components.navbarprof')

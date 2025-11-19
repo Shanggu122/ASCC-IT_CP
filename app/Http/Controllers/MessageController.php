@@ -318,9 +318,8 @@ class MessageController extends Controller
     {
         $user = Auth::guard("professor")->user();
         if (!$user) {
-            // Ensure we never access null properties; redirect to proper login
             return redirect()
-                ->route("login.professor")
+                ->route("login")
                 ->with("error", "Please log in as a professor to view messages.");
         }
 

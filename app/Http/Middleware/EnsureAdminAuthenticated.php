@@ -10,8 +10,8 @@ class EnsureAdminAuthenticated
 {
     public function handle(Request $request, Closure $next)
     {
-        if (!Auth::guard('admin')->check()) {
-            return redirect('/login/admin');
+        if (!Auth::guard("admin")->check()) {
+            return redirect()->route("login");
         }
         return $next($request);
     }

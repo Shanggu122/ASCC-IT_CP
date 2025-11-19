@@ -193,9 +193,29 @@ class ConsultationBookingController extends Controller
 
         // Check if "Others" is selected (Consult_type_ID = 6 in your DB) – only when not General Consultation
         $customType = null;
-        if (!$isGeneralSubject) {
+        if ($isGeneralSubject) {
+            $customType = trim((string) ($data["other_type_text"] ?? ""));
+            if ($customType === "") {
+                $msg = "Please specify the consultation details for General Consultation.";
+                if ($request->wantsJson()) {
+                    return response()->json(
+                        [
+                            "success" => false,
+                            "message" => $msg,
+                            "errors" => ["other_type_text" => [$msg]],
+                        ],
+                        422,
+                    );
+                }
+                return redirect()
+                    ->back()
+                    ->withErrors(["other_type_text" => $msg])
+                    ->withInput();
+            }
+        } else {
             if (in_array(6, $data["types"])) {
-                if (empty($data["other_type_text"])) {
+                $customType = trim((string) ($data["other_type_text"] ?? ""));
+                if ($customType === "") {
                     $msg = "Please specify the consultation type in the Others field.";
                     if ($request->wantsJson()) {
                         return response()->json(
@@ -212,7 +232,6 @@ class ConsultationBookingController extends Controller
                         ->withErrors(["other_type_text" => $msg])
                         ->withInput();
                 }
-                $customType = $data["other_type_text"];
             }
         }
 
@@ -300,7 +319,7 @@ class ConsultationBookingController extends Controller
                 "Prof_ID" => $data["prof_id"],
                 // For General Consultation, no specific consultation type is stored
                 "Consult_type_ID" => $isGeneralSubject ? null : $data["types"][0] ?? null,
-                "Custom_Type" => $isGeneralSubject ? null : $customType,
+                "Custom_Type" => $customType,
                 "Subject_ID" => $data["subject_id"],
                 "Booking_Date" => $date,
                 "Mode" => $data["mode"],
@@ -351,12 +370,10 @@ class ConsultationBookingController extends Controller
 
                 $studentName = $student->Name ?? "A student";
                 $subjectName = $subject->Subject_Name ?? "Unknown subject";
-                $typeName = $isGeneralSubject
-                    ? "General Consultation"
-                    : $consultationType->Consult_Type ?? "consultation";
-
-                // Use custom type if "Others" was selected (non-general)
-                if (!$isGeneralSubject && $customType) {
+                $typeName = $consultationType->Consult_Type ?? "consultation";
+                if ($isGeneralSubject) {
+                    $typeName = $customType ?: "General Consultation";
+                } elseif ($customType) {
                     $typeName = $customType;
                 }
 
@@ -388,10 +405,10 @@ class ConsultationBookingController extends Controller
                         ->where("Consult_type_ID", $data["types"][0])
                         ->first();
                 }
-                $typeName = $isGeneralSubject
-                    ? "General Consultation"
-                    : $consultationType->Consult_Type ?? "consultation";
-                if (!$isGeneralSubject && !empty($customType)) {
+                $typeName = $consultationType->Consult_Type ?? "consultation";
+                if ($isGeneralSubject) {
+                    $typeName = $customType ?: "General Consultation";
+                } elseif (!empty($customType)) {
                     $typeName = $customType;
                 }
                 // Professor channel
@@ -818,7 +835,7 @@ class ConsultationBookingController extends Controller
 
             // Send welcome email with temporary password
             try {
-                $loginUrl = route("login.professor");
+                $loginUrl = route("login");
                 Mail::to($validated["Email"])->send(
                     new ProfessorWelcomeMail(
                         $validated["Name"],

@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="{{ asset('css/admin-navbar.css') }}">
   <link rel="stylesheet" href="{{ asset('css/admin-itis.css') }}">
   <link rel="stylesheet" href="{{ asset('css/confirm-modal.css') }}">
+  <link rel="stylesheet" href="{{ asset('css/logout-confirm.css') }}">
+  <script src="{{ asset('js/logout-confirm.js') }}" defer></script>
   <style>
     /* View toggle styles (minimal, scoped) */
     .search-container{ display:flex; align-items:center; gap:12px; }

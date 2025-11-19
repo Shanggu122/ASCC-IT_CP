@@ -17,7 +17,7 @@ class RedirectIfUnauthenticated
         if ($request->expectsJson()) {
             return null; // Let the framework generate JSON 401
         }
-        return route('landing'); // Named route for '/'
+        return route("login");
     }
 
     /**
