@@ -471,6 +471,7 @@ class AdminCalendarOverrideController extends Controller
                                 new \App\Events\BookingUpdated((int) $b->Prof_ID, [
                                     "event" => "BookingUpdated",
                                     "Booking_ID" => (int) $b->Booking_ID,
+                                    "student_id" => (int) $b->Stud_ID,
                                     "Status" => "rescheduled",
                                     "Booking_Date" => $newDate,
                                 ]),
@@ -516,6 +517,7 @@ class AdminCalendarOverrideController extends Controller
                             new \App\Events\BookingUpdated((int) $b->Prof_ID, [
                                 "event" => "BookingUpdated",
                                 "Booking_ID" => (int) $b->Booking_ID,
+                                "student_id" => (int) $b->Stud_ID,
                                 "Status" => $b->Status,
                                 "Booking_Date" => $b->Booking_Date,
                                 "Mode" => $allowed,
@@ -602,6 +604,7 @@ class AdminCalendarOverrideController extends Controller
                             new \App\Events\BookingUpdated((int) $b->Prof_ID, [
                                 "event" => "BookingUpdated",
                                 "Booking_ID" => (int) $b->Booking_ID,
+                                "student_id" => (int) $b->Stud_ID,
                                 "Status" => "rescheduled",
                                 "Booking_Date" => $newDate,
                             ]),
