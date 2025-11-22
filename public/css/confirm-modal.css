@@ -71,7 +71,7 @@
 }
 
 .btn-confirm-green {
-    background: #1e8f5a; /* darker green */
+    background: #f00800; /* darker green */
     color: #ffffff;
 }
 
@@ -85,7 +85,7 @@
 }
 
 .btn-cancel-red {
-    background: #c0392b; /* darker red */
+    background: #30c02b; /* darker red */
     color: #ffffff;
 }
 
