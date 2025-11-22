@@ -24,7 +24,6 @@
         <div id="local-status" class="status-icon hidden"><i class='bx bxs-microphone-off'></i> Mic Off</div>
       </div>
       <div id="remote-player" class="video-player">
-        <div id="remote-placeholder" class="remote-placeholder">Waiting for others to join...</div>
         <div id="remote-grid" class="remote-grid hidden"></div>
       </div>
       <div id="controls-panel">
@@ -59,8 +58,15 @@
           <button id="participantsBtn" class="icon-btn"><i class='bx bxs-user-detail'></i><span>Participants</span></button>
           <button id="chatBtn" class="icon-btn"><i class='bx bx-chat'></i><span>Chat</span></button>
           <button id="ctrl-share" class="icon-btn"><i class='bx bx-desktop'></i><span>Share</span></button>
+          <button id="recordBtn" class="icon-btn"><i class='bx bx-radio-circle'></i><span>Record</span></button>
         </div>
-        <div class="controls-right"><button id="leave-btn"><i class='bx bx-phone-off'></i>End</button></div>
+        <div class="controls-right">
+          <div class="record-indicator hidden" id="recordIndicator" aria-live="polite">
+            <span class="pulse"></span>
+            <span>Recording…</span>
+          </div>
+          <button id="leave-btn"><i class='bx bx-phone-off'></i>End</button>
+        </div>
       </div>
     </div>
     <aside class="sidebar" id="sidebar">
@@ -123,6 +129,8 @@
   const COUNTERPART_NAME = @json($counterpartName ?? null);
   const IS_DEBUG = @json(config('app.debug'));
   const STUDENT_LABEL = COUNTERPART_NAME || 'Student';
+  const STUD_ID  = @json($studId ?? null);
+  const PROF_ID  = @json($profId ?? null);
   let TOKEN     = null;
   let RTM_TOKEN = null;
   const LEAVE_REDIRECT = "{{ auth('professor')->check() ? route('messages.professor') : route('login') }}";
@@ -130,11 +138,18 @@
   let client, rtmClient, rtmChannel, localUid, rtcDataStream;
     let localAudioTrack, localVideoTrack, screenVideoTrack;
     let micMuted = false, camOff = false, isSharing = false;
+    let recordingStream = null, mediaRecorder = null;
+    let recordingChunks = [];
+    let recordingActive = false;
+    let recordingStopResolver = null;
+    let recordingDownloadUrl = null;
+    const recordingTrackRegistry = new Map();
+    let recordingCompositeMode = false;
+    let recordingCompositeController = null;
 
   const localContainer   = document.getElementById('local-player');
   const remoteContainer  = document.getElementById('remote-player');
   const remoteGrid       = document.getElementById('remote-grid');
-  const remotePlaceholder = document.getElementById('remote-placeholder');
   const micBtn           = document.getElementById('toggle-mic');
   const camBtn           = document.getElementById('toggle-cam');
   const leaveBtn         = document.getElementById('leave-btn');
@@ -180,6 +195,8 @@
     const messageBox       = document.getElementById('messageBox');
     const sendBtn          = document.getElementById('sendBtn');
   const closeSidebarBtn  = document.getElementById('closeSidebar');
+  const recordBtn        = document.getElementById('recordBtn');
+  const recordIndicator  = document.getElementById('recordIndicator');
 
     const settingsModal    = document.getElementById('settingsModal');
     const cameraSelect     = document.getElementById('cameraSelect');
@@ -203,6 +220,11 @@
   const openSettingsFromCam = document.getElementById('openSettingsFromCam');
   let autoplayOverlayEl = null;
   let autoplayResumeBtn = null;
+
+  if(recordBtn && !supportsRecording()){
+    recordBtn.disabled = true;
+    recordBtn.title = 'Recording is not supported in this browser.';
+  }
 
   function ensureAutoplayOverlay(){
       if(autoplayOverlayEl){ return autoplayOverlayEl; }
@@ -337,6 +359,411 @@
         sendCooldown = false;
         if(sendBtn){ sendBtn.disabled = false; }
       }, delay);
+    }
+
+    function supportsRecording(){
+      return typeof MediaRecorder !== 'undefined'
+        && typeof window !== 'undefined'
+        && typeof window.MediaStream !== 'undefined';
+    }
+
+    function chooseRecorderMimeType(){
+      if(typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function'){
+        return '';
+      }
+      const candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+      return candidates.find(type => MediaRecorder.isTypeSupported(type)) || '';
+    }
+
+    function isVideoRenderable(videoEl){
+      return !!(videoEl && videoEl.readyState >= 2 && videoEl.videoWidth && videoEl.videoHeight);
+    }
+
+    function drawVideoCover(ctx, videoEl, x, y, width, height){
+      if(!isVideoRenderable(videoEl)){ return; }
+      const vw = videoEl.videoWidth || 1;
+      const vh = videoEl.videoHeight || 1;
+      const scale = Math.max(width / vw, height / vh);
+      const dw = vw * scale;
+      const dh = vh * scale;
+      const dx = x + (width - dw) / 2;
+      const dy = y + (height - dh) / 2;
+      try{ ctx.drawImage(videoEl, dx, dy, dw, dh); }catch{}
+    }
+
+    function drawVideoContain(ctx, videoEl, x, y, width, height){
+      if(!isVideoRenderable(videoEl)){ return; }
+      const vw = videoEl.videoWidth || 1;
+      const vh = videoEl.videoHeight || 1;
+      const scale = Math.min(width / vw, height / vh);
+      const dw = vw * scale;
+      const dh = vh * scale;
+      const dx = x + (width - dw) / 2;
+      const dy = y + (height - dh) / 2;
+      try{ ctx.drawImage(videoEl, dx, dy, dw, dh); }catch{}
+    }
+
+    function drawPlaceholderBox(ctx, text, x, y, width, height){
+      ctx.save();
+      ctx.fillStyle = '#19191d';
+      ctx.fillRect(x, y, width, height);
+      ctx.fillStyle = '#f0f0f0';
+      const base = Math.max(16, Math.min(width, height) * 0.22);
+      ctx.font = `600 ${Math.round(base)}px "Segoe UI", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text || '', x + width / 2, y + height / 2);
+      ctx.restore();
+    }
+
+    function collectRemoteVisuals(){
+      const visuals = [];
+      remoteTiles.forEach((record, key) => {
+        if(!record) return;
+        let videoEl = record.videoHost ? record.videoHost.querySelector('video') : null;
+        if(localContainer && videoEl && localContainer.contains(videoEl)){
+          videoEl = null;
+        }
+        const label = record.name?.textContent || computeDisplayName(key);
+        visuals.push({ video: isVideoRenderable(videoEl) ? videoEl : null, label });
+      });
+      return visuals;
+    }
+
+    function drawRemoteGrid(ctx, visuals, width, height){
+      const count = visuals.length;
+      if(!count){ return; }
+      const cols = count === 1 ? 1 : Math.ceil(Math.sqrt(count));
+      const rows = Math.ceil(count / cols);
+      const cellWidth = width / cols;
+      const cellHeight = height / rows;
+      visuals.forEach((item, index) => {
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        const x = col * cellWidth;
+        const y = row * cellHeight;
+        if(item.video){
+          drawVideoContain(ctx, item.video, x, y, cellWidth, cellHeight);
+        } else {
+          drawPlaceholderBox(ctx, item.label || '', x, y, cellWidth, cellHeight);
+        }
+      });
+    }
+
+    function renderCompositeFrame(ctx, width, height){
+      ctx.fillStyle = '#050506';
+      ctx.fillRect(0, 0, width, height);
+      const localVideo = localContainer ? localContainer.querySelector('video') : null;
+      const localReady = isVideoRenderable(localVideo);
+      const remoteVisuals = collectRemoteVisuals();
+      if(isSharing){
+        if(localReady){ drawVideoCover(ctx, localVideo, 0, 0, width, height); }
+        else { drawPlaceholderBox(ctx, 'Screen Share', 0, 0, width, height); }
+      } else if(remoteVisuals.length){
+        drawRemoteGrid(ctx, remoteVisuals, width, height);
+      } else if(localReady){
+        drawVideoCover(ctx, localVideo, 0, 0, width, height);
+      } else {
+        drawPlaceholderBox(ctx, 'Waiting for video...', 0, 0, width, height);
+      }
+      if(!isSharing && remoteVisuals.length && localVideo){
+        const pipWidth = Math.round(width * 0.24);
+        const ratio = localReady ? (localVideo.videoHeight / (localVideo.videoWidth || 1)) : (9 / 16);
+        const pipHeight = Math.round(Math.max(1, pipWidth * ratio));
+        const pipX = width - pipWidth - 28;
+        const pipY = height - pipHeight - 28;
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.58)';
+        ctx.fillRect(pipX - 6, pipY - 6, pipWidth + 12, pipHeight + 12);
+        if(localReady){
+          drawVideoContain(ctx, localVideo, pipX, pipY, pipWidth, pipHeight);
+        } else {
+          drawPlaceholderBox(ctx, 'You', pipX, pipY, pipWidth, pipHeight);
+        }
+        ctx.restore();
+      }
+    }
+
+    function createRecordingCompositeController(){
+      if(typeof document === 'undefined'){ return null; }
+      const canvas = document.createElement('canvas');
+      canvas.width = 1280;
+      canvas.height = 720;
+      const ctx = canvas.getContext('2d');
+      if(!ctx || typeof canvas.captureStream !== 'function'){ return null; }
+      ctx.imageSmoothingEnabled = true;
+      const stream = canvas.captureStream(30);
+      const [track] = stream.getVideoTracks();
+      if(!track){ return null; }
+      let rafId = null;
+      const draw = () => {
+        renderCompositeFrame(ctx, canvas.width, canvas.height);
+        rafId = requestAnimationFrame(draw);
+      };
+      draw();
+      return {
+        track,
+        stop(){
+          if(rafId !== null){ cancelAnimationFrame(rafId); rafId = null; }
+          try{ track.stop(); }catch{}
+        }
+      };
+    }
+
+    function stopRecordingComposite(){
+      if(recordingCompositeController){
+        try{ recordingCompositeController.stop(); }catch{}
+        recordingCompositeController = null;
+      }
+      recordingCompositeMode = false;
+    }
+
+    function extractMediaTrack(source){
+      if(!source) return null;
+      if(typeof MediaStreamTrack !== 'undefined' && source instanceof MediaStreamTrack){
+        return source;
+      }
+      if(typeof source.getMediaStreamTrack === 'function'){
+        try {
+          const track = source.getMediaStreamTrack();
+          if(!track) return null;
+          if(typeof MediaStreamTrack === 'undefined' || track instanceof MediaStreamTrack){
+            return track;
+          }
+        } catch {}
+      }
+      return null;
+    }
+
+    function detachRecordingSource(key){
+      const entry = recordingTrackRegistry.get(key);
+      if(!entry) return;
+      recordingTrackRegistry.delete(key);
+      try{ entry.source.removeEventListener('ended', entry.onEnded); }catch{}
+      try{ recordingStream?.removeTrack(entry.track); }catch{}
+      if(entry.isClone){
+        try{ entry.track.stop(); }catch{}
+      }
+    }
+
+    function attachRecordingSource(key, source){
+      if(!recordingStream || !key) return;
+      if(recordingCompositeMode && (key.includes('-video') || key === 'local-screen')){
+        if(recordingTrackRegistry.has(key)){ detachRecordingSource(key); }
+        return;
+      }
+      const mediaTrack = extractMediaTrack(source);
+      if(!mediaTrack){
+        detachRecordingSource(key);
+        return;
+      }
+      const existing = recordingTrackRegistry.get(key);
+      if(existing && existing.source === mediaTrack){
+        return;
+      }
+      if(existing){ detachRecordingSource(key); }
+      let recorderTrack = mediaTrack;
+      let isClone = false;
+      if(typeof mediaTrack.clone === 'function'){
+        try{
+          recorderTrack = mediaTrack.clone();
+          isClone = true;
+        }catch{
+          recorderTrack = mediaTrack;
+          isClone = false;
+        }
+      }
+      try{
+        recordingStream.addTrack(recorderTrack);
+      }catch(err){
+        if(isClone){ try{ recorderTrack.stop(); }catch{} }
+        console.warn('Unable to add track to recording stream', key, err);
+        return;
+      }
+      const onEnded = ()=>{ detachRecordingSource(key); };
+      try{ mediaTrack.addEventListener('ended', onEnded); }catch{}
+      recordingTrackRegistry.set(key, { source: mediaTrack, track: recorderTrack, onEnded, isClone });
+    }
+
+    function syncRecordingSources(){
+      if(!recordingStream) return;
+      if(recordingCompositeMode){
+        detachRecordingSource('local-video');
+        detachRecordingSource('local-screen');
+      } else if(isSharing && screenVideoTrack){
+        attachRecordingSource('local-screen', screenVideoTrack);
+        detachRecordingSource('local-video');
+      } else {
+        attachRecordingSource('local-video', localVideoTrack);
+        detachRecordingSource('local-screen');
+      }
+      attachRecordingSource('local-audio', localAudioTrack);
+      const remotes = Array.isArray(client?.remoteUsers) ? client.remoteUsers : [];
+      remotes.forEach(user => {
+        if(recordingCompositeMode){ detachRecordingSource(`remote-${user.uid}-video`); }
+        else { attachRecordingSource(`remote-${user.uid}-video`, user.videoTrack); }
+        attachRecordingSource(`remote-${user.uid}-audio`, user.audioTrack);
+      });
+    }
+
+    function ensureRemoteRecordingSources(user){
+      if(!recordingStream || !user) return;
+      if(recordingCompositeMode){ detachRecordingSource(`remote-${user.uid}-video`); }
+      else { attachRecordingSource(`remote-${user.uid}-video`, user.videoTrack); }
+      attachRecordingSource(`remote-${user.uid}-audio`, user.audioTrack);
+    }
+
+    function dropRemoteRecordingSources(user){
+      if(!recordingStream || !user) return;
+      detachRecordingSource(`remote-${user.uid}-video`);
+      detachRecordingSource(`remote-${user.uid}-audio`);
+    }
+
+    function updateRecordingUI(active){
+      if(recordBtn){
+        recordBtn.classList.toggle('recording-active', !!active);
+        recordBtn.innerHTML = active
+          ? "<i class='bx bx-stop-circle'></i><span>Stop</span>"
+          : "<i class='bx bx-radio-circle'></i><span>Record</span>";
+        recordBtn.disabled = false;
+      }
+      if(recordIndicator){
+        recordIndicator.classList.toggle('hidden', !active);
+      }
+    }
+
+    function cleanupRecordingStream(){
+      const keys = Array.from(recordingTrackRegistry.keys());
+      keys.forEach(detachRecordingSource);
+      recordingTrackRegistry.clear();
+      if(recordingStream){
+        try{
+          recordingStream.getTracks().forEach(track => {
+            try{ track.stop(); }catch{}
+            try{ recordingStream.removeTrack(track); }catch{}
+          });
+        }catch{}
+        recordingStream = null;
+      }
+      stopRecordingComposite();
+    }
+
+    function finalizeRecordingBlob(){
+      const mime = (mediaRecorder && mediaRecorder.mimeType) || 'video/webm';
+      const hasData = recordingChunks && recordingChunks.length;
+      if(!hasData){
+        logMsg('Recording stopped (no data captured).', true);
+        return;
+      }
+      const blob = new Blob(recordingChunks, { type: mime });
+      if(recordingDownloadUrl){
+        try{ URL.revokeObjectURL(recordingDownloadUrl); }catch{}
+        recordingDownloadUrl = null;
+      }
+      const url = URL.createObjectURL(blob);
+      recordingDownloadUrl = url;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `consultation-${CHANNEL}-${timestamp}.webm`;
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      setTimeout(()=>{
+        try{ document.body.removeChild(anchor); }catch{}
+        try{ URL.revokeObjectURL(url); }catch{}
+        recordingDownloadUrl = null;
+      }, 150);
+      logMsg('Recording saved to your device.', true);
+    }
+
+    function handleRecorderStopped(){
+      try{ finalizeRecordingBlob(); }catch(err){ console.warn('Recording finalize failed', err); }
+      cleanupRecordingStream();
+      mediaRecorder = null;
+      recordingChunks = [];
+      const resolver = recordingStopResolver;
+      recordingStopResolver = null;
+      recordingActive = false;
+      updateRecordingUI(false);
+      if(typeof resolver === 'function'){
+        try{ resolver(); }catch{}
+      }
+    }
+
+    async function startRecording(){
+      if(recordingActive || !recordBtn) return;
+      if(!supportsRecording()){
+        logMsg('Recording is not supported in this browser.', true);
+        return;
+      }
+      recordBtn.disabled = true;
+      try{
+        cleanupRecordingStream();
+        const composite = createRecordingCompositeController();
+        recordingCompositeMode = !!(composite && composite.track);
+        recordingCompositeController = recordingCompositeMode ? composite : null;
+        recordingStream = new MediaStream();
+        if(recordingCompositeMode && composite?.track){
+          try{
+            recordingStream.addTrack(composite.track);
+          }catch(err){
+            console.warn('Composite track attach failed, falling back to raw tracks.', err);
+            stopRecordingComposite();
+            recordingStream = new MediaStream();
+          }
+        }
+        syncRecordingSources();
+        if(!recordingStream.getTracks().length){
+          throw new Error('no_tracks');
+        }
+        const mimeType = chooseRecorderMimeType();
+        const options = mimeType ? { mimeType } : undefined;
+        recordingChunks = [];
+        mediaRecorder = new MediaRecorder(recordingStream, options);
+        mediaRecorder.ondataavailable = (event)=>{
+          if(event && event.data && event.data.size){ recordingChunks.push(event.data); }
+        };
+        mediaRecorder.onstop = handleRecorderStopped;
+        recordingActive = true;
+        updateRecordingUI(true);
+        mediaRecorder.start(2000);
+        logMsg('Recording started.', true);
+      }catch(err){
+        if(err && err.message === 'no_tracks'){
+          logMsg('No audio or video sources are available to record yet.', true);
+        } else if(err && err.name === 'NotSupportedError'){
+          logMsg('Recording is unsupported for the current mix of tracks.', true);
+        } else {
+          console.warn('Recording start failed', err);
+          logMsg('Unable to start recording.', true);
+        }
+        cleanupRecordingStream();
+        mediaRecorder = null;
+        recordingChunks = [];
+        recordingActive = false;
+        updateRecordingUI(false);
+      } finally {
+        recordBtn.disabled = false;
+      }
+    }
+
+    function stopRecording(auto = false){
+      return new Promise(resolve => {
+        if(!recordingActive){ resolve(); return; }
+        recordingStopResolver = resolve;
+        try{
+          if(mediaRecorder && mediaRecorder.state !== 'inactive'){
+            mediaRecorder.stop();
+          } else {
+            handleRecorderStopped();
+          }
+        }catch(err){
+          console.warn('Recording stop error', err);
+          handleRecorderStopped();
+        }
+        if(auto){ logMsg('Recording stopped.', true); }
+      });
     }
 
     function parseMockList(raw){
@@ -783,7 +1210,6 @@
 
     function updateRemoteLayoutState(){
       if(remoteGrid){ remoteGrid.classList.toggle('hidden', remoteTiles.size === 0); }
-      if(remotePlaceholder){ remotePlaceholder.classList.toggle('hidden', remoteTiles.size > 0); }
       queueRemoteLayout();
     }
 
@@ -974,58 +1400,157 @@
       });
     }
 
-    // --- Simple HTTP-polling chat fallback (works without RTM) ---
+    // --- Meeting-level chat via HTTP polling fallback ---
     const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    let pollTimer = null; let seenKeys = new Set();
-    let studId = null, profId = null;
-    try{
-      const m = /^stud-([^]+)-prof-([^]+)$/.exec(CHANNEL);
-      if(m){ studId = m[1]; profId = m[2]; }
-    }catch{}
-    const SELF_ROLE = IS_PROF ? 'professor' : 'student';
-    function renderFetched(list){
-      for(const msg of list){
-        const key = `${msg.Created_At}|${msg.Sender}|${msg.Message||''}|${msg.file_path||''}`;
-        if(seenKeys.has(key)) continue;
-        const rawMessage = msg.Message ?? '';
-        const normalized = rawMessage.trim();
-        const isSelf = (msg.Sender === SELF_ROLE);
-  const who = isSelf ? 'You' : (msg.Sender === 'professor' ? (COUNTERPART_NAME || 'Professor') : STUDENT_LABEL);
-        if(normalized){
-          if(isSelf && resolveLocalEcho(normalized, element => { element.dataset.msgKey = key; })){
-            seenKeys.add(key);
-            continue;
-          }
-          const entry = logMsg(`${who}: ${normalized}`, false, isSelf);
-          if(entry){
-            entry.dataset.msgKey = key;
-            if(isSelf && entry.dataset.origin !== 'local'){ entry.dataset.origin = entry.dataset.origin || 'history'; }
-          }
+    const CHAT_CHANNEL = CHANNEL;
+    const CHAT_HISTORY_URL = '/video-call/chat/history';
+    const CHAT_SEND_URL = '/video-call/chat';
+    const SELF_ROLE = 'professor';
+    const SELF_UID = PROF_ID ? String(PROF_ID) : null;
+    let pollTimer = null;
+    let lastChatMessageId = 0;
+    const seenMessageIds = new Set();
+    const pendingChatSyncQueue = [];
+    let pendingChatSyncTimer = null;
+
+    function markPendingEcho(entry){
+      if(!entry) return;
+      entry.dataset.pending = '1';
+      entry.dataset.failed = '0';
+      entry.classList.add('chat-pending');
+      entry.classList.remove('chat-failed');
+      entry.dataset.origin = entry.dataset.origin || 'local';
+    }
+
+    function markEchoFailed(entry){
+      if(!entry) return;
+      entry.dataset.pending = '0';
+      entry.dataset.failed = '1';
+      entry.classList.remove('chat-pending');
+      entry.classList.add('chat-failed');
+    }
+
+    function finalizeLocalChatEcho(rawText, payload, fallbackEntry){
+      const apply = (element)=>{
+        if(!element) return;
+        element.dataset.pending = '0';
+        element.dataset.failed = '0';
+        element.classList.remove('chat-pending');
+        element.classList.remove('chat-failed');
+        element.dataset.origin = 'confirmed';
+        if(payload && payload.id){ element.dataset.msgId = payload.id; }
+      };
+      if(!resolveLocalEcho(rawText, apply) && fallbackEntry){
+        apply(fallbackEntry);
+      }
+      if(payload && payload.id){
+        const numericId = Number(payload.id);
+        if(Number.isFinite(numericId) && numericId > 0){
+          seenMessageIds.add(numericId);
+          if(numericId > lastChatMessageId){ lastChatMessageId = numericId; }
         }
-        seenKeys.add(key);
+      }
+      try{ setTimeout(()=>{ try{ pollOnce(); }catch(_err){}; }, 200); }catch(_err){}
+    }
+
+    function queueChatSyncRetry(rawText, entry, attempt = 0){
+      if(!rawText) return;
+      pendingChatSyncQueue.push({ text: rawText, entry, attempt });
+      if(!pendingChatSyncTimer){ pendingChatSyncTimer = setTimeout(flushChatSyncQueue, 1600); }
+    }
+
+    async function flushChatSyncQueue(){
+      if(pendingChatSyncTimer){
+        clearTimeout(pendingChatSyncTimer);
+        pendingChatSyncTimer = null;
+      }
+      if(!pendingChatSyncQueue.length) return;
+      const batch = pendingChatSyncQueue.splice(0, pendingChatSyncQueue.length);
+      for(const item of batch){
+        let payload = null;
+        try{ payload = await httpSendChat(item.text); }catch(_err){ payload = null; }
+        if(payload){
+          finalizeLocalChatEcho(item.text, payload, item.entry);
+          continue;
+        }
+        const nextAttempt = (item.attempt ?? 0) + 1;
+        if(nextAttempt < 5){
+          pendingChatSyncQueue.push({ text: item.text, entry: item.entry, attempt: nextAttempt });
+        }else{
+          markEchoFailed(item.entry);
+          logMsg('Unable to sync chat message. Please retry.', true);
+        }
+      }
+      if(pendingChatSyncQueue.length){ pendingChatSyncTimer = setTimeout(flushChatSyncQueue, 4000); }
+    }
+
+    function renderFetched(list){
+      for (const msg of list){
+        if(!msg) continue;
+        const msgId = Number(msg.id ?? 0);
+        if(msgId > 0){
+          if(seenMessageIds.has(msgId)) { continue; }
+          seenMessageIds.add(msgId);
+          if(msgId > lastChatMessageId){ lastChatMessageId = msgId; }
+        }
+        const normalized = (msg.message ?? '').trim();
+        if(normalized === '') { continue; }
+        const senderRole = (msg.sender_role || '').toLowerCase();
+        const senderUid = msg.sender_uid !== undefined && msg.sender_uid !== null ? String(msg.sender_uid) : null;
+        const isSelf = senderUid && SELF_UID && senderUid === SELF_UID && senderRole === SELF_ROLE;
+        const who = isSelf
+          ? 'You'
+          : (msg.sender_name && msg.sender_name.trim() !== ''
+              ? msg.sender_name
+              : (senderRole === 'professor'
+                  ? (COUNTERPART_NAME || 'Professor')
+                  : STUDENT_LABEL));
+        if(isSelf && resolveLocalEcho(normalized, element => {
+          if(msgId > 0){ element.dataset.msgId = msgId; }
+          element.dataset.origin = element.dataset.origin || 'confirmed';
+        })){
+          continue;
+        }
+        const entry = logMsg(`${who}: ${normalized}`, false, isSelf);
+        if(entry){
+          if(msgId > 0){ entry.dataset.msgId = msgId; }
+          if(isSelf && entry.dataset.origin !== 'local'){ entry.dataset.origin = entry.dataset.origin || 'history'; }
+        }
       }
     }
+
     async function pollOnce(){
-      if(!studId || !profId) return;
+      if(!CHAT_CHANNEL) return;
       try{
-        const res = await fetch(`/load-direct-messages/${encodeURIComponent(studId)}/${encodeURIComponent(profId)}`, { credentials: 'include' });
-        if(!res.ok) return;
-        const list = await res.json();
+        const url = `${CHAT_HISTORY_URL}?channel=${encodeURIComponent(CHAT_CHANNEL)}&after_id=${lastChatMessageId}`;
+        const res = await fetch(url, { credentials: 'include' });
+        if(!res.ok){ return; }
+        const payload = await res.json();
+        const list = Array.isArray(payload.messages) ? payload.messages : [];
         renderFetched(list);
       }catch{}
     }
+
     function startPolling(){ if(pollTimer) return; pollTimer = setInterval(pollOnce, 2000); pollOnce(); }
+
     async function httpSendChat(text){
-      if(!studId || !profId) return false;
+      if(!CHAT_CHANNEL) return null;
       try{
-        const res = await fetch(`/send-message`, {
+        const res = await fetch(CHAT_SEND_URL, {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-          body: JSON.stringify({ stud_id: studId, prof_id: profId, sender: SELF_ROLE, recipient: IS_PROF ? String(studId) : String(profId), message: text })
+          body: JSON.stringify({ channel: CHAT_CHANNEL, message: text })
         });
-        if(res.ok){ setTimeout(pollOnce, 200); return true; }
+        if(!res.ok){ return null; }
+        const payload = await res.json();
+        if(payload && payload.id){
+          seenMessageIds.add(Number(payload.id));
+          if(Number(payload.id) > lastChatMessageId){ lastChatMessageId = Number(payload.id); }
+        }
+        setTimeout(pollOnce, 200);
+        return payload;
       }catch{}
-      return false;
+      return null;
     }
 
     async function enumerateDevices(){
@@ -1048,6 +1573,7 @@
       await client.publish(localVideoTrack);
       localVideoTrack.play(localContainer);
       camOff = false; camBtn.innerHTML = "<i class='bx bxs-video'></i>Video";
+      if(recordingActive && recordingStream){ syncRecordingSources(); }
     }
 
     async function switchMic(deviceId){
@@ -1057,6 +1583,7 @@
       localAudioTrack = newAudio;
       await client.publish(localAudioTrack);
       if(micMuted){ localAudioTrack.setEnabled(false); }
+      if(recordingActive && recordingStream){ syncRecordingSources(); }
     }
 
     function openSettings(){ settingsModal.classList.add('open'); }
@@ -1191,6 +1718,7 @@
       });
       client.on('user-left', user => {
         removeRemoteTile(user.uid);
+        if(recordingActive && recordingStream){ dropRemoteRecordingSources(user); }
         refreshParticipants();
       });
       client.on('token-privilege-will-expire', async ()=>{
@@ -1315,6 +1843,14 @@
       camBtn.innerHTML = camOff ? "<i class='bx bxs-video-off'></i>Show" : "<i class='bx bxs-video'></i>Video";
     });
 
+    recordBtn?.addEventListener('click', async ()=>{
+      if(recordingActive){
+        await stopRecording(false);
+      } else {
+        await startRecording();
+      }
+    });
+
     // Screen share
     shareBtn.addEventListener('click', async ()=>{
       if(MOCK_MODE){
@@ -1329,6 +1865,7 @@
           await client.publish(screenVideoTrack);
           screenVideoTrack.play(localContainer);
           isSharing = true; shareBtn.innerHTML = "<i class='bx bx-desktop'></i><span>Stop</span>";
+          if(recordingActive && recordingStream){ syncRecordingSources(); }
           // When user stops via browser UI
           screenVideoTrack.on('track-ended', async ()=>{
             if(isSharing) await stopShare();
@@ -1343,65 +1880,69 @@
       if(!isSharing) return;
       await client.unpublish(screenVideoTrack);
       screenVideoTrack.stop(); screenVideoTrack.close();
+      screenVideoTrack = null;
       await client.publish(localVideoTrack);
       localVideoTrack.play(localContainer);
       isSharing = false; shareBtn.innerHTML = "<i class='bx bx-desktop'></i><span>Share</span>";
+      if(recordingActive && recordingStream){ syncRecordingSources(); }
     }
 
     // Chat send
     sendBtn.addEventListener('click', sendChat);
     messageBox.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); sendChat(); } });
     async function sendChat(){
-      const text = messageBox.value.trim();
+      const rawValue = messageBox.value;
+      const text = rawValue ? rawValue.trim() : '';
       if(!text || sendCooldown) return;
+
       sendCooldown = true;
       sendBtn.disabled = true;
       messageBox.value = '';
       messageBox.focus();
 
-      const registerEcho = ()=>{
-        const entry = logMsg(`You: ${text}`, false, true);
-        registerLocalEcho(text, entry);
-      };
+      const localEcho = logMsg(`You: ${text}`, false, true);
+      if(localEcho){
+        registerLocalEcho(text, localEcho);
+        markPendingEcho(localEcho);
+      }
 
+      let persisted = null;
+      try{
+        persisted = await httpSendChat(text);
+      }catch(_err){ persisted = null; }
+
+      if(persisted){
+        finalizeLocalChatEcho(text, persisted, localEcho);
+        scheduleSendReset();
+        return;
+      }
+
+      let deliveredRealtime = false;
       if(rtmChannel){
         try{
           await rtmChannel.sendMessage({ text });
-          registerEcho();
-        }catch{
-          logMsg('Failed to send message.', true);
-        } finally {
-          scheduleSendReset();
-        }
-        return;
+          deliveredRealtime = true;
+        }catch(_err){ deliveredRealtime = false; }
       }
 
-      if(rtcDataStream){
-        try {
+      if(!deliveredRealtime && rtcDataStream){
+        try{
           await rtcDataStream.send(text);
-          registerEcho();
-        } catch {
-          logMsg('Failed to send message (RTC).', true);
-        } finally {
-          scheduleSendReset();
-        }
-        return;
+          deliveredRealtime = true;
+        }catch(_err){ deliveredRealtime = false; }
       }
 
-      try{
-        const ok = await httpSendChat(text);
-        if(ok){
-          registerEcho();
-        }else{
-          logMsg('Chat unavailable. RTM not connected.', true);
-        }
-      }finally{
-        scheduleSendReset();
+      queueChatSyncRetry(text, localEcho);
+      if(!deliveredRealtime){
+        logMsg('Message will send once connection stabilizes.', true);
       }
+
+      scheduleSendReset();
     }
 
     leaveBtn.addEventListener('click', async () => {
       try{
+        if(recordingActive){ await stopRecording(true); }
         if (localAudioTrack) { localAudioTrack.close(); }
         if (localVideoTrack) { localVideoTrack.close(); }
         if (screenVideoTrack) { screenVideoTrack.close(); }
@@ -1424,6 +1965,7 @@
       if (mediaType === 'audio') {
         user.audioTrack.play();
       }
+      if(recordingActive && recordingStream){ ensureRemoteRecordingSources(user); }
       refreshParticipants();
       queueRemoteLayout();
     }
@@ -1436,6 +1978,10 @@
       }
       if (mediaType === 'audio' && user.audioTrack) {
         try { user.audioTrack.stop(); } catch {}
+      }
+      if(recordingActive && recordingStream){
+        if(mediaType === 'video' || mediaType === undefined){ detachRecordingSource(`remote-${user.uid}-video`); }
+        if(mediaType === 'audio' || mediaType === undefined){ detachRecordingSource(`remote-${user.uid}-audio`); }
       }
       refreshParticipants();
     }
