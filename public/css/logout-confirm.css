@@ -81,22 +81,22 @@
 }
 
 .logout-confirm-cancel {
-    background: #c0392b;
-    color: #ffffff;
-}
-
-.logout-confirm-cancel:hover {
-    filter: brightness(0.95);
-    transform: translateY(-1px);
-}
-
-.logout-confirm-confirm {
     background: #1f9f67;
     color: #ffffff;
 }
 
-.logout-confirm-confirm:hover {
+.logout-confirm-cancel:hover {
     filter: brightness(1.05);
+    transform: translateY(-1px);
+}
+
+.logout-confirm-confirm {
+    background: #c0392b;
+    color: #ffffff;
+}
+
+.logout-confirm-confirm:hover {
+    filter: brightness(0.92);
     transform: translateY(-1px);
 }
 

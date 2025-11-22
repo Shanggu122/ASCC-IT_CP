@@ -56,9 +56,9 @@
     <!-- Schedule Section -->
     <div class="info-section">
       <div class="section-title">SCHEDULE</div>
-      <table class="info-table">
+      <table class="info-table info-table--schedule">
         <tr>
-          <td class="info-label info-label--schedule">Weekly schedule</td>
+          <td class="info-label info-label--schedule"><span class="schedule-label-text">Weekly schedule</span></td>
           <td>
             @php
               $scheduleText = trim((string)($user->Schedule ?? ''));
