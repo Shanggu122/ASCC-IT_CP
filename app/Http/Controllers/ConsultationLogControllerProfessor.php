@@ -21,6 +21,7 @@ class ConsultationLogControllerProfessor extends Controller
             ->leftJoin("terms as t", "t.id", "=", "b.term_id")
             ->select([
                 "b.Booking_ID",
+                "stu.Stud_ID as student_id",
                 "stu.Name as student", // student name
                 "subj.Subject_Name as subject",
                 DB::raw("COALESCE(b.Custom_Type, ct.Consult_Type) as type"), // Show custom type if present
@@ -61,6 +62,7 @@ class ConsultationLogControllerProfessor extends Controller
             ->leftJoin("terms as t", "t.id", "=", "b.term_id")
             ->select([
                 "b.Booking_ID",
+                "stu.Stud_ID as student_id",
                 "stu.Name as student",
                 "subj.Subject_Name as subject",
                 DB::raw("COALESCE(b.Custom_Type, ct.Consult_Type) as type"),
@@ -108,6 +110,7 @@ class ConsultationLogControllerProfessor extends Controller
             ->leftJoin("terms as t", "t.id", "=", "b.term_id")
             ->select([
                 "b.Booking_ID",
+                "stu.Stud_ID as student_id",
                 "stu.Name as student",
                 "subj.Subject_Name as subject",
                 DB::raw("COALESCE(b.Custom_Type, ct.Consult_Type) as type"),

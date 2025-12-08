@@ -416,6 +416,7 @@ class ConsultationBookingController extends Controller
                     new \App\Events\BookingUpdated($profId, [
                         "event" => "BookingCreated",
                         "Booking_ID" => (int) $bookingId,
+                        "student_id" => (int) ($student->Stud_ID ?? 0),
                         "student" => $student->Name ?? "A student",
                         "subject" => $subject->Subject_Name ?? "Unknown subject",
                         "type" => $typeName,

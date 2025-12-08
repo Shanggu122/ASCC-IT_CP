@@ -122,6 +122,8 @@
   const IS_PROF  = @json(auth('professor')->check());
   const COUNTERPART_NAME = @json($counterpartName ?? null);
   const IS_DEBUG = @json(config('app.debug'));
+  const STUD_ID  = @json($studId ?? null);
+  const PROF_ID  = @json($profId ?? null);
   let TOKEN     = null;
   let RTM_TOKEN = null;
   const LEAVE_REDIRECT = "{{ auth('professor')->check() ? route('messages.professor') : route('messages') }}";
@@ -975,56 +977,153 @@
 
     // --- Simple HTTP-polling chat fallback (works without RTM) ---
     const CSRF = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-    let pollTimer = null; let seenKeys = new Set();
-    let studId = null, profId = null;
-    try{
-      const m = /^stud-([^]+)-prof-([^]+)$/.exec(CHANNEL);
-      if(m){ studId = m[1]; profId = m[2]; }
-    }catch{}
+    const CHAT_CHANNEL = CHANNEL;
+    const CHAT_HISTORY_URL = '/video-call/chat/history';
+    const CHAT_SEND_URL = '/video-call/chat';
     const SELF_ROLE = IS_PROF ? 'professor' : 'student';
-    function renderFetched(list){
-      for(const msg of list){
-        const key = `${msg.Created_At}|${msg.Sender}|${msg.Message||''}|${msg.file_path||''}`;
-        if(seenKeys.has(key)) continue;
-        const rawMessage = msg.Message ?? '';
-        const normalized = rawMessage.trim();
-        const isSelf = (msg.Sender === SELF_ROLE);
-        const who = isSelf ? 'You' : (msg.Sender === 'professor' ? (COUNTERPART_NAME || 'Professor') : 'Student');
-        if(normalized){
-          if(isSelf && resolveLocalEcho(normalized, element => { element.dataset.msgKey = key; })){
-            seenKeys.add(key);
-            continue;
-          }
-          const entry = logMsg(`${who}: ${normalized}`, false, isSelf);
-          if(entry){
-            entry.dataset.msgKey = key;
-            if(isSelf && entry.dataset.origin !== 'local'){ entry.dataset.origin = entry.dataset.origin || 'history'; }
-          }
+    const SELF_UID = SELF_ROLE === 'professor'
+      ? (PROF_ID ? String(PROF_ID) : null)
+      : (STUD_ID ? String(STUD_ID) : null);
+    let pollTimer = null;
+    let lastChatMessageId = 0;
+    const seenMessageIds = new Set();
+    const pendingChatSyncQueue = [];
+    let pendingChatSyncTimer = null;
+
+    function markPendingEcho(entry){
+      if(!entry) return;
+      entry.dataset.pending = '1';
+      entry.dataset.failed = '0';
+      entry.classList.add('chat-pending');
+      entry.classList.remove('chat-failed');
+      entry.dataset.origin = entry.dataset.origin || 'local';
+    }
+
+    function markEchoFailed(entry){
+      if(!entry) return;
+      entry.dataset.pending = '0';
+      entry.dataset.failed = '1';
+      entry.classList.remove('chat-pending');
+      entry.classList.add('chat-failed');
+    }
+
+    function finalizeLocalChatEcho(rawText, payload, fallbackEntry){
+      const apply = (element)=>{
+        if(!element) return;
+        element.dataset.pending = '0';
+        element.dataset.failed = '0';
+        element.classList.remove('chat-pending');
+        element.classList.remove('chat-failed');
+        element.dataset.origin = 'confirmed';
+        if(payload && payload.id){ element.dataset.msgId = payload.id; }
+      };
+      if(!resolveLocalEcho(rawText, apply) && fallbackEntry){
+        apply(fallbackEntry);
+      }
+      if(payload && payload.id){
+        const numericId = Number(payload.id);
+        if(Number.isFinite(numericId) && numericId > 0){
+          seenMessageIds.add(numericId);
+          if(numericId > lastChatMessageId){ lastChatMessageId = numericId; }
         }
-        seenKeys.add(key);
+      }
+      try{ setTimeout(()=>{ try{ pollOnce(); }catch(_err){}; }, 200); }catch(_err){}
+    }
+
+    function queueChatSyncRetry(rawText, entry, attempt = 0){
+      if(!rawText) return;
+      pendingChatSyncQueue.push({ text: rawText, entry, attempt });
+      if(!pendingChatSyncTimer){ pendingChatSyncTimer = setTimeout(flushChatSyncQueue, 1600); }
+    }
+
+    async function flushChatSyncQueue(){
+      if(pendingChatSyncTimer){
+        clearTimeout(pendingChatSyncTimer);
+        pendingChatSyncTimer = null;
+      }
+      if(!pendingChatSyncQueue.length) return;
+      const batch = pendingChatSyncQueue.splice(0, pendingChatSyncQueue.length);
+      for(const item of batch){
+        let payload = null;
+        try{ payload = await httpSendChat(item.text); }catch(_err){ payload = null; }
+        if(payload){
+          finalizeLocalChatEcho(item.text, payload, item.entry);
+          continue;
+        }
+        const nextAttempt = (item.attempt ?? 0) + 1;
+        if(nextAttempt < 5){
+          pendingChatSyncQueue.push({ text: item.text, entry: item.entry, attempt: nextAttempt });
+        }else{
+          markEchoFailed(item.entry);
+          logMsg('Unable to sync chat message. Please retry.', true);
+        }
+      }
+      if(pendingChatSyncQueue.length){ pendingChatSyncTimer = setTimeout(flushChatSyncQueue, 4000); }
+    }
+    function renderFetched(list){
+      for (const msg of list){
+        if(!msg) continue;
+        const msgId = Number(msg.id ?? 0);
+        if(msgId > 0){
+          if(seenMessageIds.has(msgId)) { continue; }
+          seenMessageIds.add(msgId);
+          if(msgId > lastChatMessageId){ lastChatMessageId = msgId; }
+        }
+        const normalized = (msg.message ?? '').trim();
+        if(normalized === '') { continue; }
+        const senderRole = (msg.sender_role || '').toLowerCase();
+        const senderUid = msg.sender_uid !== undefined && msg.sender_uid !== null ? String(msg.sender_uid) : null;
+        const isSelf = senderUid && SELF_UID && senderUid === SELF_UID && senderRole === SELF_ROLE;
+        const who = isSelf
+          ? 'You'
+          : (msg.sender_name && msg.sender_name.trim() !== ''
+              ? msg.sender_name
+              : (senderRole === 'professor'
+                  ? (COUNTERPART_NAME || 'Professor')
+                  : 'Student'));
+        if(isSelf && resolveLocalEcho(normalized, element => {
+          if(msgId > 0){ element.dataset.msgId = msgId; }
+          element.dataset.origin = element.dataset.origin || 'confirmed';
+        })){
+          continue;
+        }
+        const entry = logMsg(`${who}: ${normalized}`, false, isSelf);
+        if(entry){
+          if(msgId > 0){ entry.dataset.msgId = msgId; }
+          if(isSelf && entry.dataset.origin !== 'local'){ entry.dataset.origin = entry.dataset.origin || 'history'; }
+        }
       }
     }
     async function pollOnce(){
-      if(!studId || !profId) return;
+      if(!CHAT_CHANNEL) return;
       try{
-        const res = await fetch(`/load-direct-messages/${encodeURIComponent(studId)}/${encodeURIComponent(profId)}`, { credentials: 'include' });
-        if(!res.ok) return;
-        const list = await res.json();
+        const url = `${CHAT_HISTORY_URL}?channel=${encodeURIComponent(CHAT_CHANNEL)}&after_id=${lastChatMessageId}`;
+        const res = await fetch(url, { credentials: 'include' });
+        if(!res.ok){ return; }
+        const payload = await res.json();
+        const list = Array.isArray(payload.messages) ? payload.messages : [];
         renderFetched(list);
       }catch{}
     }
     function startPolling(){ if(pollTimer) return; pollTimer = setInterval(pollOnce, 2000); pollOnce(); }
     async function httpSendChat(text){
-      if(!studId || !profId) return false;
+      if(!CHAT_CHANNEL) return null;
       try{
-        const res = await fetch(`/send-message`, {
+        const res = await fetch(CHAT_SEND_URL, {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
-          body: JSON.stringify({ stud_id: studId, prof_id: profId, sender: SELF_ROLE, recipient: IS_PROF ? String(studId) : String(profId), message: text })
+          body: JSON.stringify({ channel: CHAT_CHANNEL, message: text })
         });
-        if(res.ok){ setTimeout(pollOnce, 200); return true; }
+        if(!res.ok){ return null; }
+        const payload = await res.json();
+        if(payload && payload.id){
+          seenMessageIds.add(Number(payload.id));
+          if(Number(payload.id) > lastChatMessageId){ lastChatMessageId = Number(payload.id); }
+        }
+        setTimeout(pollOnce, 200);
+        return payload;
       }catch{}
-      return false;
+      return null;
     }
 
     async function enumerateDevices(){
@@ -1351,52 +1450,53 @@
     sendBtn.addEventListener('click', sendChat);
     messageBox.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); sendChat(); } });
     async function sendChat(){
-      const text = messageBox.value.trim();
+      const rawValue = messageBox.value;
+      const text = rawValue ? rawValue.trim() : '';
       if(!text || sendCooldown) return;
+
       sendCooldown = true;
       sendBtn.disabled = true;
       messageBox.value = '';
       messageBox.focus();
 
-      const registerEcho = ()=>{
-        const entry = logMsg(`You: ${text}`, false, true);
-        registerLocalEcho(text, entry);
-      };
+      const localEcho = logMsg(`You: ${text}`, false, true);
+      if(localEcho){
+        registerLocalEcho(text, localEcho);
+        markPendingEcho(localEcho);
+      }
 
+      let persisted = null;
+      try{
+        persisted = await httpSendChat(text);
+      }catch(_err){ persisted = null; }
+
+      if(persisted){
+        finalizeLocalChatEcho(text, persisted, localEcho);
+        scheduleSendReset();
+        return;
+      }
+
+      let deliveredRealtime = false;
       if(rtmChannel){
         try{
           await rtmChannel.sendMessage({ text });
-          registerEcho();
-        }catch{
-          logMsg('Failed to send message.', true);
-        } finally {
-          scheduleSendReset();
-        }
-        return;
+          deliveredRealtime = true;
+        }catch(_err){ deliveredRealtime = false; }
       }
 
-      if(rtcDataStream){
-        try {
+      if(!deliveredRealtime && rtcDataStream){
+        try{
           await rtcDataStream.send(text);
-          registerEcho();
-        } catch {
-          logMsg('Failed to send message (RTC).', true);
-        } finally {
-          scheduleSendReset();
-        }
-        return;
+          deliveredRealtime = true;
+        }catch(_err){ deliveredRealtime = false; }
       }
 
-      try{
-        const ok = await httpSendChat(text);
-        if(ok){
-          registerEcho();
-        }else{
-          logMsg('Chat unavailable. RTM not connected.', true);
-        }
-      }finally{
-        scheduleSendReset();
+      queueChatSyncRetry(text, localEcho);
+      if(!deliveredRealtime){
+        logMsg('Message will send once connection stabilizes.', true);
       }
+
+      scheduleSendReset();
     }
 
     leaveBtn.addEventListener('click', async () => {

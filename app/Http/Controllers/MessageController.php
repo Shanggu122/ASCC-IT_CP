@@ -389,10 +389,18 @@ class MessageController extends Controller
             ->orderBy("last_message_time", "desc")
             ->get();
 
-        $students = $students->map(function ($student) use ($user) {
+        $demoChannelOverride =
+            config("app.debug") && (int) ($user->Prof_ID ?? 0) === 3001
+                ? "demo-group-call-prof-3001"
+                : null;
+
+        $students = $students->map(function ($student) use ($user, $demoChannelOverride) {
             $normalizedPhoto = ProfilePhotoPath::normalize($student->profile_picture ?? null);
             $student->profile_picture = $normalizedPhoto;
             $student->profile_photo_url = ProfilePhotoPath::url($normalizedPhoto);
+            if ($demoChannelOverride && empty($student->meeting_link)) {
+                $student->meeting_link = $demoChannelOverride;
+            }
             $channel = $this->buildScheduleChannel(
                 (int) ($user->Prof_ID ?? 0),
                 $student->meeting_link ?? "",
@@ -438,9 +446,13 @@ class MessageController extends Controller
 
         $buckets = [];
         foreach ($bookingsToday as $entry) {
+            $meetingLink = $entry->meeting_link ?? "";
+            if ($demoChannelOverride && trim((string) $meetingLink) === "") {
+                $meetingLink = $demoChannelOverride;
+            }
             $channel = $this->buildScheduleChannel(
                 (int) ($user->Prof_ID ?? 0),
-                $entry->meeting_link ?? "",
+                $meetingLink,
                 $entry->booking_date ?? null,
                 $entry->booking_time ?? null,
             );

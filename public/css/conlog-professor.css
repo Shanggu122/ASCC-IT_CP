@@ -1348,6 +1348,49 @@ body {
     border: 1px solid #ccc;
 }
 
+.table-cell[data-label='Student'] {
+    white-space: normal;
+}
+
+.table-cell[data-label='Student'] .student-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.table-cell[data-label='Student'] .student-name-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.table-cell[data-label='Student'] .student-id,
+.table-cell[data-label='Student'] .student-name {
+    font-weight: 600;
+    color: #12372a;
+    word-break: break-word;
+}
+
+.table-cell[data-label='Student'] .student-id {
+    font-size: 0.85rem;
+    letter-spacing: 0.3px;
+}
+
+.table-cell[data-label='Student'] .student-name {
+    font-size: 0.9rem;
+}
+
+.table-cell[data-label='Student'] .first-book-badge {
+    margin-top: 0;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #f59e0b;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
 /* Constrain table width on ultra-wide screens similar to student */
 .table {
     max-width: 1600px;
@@ -1465,6 +1508,27 @@ body {
         letter-spacing: 0.2px;
         opacity: 0.7;
         font-family: 'Poppins', sans-serif;
+    }
+    .table-cell[data-label='Student'] {
+        align-items: flex-start;
+    }
+    .table-cell[data-label='Student'] .student-cell {
+        width: 100%;
+        gap: 0.4rem;
+    }
+    .table-cell[data-label='Student'] .student-id {
+        font-size: 12px;
+    }
+    .table-cell[data-label='Student'] .student-name {
+        font-size: 13px;
+    }
+    .table-cell[data-label='Student'] .first-book-badge {
+        font-size: 11px;
+        padding: 2px 6px;
+        margin-top: 0;
+    }
+    .table-cell[data-label='Student'] .first-book-badge {
+        align-self: flex-start;
     }
     /* Action buttons row: stack vertically on mobile */
     .action-btn-group {

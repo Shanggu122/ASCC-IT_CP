@@ -46,7 +46,8 @@
     th { background: #f3f3f3; font-weight: 700; }
     /* Prevent date wrapping */
     .col-date { white-space: nowrap; }
-    .col-remarks { width: 180px; white-space: pre-wrap; word-break: break-word; }
+    .col-remarks { width: 140px; white-space: pre-wrap; word-break: break-word; }
+    .col-student { width: 90px; }
 
     /* Footer signatures */
     .signature-row { display:flex; justify-content: space-between; align-items: flex-start; gap: 32px; margin-top: 24px; }
@@ -178,7 +179,7 @@
             <thead>
                 <tr>
                     <th style="width:30px">No.</th>
-                    <th>Student</th>
+                    <th class="col-student">Student</th>
                     <th>Subject</th>
                     <th style="width:120px">Date</th>
                     <th>Type</th>
@@ -191,7 +192,7 @@
                 @foreach($chunk as $i => $log)
                     <tr>
                         <td>{{ ($pageIndex * $perPage) + $i + 1 }}</td>
-                        <td>{{ $log['student'] ?? '' }}</td>
+                        <td class="col-student">{!! nl2br(e($log['student'] ?? '')) !!}</td>
                         <td>{{ $log['subject'] ?? '' }}</td>
                         <td class="col-date">{{ $log['date'] ?? '' }}</td>
                         <td>{{ $log['type'] ?? '' }}</td>

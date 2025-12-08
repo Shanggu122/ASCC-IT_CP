@@ -10,6 +10,7 @@ use App\Http\Controllers\ConsultationBookingController;
 use App\Http\Controllers\ConsultationLogController;
 use App\Http\Controllers\VideoCallController;
 use App\Http\Controllers\ProfVideoCallController;
+use App\Http\Controllers\VideoCallChatController;
 // use App\Http\Controllers\CallPresenceController; // Temporarily disabled (controller file missing)
 use App\Http\Controllers\AuthControllerProfessor;
 use App\Http\Controllers\ConsultationLogControllerProfessor;
@@ -143,6 +144,13 @@ Route::get("/video-call/{user}", [VideoCallController::class, "show"])
 
 Route::get("/video-call/participants/{uid}", [VideoCallController::class, "participant"])->name(
     "video.call.participant",
+);
+
+Route::get("/video-call/chat/history", [VideoCallChatController::class, "history"])->name(
+    "video.call.chat.history",
+);
+Route::post("/video-call/chat", [VideoCallChatController::class, "store"])->name(
+    "video.call.chat.store",
 );
 
 if (config("app.debug")) {

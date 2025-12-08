@@ -401,8 +401,13 @@
       $completionReviewedAt = '';
     }
   @endphp
+  @php
+    $studentIdRaw = trim((string) ($b->student_id ?? ''));
+    $studentDisplayId = $studentIdRaw !== '' ? $studentIdRaw : 'N/A';
+  @endphp
   <div class="table-row {{ $statusLower === 'cancelled' ? 'cancelled-booking' : '' }}"
     data-student="{{ strtolower($b->student) }}"
+    data-student-id="{{ $studentIdRaw }}"
     data-subject="{{ strtolower($b->subject) }}"
     data-date="{{ \Carbon\Carbon::parse($b->Booking_Date)->format('Y-m-d') }}"
     data-date-ts="{{ \Carbon\Carbon::parse($b->Booking_Date)->timestamp }}"
@@ -421,7 +426,14 @@
     data-matched="1"
   >
     <div class="table-cell" data-label="No." data-booking-id="{{ $b->Booking_ID }}">{{ $loop->iteration }}</div>
-          <div class="table-cell" data-label="Student">{{ $b->student }}</div> <!-- Student name -->
+          <div class="table-cell" data-label="Student">
+            <div class="student-cell">
+              <span class="student-id" data-field="student-id">{{ $studentDisplayId }}</span>
+              <span class="student-name-line">
+                <span class="student-name" data-field="student-name">{{ $b->student }}</span>
+              </span>
+            </div>
+          </div>
           <div class="table-cell" data-label="Subject">{{ $b->subject }}</div>
           <div class="table-cell" data-label="Date">{{ \Carbon\Carbon::parse($b->Booking_Date)->format('D, M d Y') }}</div>
           <div class="table-cell" data-label="Type">{{ $b->type }}</div>
@@ -1897,9 +1909,13 @@ function markFirstBookingsProf(){
         const badge = document.createElement('span');
         badge.className = 'first-book-badge';
         badge.title = 'First to book for this date';
-        badge.style.cssText = 'margin-left:6px;padding:2px 6px;border-radius:10px;background:#f59e0b;color:#fff;font-size:10px;font-weight:600;vertical-align:middle;';
         badge.textContent = 'First';
-        studentCell.appendChild(badge);
+        const nameLine = studentCell.querySelector('.student-name-line');
+        if(nameLine){
+          nameLine.appendChild(badge);
+        } else {
+          studentCell.appendChild(badge);
+        }
       }
     } else if(existing){
       existing.remove();
@@ -2117,7 +2133,14 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           
           row.innerHTML = `
             <div class="table-cell" data-label="No.">${index + 1}</div>
-            <div class="table-cell" data-label="Student">${booking.student || 'N/A'}</div>
+            <div class="table-cell" data-label="Student">
+              <div class="student-cell">
+                <span class="student-id" data-field="student-id">${booking.student_id || 'N/A'}</span>
+                <span class="student-name-line">
+                  <span class="student-name" data-field="student-name">${booking.student || 'N/A'}</span>
+                </span>
+              </div>
+            </div>
             <div class="table-cell" data-label="Subject">${booking.subject}</div>
             <div class="table-cell" data-label="Date">${bookingDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</div>
             <div class="table-cell" data-label="Type">${booking.type}</div>
@@ -2299,6 +2322,30 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
             .replace(/>/g,'&gt;');
         }
 
+        function escapeHtml(value){
+          return String(value ?? '')
+            .replace(/&/g,'&amp;')
+            .replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;')
+            .replace(/'/g,'&#39;');
+        }
+
+        function buildStudentCellHtml(idValue, nameValue){
+          const normalizedId = String(idValue ?? '').trim();
+          const normalizedName = String(nameValue ?? '').trim();
+          const safeId = escapeHtml(normalizedId !== '' ? normalizedId : 'N/A');
+          const safeName = escapeHtml(normalizedName !== '' ? normalizedName : 'N/A');
+          return (
+            '<div class="student-cell">'
+              + '<span class="student-id" data-field="student-id">' + safeId + '</span>'
+              + '<span class="student-name-line">'
+                  + '<span class="student-name" data-field="student-name">' + safeName + '</span>'
+                + '</span>'
+            + '</div>'
+          );
+        }
+
         function normalizeDate(str){ try{ return new Date(str).toLocaleDateString('en-US',{weekday:'short', month:'short', day:'numeric', year:'numeric'}); }catch(e){ return str; } }
         function formatStatusLabel(raw){
           const normalized = String(raw||'').toLowerCase();
@@ -2317,7 +2364,30 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           // If updating and some fields are missing, read them from the existing row
           if(existing){
             const cells = existing.querySelectorAll('.table-cell');
-            data.student = data.student ?? (cells[1]?.textContent.trim()||'');
+            if(data.student === undefined || data.student === null || String(data.student).trim() === ''){
+              const nameSpan = existing.querySelector('.student-name[data-field="student-name"]');
+              if(nameSpan && nameSpan.textContent.trim() !== ''){
+                data.student = nameSpan.textContent.trim();
+              } else if(cells[1]){
+                const cellText = cells[1].textContent ? cells[1].textContent.trim() : '';
+                if(cellText) data.student = cellText;
+              }
+              if(data.student === undefined || data.student === null || String(data.student).trim() === ''){
+                const attrStudent = existing.getAttribute('data-student');
+                if(attrStudent && attrStudent.trim() !== ''){
+                  data.student = attrStudent;
+                }
+              }
+            }
+            if(data.student_id === undefined || data.student_id === null || String(data.student_id).trim() === ''){
+              const attrId = existing.getAttribute('data-student-id');
+              if(attrId && attrId.trim() !== ''){
+                data.student_id = attrId;
+              } else {
+                const idSpan = existing.querySelector('.student-id[data-field="student-id"]');
+                data.student_id = idSpan ? idSpan.textContent.trim() : '';
+              }
+            }
             data.subject = data.subject ?? (cells[2]?.textContent.trim()||'');
             data.Booking_Date = data.Booking_Date ?? (cells[3]?.textContent.trim()||'');
             data.type = data.type ?? (cells[4]?.textContent.trim()||'');
@@ -2339,6 +2409,8 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           const status = formatStatusLabel(normalizedStatus);
           const date = normalizeDate(data.Booking_Date||'');
           const iter = existing ? (existing.querySelector('.table-cell')?.textContent||'') : (rows.length+1);
+          const studentIdValue = String(data.student_id ?? '').trim();
+          const studentCellHtml = buildStudentCellHtml(studentIdValue, data.student||'');
 
           const escapeInlineArg = (value)=>String(value||'')
             .replace(/\\/g,'\\\\')
@@ -2381,7 +2453,7 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           const statusTitle = data.completion_reason ? ` title="${escapeAttr('Remarks: '+data.completion_reason)}"` : '';
           const html = `
             <div class="table-cell" data-label="No.">${iter}</div>
-            <div class="table-cell" data-label="Student">${data.student||'N/A'}</div>
+            <div class="table-cell" data-label="Student">${studentCellHtml}</div>
             <div class="table-cell" data-label="Subject">${data.subject||''}</div>
             <div class="table-cell" data-label="Date">${date}</div>
             <div class="table-cell" data-label="Type">${data.type||''}</div>
@@ -2408,6 +2480,7 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
                 if (Number.isFinite(prevTs)) createdTs = prevTs;
               }
               existing.setAttribute('data-student', String(data.student||'').toLowerCase());
+              existing.setAttribute('data-student-id', studentIdValue);
               existing.setAttribute('data-subject', String(data.subject||'').toLowerCase());
               if (!isNaN(dateObj.getTime())) {
                 existing.setAttribute('data-date', `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`);
@@ -2469,6 +2542,7 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
               const dateObj = new Date(data.Booking_Date);
               const createdObj = new Date(data.Created_At);
               row.setAttribute('data-student', String(data.student||'').toLowerCase());
+              row.setAttribute('data-student-id', studentIdValue);
               row.setAttribute('data-subject', String(data.subject||'').toLowerCase());
               row.setAttribute('data-date', isNaN(dateObj.getTime())?'':`${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`);
               row.setAttribute('data-date-ts', isNaN(dateObj.getTime())?'': String(Math.floor(dateObj.getTime()/1000)));
@@ -2588,8 +2662,18 @@ document.getElementById('resetFiltersBtn')?.addEventListener('click', resetFilte
           const cells = r.querySelectorAll('.table-cell');
           if(cells.length < 7) return;
           const studentCell = r.querySelector('.table-cell[data-label="Student"]');
-          let studentText = '';
+          let studentName = '';
+          let studentId = '';
           if(studentCell){
+            const nameEl = studentCell.querySelector('.student-name[data-field="student-name"]');
+            const idEl = studentCell.querySelector('.student-id[data-field="student-id"]');
+            studentName = nameEl ? nameEl.textContent.trim() : '';
+            studentId = idEl ? idEl.textContent.trim() : '';
+          }
+          let studentText = '';
+          if(studentName || studentId){
+            studentText = [studentName, studentId].filter(Boolean).join('\n');
+          } else if(studentCell){
             const clone = studentCell.cloneNode(true);
             const badge = clone.querySelectorAll('.first-book-badge');
             badge.forEach(b=>b.remove());
