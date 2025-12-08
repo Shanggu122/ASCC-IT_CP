@@ -68,15 +68,61 @@
 .sidebar ul {
     list-style: none;
     width: 100%;
+    margin: 0;
+    padding: 0;
 }
-.sidebar ul li a {
-    display: block;
-    padding: 1rem 0 1rem 2rem;
+.sidebar ul li {
+    width: 100%;
+}
+.sidebar ul li a,
+.sidebar ul li button.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem 0.9rem 1.75rem;
     color: white;
     text-decoration: none;
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition:
+        background-color 0.2s ease,
+        color 0.2s ease;
 }
-.sidebar ul li a:hover {
+.sidebar ul li a:hover,
+.sidebar ul li button.nav-link:hover {
     background-color: #20543d;
+}
+.sidebar ul li form {
+    margin: 0;
+}
+.sidebar ul li a .nav-icon,
+.sidebar ul li button.nav-link .nav-icon {
+    font-size: 1.2rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.8);
+    flex-shrink: 0;
+}
+.sidebar ul li a .nav-label,
+.sidebar ul li button.nav-link .nav-label {
+    flex: 1;
+    color: inherit;
+}
+.sidebar ul li a:hover .nav-icon,
+.sidebar ul li button.nav-link:hover .nav-icon {
+    color: #b7ffda;
+}
+.nav-icon-svg {
+    width: 1.45rem;
+    height: 1.45rem;
 }
 
 /* Hamburger button */

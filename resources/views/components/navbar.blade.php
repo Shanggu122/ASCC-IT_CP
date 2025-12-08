@@ -39,13 +39,45 @@
         </div>
         
         <ul>
-            <li><a href="{{ url('/dashboard') }}">Dashboard</a></li>
-            <li><a href="{{ url('/comsci') }}">Computer Science</a></li>
-            <li><a href="{{ url('/itis') }}">IT & IS</a></li>
-            <li><a href="{{ url('/profile') }}">Profile</a></li>
-            <li><a href="{{ url('/conlog') }}">Consultation Log</a></li>
-            <li><a href="{{ url('/messages') }}">Messages</a></li>
-            <li><x-logout-link guard="web" label="Sign Out" /></li>
+            <li>
+                <a class="nav-link" href="{{ url('/dashboard') }}">
+                    <i class='bx bx-home nav-icon' aria-hidden="true"></i>
+                    <span class="nav-label">Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link" href="{{ url('/comsci') }}">
+                    <x-icons.comsci aria-hidden="true" />
+                    <span class="nav-label">Computer Science</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link" href="{{ url('/itis') }}">
+                    <x-icons.itis aria-hidden="true" />
+                    <span class="nav-label">IT &amp; IS</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link" href="{{ url('/profile') }}">
+                    <i class='bx bx-user-circle nav-icon' aria-hidden="true"></i>
+                    <span class="nav-label">Profile</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link" href="{{ url('/conlog') }}">
+                    <i class='bx bx-notepad nav-icon' aria-hidden="true"></i>
+                    <span class="nav-label">Consultation Log</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link" href="{{ url('/messages') }}">
+                    <i class='bx bx-envelope nav-icon' aria-hidden="true"></i>
+                    <span class="nav-label">Messages</span>
+                </a>
+            </li>
+            <li>
+                <x-logout-link guard="web" label="Sign Out" class="nav-link nav-logout" icon="bx-log-out" />
+            </li>
         </ul>
     </div>
     <!-- Grey overlay shown when mobile sidebar is open (all student pages) -->

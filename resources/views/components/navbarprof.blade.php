@@ -30,15 +30,47 @@
             <span class="role-label">Professor Portal</span>
         </div>
         
-         <ul>
-          <li><a href="{{ url('/dashboard-professor') }}">Dashboard</a></li>
-          <li><a href="{{ url('/comsci-professor') }}">Computer Science</a></li>
-          <li><a href="{{ url('/itis-professor') }}">IT & IS</a></li>
-          <li><a href="{{ url('/profile-professor') }}">Profile</a></li>
-          <li><a href="{{ url('/conlog-professor') }}">Consultation Log</a></li>
-          <li><a href="{{ url('/messages-professor') }}">Messages</a></li>
-          <li><x-logout-link guard="professor" label="Sign Out" /></li>
-        </ul>
+                 <ul>
+                    <li>
+                        <a class="nav-link" href="{{ url('/dashboard-professor') }}">
+                            <i class='bx bx-home nav-icon' aria-hidden="true"></i>
+                            <span class="nav-label">Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-link" href="{{ url('/comsci-professor') }}">
+                            <x-icons.comsci aria-hidden="true" />
+                            <span class="nav-label">Computer Science</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-link" href="{{ url('/itis-professor') }}">
+                            <x-icons.itis aria-hidden="true" />
+                            <span class="nav-label">IT &amp; IS</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-link" href="{{ url('/profile-professor') }}">
+                            <i class='bx bx-id-card nav-icon' aria-hidden="true"></i>
+                            <span class="nav-label">Profile</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-link" href="{{ url('/conlog-professor') }}">
+                            <i class='bx bx-calendar-check nav-icon' aria-hidden="true"></i>
+                            <span class="nav-label">Consultation Log</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a class="nav-link" href="{{ url('/messages-professor') }}">
+                            <i class='bx bx-envelope nav-icon' aria-hidden="true"></i>
+                            <span class="nav-label">Messages</span>
+                        </a>
+                    </li>
+                    <li>
+                        <x-logout-link guard="professor" label="Sign Out" class="nav-link nav-logout" icon="bx-log-out" />
+                    </li>
+                </ul>
       </div>
 
     @if (Request::is('dashboard-professor'))
