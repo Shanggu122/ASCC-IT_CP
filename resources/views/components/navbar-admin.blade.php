@@ -9,13 +9,33 @@
                 <span class="role-label">Admin Portal</span>
         </div>
         <ul>
-                <li><a class="{{ str_starts_with($current,'admin-dashboard') ? 'active' : '' }}" href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-                <li><a class="{{ str_contains($current,'admin-comsci') ? 'active' : '' }}" href="{{ url('/admin-comsci') }}">Computer Science</a></li>
-                <li><a class="{{ str_contains($current,'admin-itis') ? 'active' : '' }}" href="{{ url('/admin-itis') }}">IT & IS</a></li>
-                <li><a class="{{ str_contains($current,'admin-analytics') ? 'active' : '' }}" href="{{ url('/admin-analytics') }}">Analytics</a></li>
-                <li style="margin:0;padding:0;">
-                        <x-logout-link guard="admin" label="Sign Out" class="logout-btn sidebar-link" style="background:none;border:none;padding:1rem 0 1rem 2rem;width:100%;color:inherit;text-align:left;font-family:inherit;font-size:inherit;cursor:pointer;" />
-                </li>
+            <li>
+                <a class="nav-link {{ str_starts_with($current,'admin-dashboard') ? 'active' : '' }}" href="{{ route('admin.dashboard') }}">
+                    <i class='bx bx-home nav-icon' aria-hidden="true"></i>
+                    <span class="nav-label">Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link {{ str_contains($current,'admin-comsci') ? 'active' : '' }}" href="{{ url('/admin-comsci') }}">
+                    <x-icons.comsci aria-hidden="true" />
+                    <span class="nav-label">Computer Science</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link {{ str_contains($current,'admin-itis') ? 'active' : '' }}" href="{{ url('/admin-itis') }}">
+                    <x-icons.itis aria-hidden="true" />
+                    <span class="nav-label">IT &amp; IS</span>
+                </a>
+            </li>
+            <li>
+                <a class="nav-link {{ str_contains($current,'admin-analytics') ? 'active' : '' }}" href="{{ url('/admin-analytics') }}">
+                    <i class='bx bx-bar-chart nav-icon' aria-hidden="true"></i>
+                    <span class="nav-label">Analytics</span>
+                </a>
+            </li>
+            <li>
+                <x-logout-link guard="admin" label="Sign Out" class="nav-link nav-logout" icon="bx-log-out" />
+            </li>
         </ul>
 </div>
 <script>
