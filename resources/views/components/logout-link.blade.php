@@ -7,9 +7,9 @@
 ])
 @php
     $routeMap = [
-        'web' => ['url' => route('logout', [], false), 'method' => 'GET'],
-        'professor' => ['url' => route('logout-professor', [], false), 'method' => 'GET'],
-    'admin' => ['url' => route('logout.admin', [], false), 'method' => 'POST'],
+        'web' => ['url' => route('logout'), 'method' => 'GET'],
+        'professor' => ['url' => route('logout-professor'), 'method' => 'GET'],
+        'admin' => ['url' => route('logout.admin'), 'method' => 'POST'],
     ];
     $cfg = $routeMap[$guard] ?? $routeMap['web'];
     $text = $label ?? __('Logout');
