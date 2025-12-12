@@ -68,6 +68,22 @@ Route::get("/login", [UnifiedAuthController::class, "showLoginForm"]);
 
 // Unified login POST route
 Route::post("/login", [UnifiedAuthController::class, "login"])->name("login.submit");
+
+// Admin authentication routes
+Route::get("/login/admin", [AdminAuthController::class, "showLoginForm"])->name("login.admin");
+Route::post("/login/admin", [AdminAuthController::class, "login"])->name("login.admin.submit");
+
+// Professor authentication routes
+Route::middleware(["guest:professor"])->group(function () {
+    Route::get("/login-professor", function () {
+        return view("login-professor");
+    })->name("login.professor");
+
+    Route::post("/login-professor", [AuthControllerProfessor::class, "login"])->name(
+        "login.professor.submit",
+    );
+});
+
 // Protected student routes (require authentication)
 Route::get("/dashboard", function () {
     return view("dashboard"); // student dashboard

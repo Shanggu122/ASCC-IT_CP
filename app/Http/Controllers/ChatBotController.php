@@ -322,6 +322,17 @@ class ChatBotController extends Controller
             return $this->professorSubjectsSummary($profId);
         }
 
+        if ($this->isLikelyTagalog($normalized)) {
+            return $this->englishOnlyFallback();
+        }
+
+        if (
+            $this->isOutOfScopeSmallTalk($normalized) ||
+            $this->outOfScopeDetector->isOutOfScope($normalized)
+        ) {
+            return $this->outOfScopeResponse();
+        }
+
         return null;
     }
 
@@ -1361,7 +1372,7 @@ class ChatBotController extends Controller
 
     private function outOfScopeResponse(): string
     {
-        return "I can help with ASCC consultation schedules, bookings, professors, and related questions. That topic is outside what I can answer.";
+        return "I can only help with ASCC consultation questions in English. Please ask about consultations, schedules, or related topics.";
     }
 
     private function isLikelyTagalog(string $m): bool
@@ -1596,7 +1607,7 @@ class ChatBotController extends Controller
             str_contains($m, "reschedule") ||
             preg_match("/\bresched(?:ule|uling)?\b/i", $m)
         ) {
-            return "You can’t directly reschedule a booking. If it’s still Pending and within 1 hour of creation, cancel it and book a new date/time. If it’s already Approved or past 1 hour, message your professor from the Messages tab to request a new time they may reschedule it or ask you to cancel and rebook.";
+            return "To reschedule your consultation, you can't directly reschedule a booking. If it's still Pending and within 1 hour of creation, cancel it and book a new date/time. If it's already Approved or past 1 hour, message your professor from the Messages tab to request a new time they may reschedule it or ask you to cancel and rebook.";
         }
 
         // Early guard: "Can I see/meet <prof> now?" or "Is <prof> in the office?" -> steer to Messages page and department office

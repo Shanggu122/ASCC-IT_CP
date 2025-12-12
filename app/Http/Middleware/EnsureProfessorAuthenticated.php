@@ -10,8 +10,8 @@ class EnsureProfessorAuthenticated
 {
     public function handle(Request $request, Closure $next)
     {
-        if (!Auth::guard('professor')->check()) {
-            return redirect('/login-professor');
+        if (!Auth::guard("professor")->check()) {
+            return redirect()->route("login.professor");
         }
         return $next($request);
     }

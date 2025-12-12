@@ -24,6 +24,30 @@
         <!-- Date filters removed per latest requirement -->
       </div>
 
+      <section class="legacy-overview" style="display: none;">
+        <h2 class="legacy-heading">Consultation Activity</h2>
+        <div class="legacy-grid">
+          <div class="card chart-card legacy-card">
+            <h3 class="legacy-card-title">Consultation Topics Overview</h3>
+            <div class="chart-container legacy-chart">
+              <canvas id="topicsChart"></canvas>
+            </div>
+          </div>
+          <div class="card chart-card legacy-card">
+            <h3>Peak Consultation Days</h3>
+            <div class="chart-container legacy-chart">
+              <canvas id="peakDaysChart"></canvas>
+            </div>
+          </div>
+          <div class="card chart-card legacy-card">
+            <h3 class="legacy-card-title">Monthly Activity Trend</h3>
+            <div class="chart-container legacy-chart">
+              <canvas id="activityChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div class="department-tabs">
         <button class="department-tab active" data-dept="itis">
           <i class='bx bx-building-house'></i> ITIS Department
@@ -98,7 +122,7 @@
     </div>
   </div>
   <!-- Load Chart.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <!-- Initialize charts -->
   <script>
     // Debug flag

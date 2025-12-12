@@ -16,7 +16,7 @@
 <body>
   <div class="layout no-sidebar">
     <div class="topbar">
-  <div class="title">{{ $callTitle }}</div>
+  <div class="title">Meeting — {{ $callTitle }}</div>
       <div></div>
     </div>
     <div id="stage">
