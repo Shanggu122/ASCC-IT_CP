@@ -24,7 +24,7 @@
         <!-- Date filters removed per latest requirement -->
       </div>
 
-      <section class="legacy-overview">
+      <section class="legacy-overview" style="display: none;">
         <h2 class="legacy-heading">Consultation Activity</h2>
         <div class="legacy-grid">
           <div class="card chart-card legacy-card">
